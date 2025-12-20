@@ -1,0 +1,129 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-12-10 23:38:35.611586",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_vxfv",
+  "general_column",
+  "language",
+  "currency",
+  "vat_included_in_rate",
+  "idno_column",
+  "company_idno_field",
+  "customer_idno_field",
+  "supplier_idno_field",
+  "idno_section",
+  "api_url",
+  "api_username",
+  "api_password"
+ ],
+ "fields": [
+  {
+   "fieldname": "language",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Language (Romanian)",
+   "options": "Language",
+   "reqd": 1
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency (MDL)",
+   "options": "Currency",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "vat_included_in_rate",
+   "fieldtype": "Check",
+   "label": "Is VAT included in Rate?"
+  },
+  {
+   "fieldname": "idno_section",
+   "fieldtype": "Section Break",
+   "label": "API"
+  },
+  {
+   "description": "Select field from Company used to store IDNO",
+   "fieldname": "company_idno_field",
+   "fieldtype": "Select",
+   "label": "Company IDNO field",
+   "reqd": 1
+  },
+  {
+   "description": "Select field from Customer used to store IDNO",
+   "fieldname": "customer_idno_field",
+   "fieldtype": "Select",
+   "label": "Customer IDNO field",
+   "reqd": 1
+  },
+  {
+   "description": "Select field from Supplier used to store IDNO",
+   "fieldname": "supplier_idno_field",
+   "fieldtype": "Select",
+   "label": "Supplier IDNO field",
+   "reqd": 1
+  },
+  {
+   "fieldname": "general_column",
+   "fieldtype": "Column Break",
+   "label": "General"
+  },
+  {
+   "fieldname": "idno_column",
+   "fieldtype": "Column Break",
+   "label": "IDNO"
+  },
+  {
+   "default": "https://efactura-api.sfs.md/Service.svc",
+   "fieldname": "api_url",
+   "fieldtype": "Data",
+   "label": "URL",
+   "reqd": 1
+  },
+  {
+   "fieldname": "api_username",
+   "fieldtype": "Data",
+   "label": "Username",
+   "reqd": 1
+  },
+  {
+   "fieldname": "api_password",
+   "fieldtype": "Data",
+   "label": "Password",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_vxfv",
+   "fieldtype": "Section Break"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2025-12-16 20:42:40.647749",
+ "modified_by": "Administrator",
+ "module": "Moldova eFactura",
+ "name": "eFactura Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

@@ -1,6 +1,6 @@
-### Erpnext Moldova Efactura
+### ERPNext Moldova Efactura
 
-ERPNext integration for generating and sending Moldovan electronic tax in
+ERPNext integration for generating and sending Moldovan electronic tax invoices (e-Factura) with automated API workflow.
 
 ### Installation
 

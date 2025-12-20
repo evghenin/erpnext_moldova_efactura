@@ -1,5 +1,5 @@
 app_name = "erpnext_moldova_efactura"
-app_title = "Erpnext Moldova Efactura"
+app_title = "ERPNext Moldova Efactura"
 app_publisher = "Evgheni Nemerenco"
 app_description = "ERPNext integration for generating and sending Moldovan electronic tax in"
 app_email = "evgheni.nemerenco@gmail.com"
@@ -15,7 +15,7 @@ app_license = "mit"
 # 	{
 # 		"name": "erpnext_moldova_efactura",
 # 		"logo": "/assets/erpnext_moldova_efactura/logo.png",
-# 		"title": "Erpnext Moldova Efactura",
+# 		"title": "ERPNext Moldova Efactura",
 # 		"route": "/erpnext_moldova_efactura",
 # 		"has_permission": "erpnext_moldova_efactura.api.permission.has_app_permission"
 # 	}
@@ -47,6 +47,11 @@ app_license = "mit"
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
+
+doctype_js = {
+    "Company": "public/js/company.js",
+    "Sales Invoice": "public/js/sales_invoice.js",
+}
 
 # Svg Icons
 # ------------------
@@ -185,6 +190,11 @@ app_license = "mit"
 # 	"Task": "erpnext_moldova_efactura.task.get_dashboard_data"
 # }
 
+override_doctype_dashboards = {
+    "Sales Invoice": "erpnext_moldova_efactura.overrides.dashboard.get_sales_invoice_dashboard",
+    "Delivery Note": "erpnext_moldova_efactura.overrides.dashboard.get_delivery_note_dashboard"
+}
+
 # exempt linked doctypes from being automatically cancelled
 #
 # auto_cancel_exempted_doctypes = ["Auto Repeat"]
@@ -242,3 +252,6 @@ app_license = "mit"
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
 
+fixtures = [
+    {"doctype": "Custom Field", "filters": {"module": ["in", ["Moldova eFactura"]]}},
+]

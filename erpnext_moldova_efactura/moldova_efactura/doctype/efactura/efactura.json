@@ -1,0 +1,792 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2025-12-09 22:53:59.892203",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_fj2x",
+  "column_break_qrzc",
+  "naming_series",
+  "posting_date",
+  "posting_time",
+  "column_break_grhc",
+  "type",
+  "ef_status",
+  "ef_series",
+  "ef_number",
+  "status",
+  "delivery_date",
+  "issue_date",
+  "column_break_muzu",
+  "amended_from",
+  "company",
+  "reference_doctype",
+  "reference_name",
+  "section_break_bfpw",
+  "currency",
+  "column_break_hfwb",
+  "ef_currency",
+  "ef_conversion_rate",
+  "supplier_section",
+  "supplier_party_type",
+  "supplier_party",
+  "supplier_bank_account",
+  "column_break_jkzb",
+  "ef_supplier_details",
+  "ef_supplier_is_user",
+  "ef_supplier_idno",
+  "ef_supplier_vat_id",
+  "ef_supplier_taxpayer_type",
+  "ef_supplier_name",
+  "ef_supplier_address",
+  "ef_supplier_bank_account",
+  "ef_supplier_bank_name",
+  "ef_supplier_bank_code",
+  "customer_section",
+  "customer_party_type",
+  "customer_party",
+  "column_break_dxqc",
+  "ef_customer_details",
+  "ef_customer_is_user",
+  "ef_customer_idno",
+  "ef_customer_vat_id",
+  "ef_customer_taxpayer_type",
+  "ef_customer_name",
+  "ef_customer_address",
+  "ef_customer_bank_account",
+  "ef_customer_bank_name",
+  "ef_customer_bank_code",
+  "section_break_gjtm",
+  "transporter_party_type",
+  "transporter_party",
+  "column_break_oluj",
+  "ef_transporter_details",
+  "ef_transporter_is_user",
+  "ef_transporter_idno",
+  "ef_transporter_vat_id",
+  "ef_transporter_taxpayer_type",
+  "ef_transporter_name",
+  "ef_transporter_address",
+  "ef_transporter_bank_account",
+  "ef_transporter_bank_name",
+  "ef_transporter_bank_code",
+  "section_break_sedp",
+  "items",
+  "totals_section",
+  "column_break_dumd",
+  "net_total",
+  "ef_net_total",
+  "column_break_nlqd",
+  "vat_total",
+  "ef_vat_total",
+  "column_break_fglh",
+  "total",
+  "ef_total",
+  "connections_tab"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_fj2x",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "eFactura",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_qrzc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_grhc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Today",
+   "fieldname": "posting_date",
+   "fieldtype": "Date",
+   "label": "Posting Date",
+   "no_copy": 1,
+   "print_width": "100px",
+   "read_only": 1,
+   "reqd": 1,
+   "search_index": 1,
+   "width": "100px"
+  },
+  {
+   "fieldname": "column_break_muzu",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company",
+   "print_hide": 1,
+   "print_width": "150px",
+   "remember_last_selected_value": 1,
+   "reqd": 1,
+   "width": "150px"
+  },
+  {
+   "default": "Now",
+   "fieldname": "posting_time",
+   "fieldtype": "Time",
+   "label": "Posting Time",
+   "no_copy": 1,
+   "print_hide": 1,
+   "print_width": "100px",
+   "read_only": 1,
+   "reqd": 1,
+   "width": "100px"
+  },
+  {
+   "default": "Transfer",
+   "fieldname": "type",
+   "fieldtype": "Select",
+   "label": "Type",
+   "options": "Transfer\nNon-Transfer",
+   "reqd": 1,
+   "set_only_once": 1
+  },
+  {
+   "default": "Company",
+   "fieldname": "supplier_party_type",
+   "fieldtype": "Select",
+   "label": "Supplier Party Type",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "supplier_section",
+   "fieldtype": "Section Break",
+   "label": "Supplier"
+  },
+  {
+   "fieldname": "supplier_party",
+   "fieldtype": "Dynamic Link",
+   "label": "Supplier Party",
+   "options": "supplier_party_type",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_jkzb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "customer_section",
+   "fieldtype": "Section Break",
+   "label": "Customer"
+  },
+  {
+   "default": "Customer",
+   "fieldname": "customer_party_type",
+   "fieldtype": "Select",
+   "label": "Customer Party Type",
+   "options": "Customer",
+   "reqd": 1
+  },
+  {
+   "fieldname": "customer_party",
+   "fieldtype": "Dynamic Link",
+   "label": "Customer Party",
+   "options": "customer_party_type",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_dxqc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_gjtm",
+   "fieldtype": "Section Break",
+   "label": "Transporter"
+  },
+  {
+   "fieldname": "transporter_party_type",
+   "fieldtype": "Select",
+   "label": "Transporter Party Type",
+   "options": "Company\nSupplier\nCustomer",
+   "reqd": 1
+  },
+  {
+   "fieldname": "transporter_party",
+   "fieldtype": "Dynamic Link",
+   "label": "Transporter Party",
+   "options": "transporter_party_type",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_oluj",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.supplier_party_type==\"Company\"",
+   "fieldname": "supplier_bank_account",
+   "fieldtype": "Link",
+   "label": "Supplier Bank Account",
+   "mandatory_depends_on": "eval:doc.supplier_party_type==\"Company\"",
+   "options": "Bank Account",
+   "reqd": 1
+  },
+  {
+   "fieldname": "ef_supplier_name",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "eF Supplier Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_supplier_address",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "eF Supplier Address",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_supplier_bank_account",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "eF Supplier Bank Account",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_supplier_bank_name",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "eF Supplier Bank Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_supplier_bank_code",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "eF Supplier Bank Code",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_customer_name",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "eF Customer Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_customer_address",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "eF Customer Address",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_customer_bank_account",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "eF Customer Bank Account",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_customer_bank_name",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "eF Customer Bank Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_customer_bank_code",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "eF Customer Bank Code",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_transporter_name",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "eF Transporter Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_transporter_address",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "eF Transporter Address",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_transporter_bank_account",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "eF Transporter Bank Account",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_transporter_bank_name",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "eF Transporter Bank Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_transporter_bank_code",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "eF Transporter Bank Code",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_supplier_vat_id",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "eF Supplier VAT Id",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_customer_vat_id",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "eF Customer VAT Id",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_transporter_vat_id",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "eF Transporter VAT Id",
+   "read_only": 1
+  },
+  {
+   "default": "Sales Invoice",
+   "fieldname": "reference_doctype",
+   "fieldtype": "Select",
+   "label": "Reference Type",
+   "options": "Sales Invoice",
+   "reqd": 1
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Reference Name",
+   "options": "reference_doctype",
+   "reqd": 1
+  },
+  {
+   "fieldname": "totals_section",
+   "fieldtype": "Section Break",
+   "label": "Totals",
+   "options": "fa fa-money"
+  },
+  {
+   "default": "0",
+   "fieldname": "net_total",
+   "fieldtype": "Currency",
+   "label": "Net Total",
+   "options": "currency",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_dumd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "vat_total",
+   "fieldtype": "Currency",
+   "label": "VAT Total",
+   "options": "currency",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_nlqd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "total",
+   "fieldtype": "Currency",
+   "label": "Total",
+   "options": "currency",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "default": "Today",
+   "fieldname": "delivery_date",
+   "fieldtype": "Date",
+   "label": "Delivery Date",
+   "reqd": 1
+  },
+  {
+   "default": "Today",
+   "fieldname": "issue_date",
+   "fieldtype": "Date",
+   "label": "Issue Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_sedp",
+   "fieldtype": "Section Break",
+   "label": "Items"
+  },
+  {
+   "allow_bulk_edit": 1,
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Items",
+   "options": "eFactura Item",
+   "reqd": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_break_bfpw",
+   "fieldtype": "Section Break",
+   "label": "Currency"
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency",
+   "print_hide": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_hfwb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.currency!==doc.ef_currency",
+   "fieldname": "ef_currency",
+   "fieldtype": "Link",
+   "label": "eFactura Currency",
+   "options": "Currency",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.currency!==doc.ef_currency",
+   "fieldname": "ef_net_total",
+   "fieldtype": "Currency",
+   "label": "Net Total (eFactura Currency)",
+   "options": "ef_currency",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.currency!==doc.ef_currency",
+   "fieldname": "ef_vat_total",
+   "fieldtype": "Currency",
+   "label": "VAT Total (eFactura Currency)",
+   "options": "ef_currency",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.currency!==doc.ef_currency",
+   "fieldname": "ef_total",
+   "fieldtype": "Currency",
+   "label": "Total (eFactura Currency)",
+   "options": "ef_currency",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.currency!==doc.ef_currency",
+   "description": "Rate at which document currency is converted to eFactura currency",
+   "fieldname": "ef_conversion_rate",
+   "fieldtype": "Float",
+   "label": "eFactura Exchange Rate",
+   "precision": "9",
+   "print_hide": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "no_copy": 1,
+   "options": "EF-.YYYY.-\nEF-NT-.YYYY.-",
+   "print_hide": 1,
+   "read_only": 1,
+   "reqd": 1,
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "column_break_fglh",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "ef_supplier_idno",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "eF Supplier IDNO",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_customer_idno",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "eF Customer IDNO",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_transporter_idno",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "eF Transporter IDNO",
+   "read_only": 1
+  },
+  {
+   "description": "If the company is registered as an user of the e-Factura system and is able to accept e-Factura electronic invoices.",
+   "fieldname": "ef_supplier_is_user",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "eF Supplier e-Factura User",
+   "options": "\nYes\nNo",
+   "read_only": 1
+  },
+  {
+   "description": "If the company is registered as an user of the e-Factura system and is able to accept e-Factura electronic invoices.",
+   "fieldname": "ef_customer_is_user",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "eF Customer e-Factura User",
+   "options": "\nYes\nNo",
+   "read_only": 1
+  },
+  {
+   "description": "If the company is registered as an user of the e-Factura system and is able to accept e-Factura electronic invoices.",
+   "fieldname": "ef_transporter_is_user",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "eF Transporter e-Factura User",
+   "options": "\nYes\nNo",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_supplier_details",
+   "fieldtype": "HTML",
+   "label": "Supplier Details"
+  },
+  {
+   "fieldname": "ef_customer_details",
+   "fieldtype": "HTML",
+   "label": "Customer Details"
+  },
+  {
+   "fieldname": "ef_transporter_details",
+   "fieldtype": "HTML",
+   "label": "Transporter Details"
+  },
+  {
+   "fieldname": "ef_customer_taxpayer_type",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "eF Customer Taxpayer Type",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_transporter_taxpayer_type",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "eF Transporter Taxpayer Type",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_supplier_taxpayer_type",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "eF Supplier Taxpayer Type",
+   "read_only": 1
+  },
+  {
+   "default": "Pending",
+   "fieldname": "ef_status",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "eFactura Status",
+   "no_copy": 1,
+   "options": "Pending\nSent Unsigned\nSent Signed\nSent to Client\nAccepted\nArchived\nVoid Requested\nVoid Incoming\nVoided"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Status",
+   "no_copy": 1,
+   "options": "Draft\nCanceled\nPending\nSent Unsigned\nSent Signed\nSent to Client\nAccepted\nArchived\nVoid Requested\nVoid Incoming\nVoided"
+  },
+  {
+   "fieldname": "ef_series",
+   "fieldtype": "Data",
+   "label": "eFactura Series",
+   "no_copy": 1,
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_number",
+   "fieldtype": "Data",
+   "label": "eFactura Number",
+   "no_copy": 1,
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "connections_tab",
+   "fieldtype": "Tab Break",
+   "label": "Connections",
+   "show_dashboard": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2025-12-20 03:10:52.751359",
+ "modified_by": "Administrator",
+ "module": "Moldova eFactura",
+ "name": "eFactura",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts User",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sales Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sales Master Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sales User",
+   "share": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [
+  {
+   "color": "Red",
+   "title": "Draft"
+  },
+  {
+   "color": "Red",
+   "title": "Canceled"
+  },
+  {
+   "color": "Yellow",
+   "title": "Pending"
+  },
+  {
+   "color": "Cyan",
+   "title": "Sent Unsigned"
+  },
+  {
+   "color": "Cyan",
+   "title": "Sent Signed"
+  },
+  {
+   "color": "Light Blue",
+   "title": "Sent to Client"
+  },
+  {
+   "color": "Green",
+   "title": "Accepted"
+  },
+  {
+   "color": "Gray",
+   "title": "Archived"
+  },
+  {
+   "color": "Orange",
+   "title": "Void Requested"
+  },
+  {
+   "color": "Orange",
+   "title": "Void Incoming"
+  },
+  {
+   "color": "Gray",
+   "title": "Voided"
+  }
+ ],
+ "track_changes": 1
+}
