@@ -10,12 +10,13 @@
   "naming_series",
   "posting_date",
   "posting_time",
+  "status",
+  "last_status_check",
   "column_break_grhc",
   "type",
   "ef_status",
   "ef_series",
   "ef_number",
-  "status",
   "delivery_date",
   "issue_date",
   "column_break_muzu",
@@ -192,8 +193,7 @@
    "fieldname": "customer_party_type",
    "fieldtype": "Select",
    "label": "Customer Party Type",
-   "options": "Customer",
-   "reqd": 1
+   "options": "Customer"
   },
   {
    "fieldname": "customer_party",
@@ -207,6 +207,7 @@
    "fieldtype": "Column Break"
   },
   {
+   "collapsible": 1,
    "fieldname": "section_break_gjtm",
    "fieldtype": "Section Break",
    "label": "Transporter"
@@ -215,15 +216,14 @@
    "fieldname": "transporter_party_type",
    "fieldtype": "Select",
    "label": "Transporter Party Type",
-   "options": "Company\nSupplier\nCustomer",
-   "reqd": 1
+   "options": "\nCompany\nSupplier\nCustomer"
   },
   {
    "fieldname": "transporter_party",
    "fieldtype": "Dynamic Link",
    "label": "Transporter Party",
-   "options": "transporter_party_type",
-   "reqd": 1
+   "mandatory_depends_on": "eval:doc.transporter_party_type",
+   "options": "transporter_party_type"
   },
   {
    "fieldname": "column_break_oluj",
@@ -614,21 +614,12 @@
    "read_only": 1
   },
   {
-   "default": "Pending",
-   "fieldname": "ef_status",
-   "fieldtype": "Select",
-   "hidden": 1,
-   "label": "eFactura Status",
-   "no_copy": 1,
-   "options": "Pending\nSent Unsigned\nSent Signed\nSent to Client\nAccepted\nArchived\nVoid Requested\nVoid Incoming\nVoided"
-  },
-  {
    "fieldname": "status",
    "fieldtype": "Select",
    "hidden": 1,
    "label": "Status",
    "no_copy": 1,
-   "options": "Draft\nCanceled\nPending\nSent Unsigned\nSent Signed\nSent to Client\nAccepted\nArchived\nVoid Requested\nVoid Incoming\nVoided"
+   "options": "Draft\nCanceled\nPending Registration\nRegistered as Draft\nSigned by Supplier\nRejected by Customer\nAccepted by Customer\nCanceled by Supplier\nSent to Customer\nSigned by Customer\nTransported"
   },
   {
    "fieldname": "ef_series",
@@ -651,13 +642,29 @@
    "fieldtype": "Tab Break",
    "label": "Connections",
    "show_dashboard": 1
+  },
+  {
+   "fieldname": "last_status_check",
+   "fieldtype": "Datetime",
+   "label": "Last Status Check",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "default": "-1",
+   "fieldname": "ef_status",
+   "fieldtype": "Int",
+   "hidden": 1,
+   "label": "eFactura Status",
+   "no_copy": 1,
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-12-20 03:10:52.751359",
+ "modified": "2025-12-22 23:46:16.825929",
  "modified_by": "Administrator",
  "module": "Moldova eFactura",
  "name": "eFactura",
@@ -752,40 +759,40 @@
    "title": "Canceled"
   },
   {
+   "color": "Orange",
+   "title": "Pending Registration"
+  },
+  {
+   "color": "Orange",
+   "title": "Registered as Draft"
+  },
+  {
    "color": "Yellow",
-   "title": "Pending"
+   "title": "Signed by Supplier"
   },
   {
-   "color": "Cyan",
-   "title": "Sent Unsigned"
+   "color": "Red",
+   "title": "Rejected by Customer"
   },
   {
-   "color": "Cyan",
-   "title": "Sent Signed"
+   "color": "Yellow",
+   "title": "Accepted by Customer"
   },
   {
-   "color": "Light Blue",
-   "title": "Sent to Client"
+   "color": "Gray",
+   "title": "Canceled by Supplier"
+  },
+  {
+   "color": "Yellow",
+   "title": "Sent to Customer"
   },
   {
    "color": "Green",
-   "title": "Accepted"
+   "title": "Signed by Customer"
   },
   {
-   "color": "Gray",
-   "title": "Archived"
-  },
-  {
-   "color": "Orange",
-   "title": "Void Requested"
-  },
-  {
-   "color": "Orange",
-   "title": "Void Incoming"
-  },
-  {
-   "color": "Gray",
-   "title": "Voided"
+   "color": "Green",
+   "title": "VoidedTransported"
   }
  ],
  "track_changes": 1

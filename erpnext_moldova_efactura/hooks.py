@@ -171,6 +171,12 @@ doctype_js = {
 # 	],
 # }
 
+scheduler_events = {
+    "hourly": [
+        "erpnext_moldova_efactura.tasks.status_sync.sync_efactura_statuses"
+    ]
+}
+
 # Testing
 # -------
 

@@ -27,6 +27,10 @@ class eFactura(Document):
         self.set_status()
 
     def on_cancel(self):
+        if self.ef_status != -1:
+            frappe.throw(
+                _("eFactura can be cancelled only in Pending Registration status.")
+            )
         self.set_status()
 
     def on_update(self):
@@ -36,23 +40,50 @@ class eFactura(Document):
 
     def set_status(self):
         """
-        Logic to sync 'status' field:
-        - If docstatus is 1 (Submitted), use 'ef_status'
-        - Otherwise use 'Draft' or 'Cancelled'
+        Map to sync 'status' field:
+
+        status               | docstatus | ef_status | e-Factura            
+        -------------------------------------------------------------------
+        Draft                |     0     |    any    | 
+        Canceled             |     2     |    any    | 
+        Pending Registration |     1     |    -1     |
+        Registered as Draft  |     1     |     0     | Draft
+        Signed by Supplier   |     1     |     1     | Signed by Supplier
+        Rejected by Customer |     1     |     2     | Rejected by Customer
+        Accepted by Customer |     1     |     3     | Accepted by Customer
+        Canceled by Supplier |     1     |     5     | Canceled by Supplier
+        Sent to Customer     |     1     |     7     | Sent to Customer
+        Signed by Customer   |     1     |     8     | Signed by Customer
+        Transported          |     1     |    10     | Transported
+
         """
+
+        if self.is_new():
+            return
+
+        ef_status_labels = {
+            -1: "Pending Registration",
+            0:  "Registered as Draft",
+            1:  "Signed by Supplier",
+            2:  "Rejected by Customer",
+            3:  "Accepted by Customer",
+            5:  "Canceled by Supplier",
+            7:  "Sent to Customer",
+            8:  "Signed by Customer",
+            10: "Transported",
+        }
+
         if self.docstatus == 0:
             self.status = "Draft"
         elif self.docstatus == 2:
             self.status = "Cancelled"
         elif self.docstatus == 1:
-            # Ensure ef_status is not empty when submitted
-            if not self.ef_status:
-                self.ef_status = "Pending"
-            self.status = self.ef_status
+            if self.ef_status is None:
+                self.db_set("ef_status", -1, update_modified=False) 
 
-        # Using db_set allows updating the field without triggering full save hooks
-        if not self.is_new():
-            self.db_set("status", self.status, update_modified=False)
+            self.status = ef_status_labels.get(self.ef_status)
+
+        self.db_set("status", self.status, update_modified=False)
 
     def update_items_available_qty(self):
         if self.reference_doctype != "Sales Invoice" or not self.reference_name:
@@ -231,19 +262,36 @@ class eFactura(Document):
                 self.customer_party,
                 idno_fields[self.customer_party_type],
             )
-            self._autofill_party_block(
-                client,
-                "transporter",
-                self.transporter_party_type,
-                self.transporter_party,
-                idno_fields[self.transporter_party_type],
-            )
+
+            if self.transporter_party_type and self.transporter_party:
+                self._autofill_party_block(
+                    client,
+                    "transporter",
+                    self.transporter_party_type,
+                    self.transporter_party,
+                    idno_fields[self.transporter_party_type],
+                )
+            else:
+                self._clear_party_block("transporter")
 
         except Exception:
             # Do not block saving in draft; log for diagnostics.
             frappe.log_error(frappe.get_traceback(), "eFactura: autofill parties failed")
         finally:
             self.flags.ef_autofill_running = False
+
+
+    def _clear_party_block(self, prefix):
+        self.db_set(f"ef_{prefix}_idno", "", update_modified=False)
+        self.db_set(f"ef_{prefix}_vat_id", "", update_modified=False)
+        self.db_set(f"ef_{prefix}_name", "", update_modified=False)
+        self.db_set(f"ef_{prefix}_address", "", update_modified=False)
+        self.db_set(f"ef_{prefix}_taxpayer_type", "", update_modified=False)
+        self.db_set(f"ef_{prefix}_is_user", "", update_modified=False)
+        self.db_set(f"ef_{prefix}_bank_account", "", update_modified=False)
+        self.db_set(f"ef_{prefix}_bank_name", "", update_modified=False)
+        self.db_set(f"ef_{prefix}_bank_code", "", update_modified=False)
+
 
     def _autofill_party_block(self, client, prefix, party_doctype, party_name, idno_fieldname):
         if not party_doctype or not party_name or not idno_fieldname:
@@ -361,7 +409,7 @@ def get_for_sign(efactura_name):
     efactura = frappe.get_doc("eFactura", efactura_name)
     ef_lang = True
 
-    if not efactura.series or not efactura.number:
+    if not efactura.ef_series or not efactura.ef_number:
         client = EFacturaAPIClient.from_settings()
         resp = client.get_series_and_numbers(count=1)
         data = resp.get("Results", {}).get("SeriaAndNumber", [{}])[0]
@@ -425,8 +473,11 @@ def send_unsigned(efactura_name):
         frappe.throw(_("e-Factura API Error: Invoices posted: {0} / {1}").format(posted, total))
 
     else:
-        efactura.db_set("ef_status", "Sent Unsigned")
+        efactura.db_set("ef_status", 0, update_modified=False)
         efactura.set_status()
+        # тут надо обнулить ef_series & ef_number так как отправленные без подписи 
+        # фактуры получают новые серии и номер при подписании в системе e-factura
+        # обновлять их статус надо отдельно, по поиску, пока не появятся серия и номер 
         return {
             "message": _("Successfully sent {0} unsigned invoice(s) to e-Factura system.").format(
                 posted
@@ -444,8 +495,8 @@ def update_dates(efactura_name, issue_date, delivery_date):
     if ef.docstatus != 1:
         frappe.throw(_("Dates can be updated only for submitted documents."))
 
-    if (ef.ef_status or "") != "Pending":
-        frappe.throw(_("Dates can be updated only when eFactura status is Pending."))
+    if ef.ef_status != -1:
+        frappe.throw(_("Dates can be updated only in Pending Registration status."))
 
     if not issue_date or not delivery_date:
         frappe.throw(_("Both Issue Date and Delivery Date are required."))
@@ -549,7 +600,7 @@ def process_signed_xml(name, signature, content):
         frappe.throw(_("e-Factura API Error: Invoices posted: {0} / {1}").format(posted, total))
 
     # Update status
-    ef.db_set("ef_status", "Sent Signed")
+    ef.db_set("ef_status", 1, update_modified=False)
     ef.set_status()
 
     return {
@@ -736,26 +787,27 @@ def _generate_invoice_xml(
             "BranchCode": efactura.ef_customer_bank_code or "",
     },)
 
-    # Transporter
-    transporter = ET.SubElement(
-        supplier_info,
-        "Transporter",
-        {
-            "IDNO": efactura.ef_transporter_idno or "",
-            "CodTVA": efactura.ef_transporter_vat_id or "",
-            "TaxpayerType": efactura.ef_transporter_taxpayer_type or "",
-            "Title": efactura.ef_transporter_name or "",
-            "Address": efactura.ef_transporter_address or "",
-    },)
+    if efactura.ef_transporter_idno:
+        # Transporter
+        transporter = ET.SubElement(
+            supplier_info,
+            "Transporter",
+            {
+                "IDNO": efactura.ef_transporter_idno or "",
+                "CodTVA": efactura.ef_transporter_vat_id or "",
+                "TaxpayerType": efactura.ef_transporter_taxpayer_type or "",
+                "Title": efactura.ef_transporter_name or "",
+                "Address": efactura.ef_transporter_address or "",
+        },)
 
-    ET.SubElement(
-        transporter,
-        "BankAccount",
-        {
-            "Account": efactura.ef_transporter_bank_account or "",
-            "BranchTitle": efactura.ef_transporter_bank_name or "",
-            "BranchCode": efactura.ef_transporter_bank_code or "",
-    },)
+        ET.SubElement(
+            transporter,
+            "BankAccount",
+            {
+                "Account": efactura.ef_transporter_bank_account or "",
+                "BranchTitle": efactura.ef_transporter_bank_name or "",
+                "BranchCode": efactura.ef_transporter_bank_code or "",
+        },)
 
     ET.SubElement(supplier_info, "Total").text = efactura.ef_total and str(round(flt(efactura.ef_total), 2)) or "0.00"
     ET.SubElement(supplier_info, "TotalTVA").text = efactura.ef_vat_total and str(round(flt(efactura.ef_vat_total), 2)) or "0.00"

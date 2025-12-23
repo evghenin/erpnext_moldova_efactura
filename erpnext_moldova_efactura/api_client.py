@@ -6,7 +6,6 @@ from typing import Any, Dict, Optional
 import frappe
 from frappe import _
 import requests
-from requests.auth import HTTPBasicAuth
 from zeep import Client, Settings
 from zeep.exceptions import Fault, TransportError
 from zeep.helpers import serialize_object
@@ -151,14 +150,14 @@ class EFacturaAPIClient:
                 f"Unexpected error in {method_name}: {str(e)}"
             ) from e
         # finally:
-            # dump last SOAP request/response (even if fault)
-            # sent = getattr(self._history, "last_sent", None)
-            # received = getattr(self._history, "last_received", None)
+        #     # dump last SOAP request/response (even if fault)
+        #     sent = getattr(self._history, "last_sent", None)
+        #     received = getattr(self._history, "last_received", None)
 
-            # if sent and "envelope" in sent:
-            #     self._dump_soap_envelope("eFactura SOAP REQUEST", sent["envelope"])
-            # if received and "envelope" in received:
-            #     self._dump_soap_envelope("eFactura SOAP RESPONSE", received["envelope"])
+        #     if sent and "envelope" in sent:
+        #         self._dump_soap_envelope("eFactura SOAP REQUEST", sent["envelope"])
+        #     if received and "envelope" in received:
+        #         self._dump_soap_envelope("eFactura SOAP RESPONSE", received["envelope"])
 
     # -------------------------
     # API methods

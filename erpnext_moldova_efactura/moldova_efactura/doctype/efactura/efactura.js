@@ -61,7 +61,9 @@ frappe.ui.form.on('eFactura', {
         if (!frm.is_new()) {
             autofillEfDetails(frm, "supplier");
             autofillEfDetails(frm, "customer");
-            autofillEfDetails(frm, "transporter");
+            if (frm.transporter_party_type && frm.transporter_party) {
+                autofillEfDetails(frm, "transporter");
+            }
 
             frm.add_custom_button(
                 __("Download XML"),
@@ -77,7 +79,7 @@ frappe.ui.form.on('eFactura', {
         if (
             !frm.is_new() && 
             frm.doc.docstatus === 1 &&
-            frm.doc.ef_status != "Pending"
+            frm.doc.ef_status != -1
         ) {
             frm.add_custom_button(
                 __("Download PDF"), 
@@ -93,7 +95,7 @@ frappe.ui.form.on('eFactura', {
         if (
             !frm.is_new() && 
             frm.doc.docstatus === 1 && 
-            frm.doc.ef_status == "Pending"
+            frm.doc.ef_status == -1
         ) {
             frm.add_custom_button(
                 __("Update Dates"),
@@ -154,7 +156,7 @@ frappe.ui.form.on('eFactura', {
             );
 
             frm.add_custom_button(
-                __("Sign XML (MoldSign)"), 
+                __("Register Signed"), 
                 async () => {
                     await sign_xml_moldsign(frm);
                 },
@@ -162,23 +164,23 @@ frappe.ui.form.on('eFactura', {
             );
 
             frm.add_custom_button(
-				__("Send Unsigned"),
+				__("Register Unsigned"),
                 function () {
                     frappe.call({
                         method: "erpnext_moldova_efactura.moldova_efactura.doctype.efactura.efactura.send_unsigned",
                         args: { efactura_name: frm.doc.name },
                         freeze: true,
-                        freeze_message: __("Sending unsigned XML to e-Factura system..."),
+                        freeze_message: __("Registering unsigned XML to e-Factura system..."),
                         callback: (r) => {
                             frappe.show_alert({
-                                message: __("Unsigned XML sent successfully to e-Factura system."),
+                                message: __("Unsigned XML registered successfully in e-Factura system."),
                                 indicator: "green",
                             }, 5);
                             frm.reload_doc();
                         },
                         // error: (r) => {
                         //     frappe.show_alert({
-                        //         title: __("Failed to send unsigned XML to e-Factura system."),
+                        //         title: __("Failed to register unsigned XML in e-Factura system."),
                         //         message: r,
                         //         indicator: "red",
                         //     }, 10);
