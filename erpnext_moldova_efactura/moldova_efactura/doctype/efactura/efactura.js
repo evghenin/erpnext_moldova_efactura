@@ -15,6 +15,11 @@ frappe.ui.form.on('eFactura', {
         update_transporter_party(frm);
         apply_currency_rules(frm);
         ef_set_items_grid_currency_labels(frm);
+        autofillEfDetails(frm, "supplier");
+        autofillEfDetails(frm, "customer");
+        autofillEfDetails(frm, "transporter");
+
+        console.log('!');
 
         if (
 			// !frm.doc.is_return &&
@@ -59,12 +64,6 @@ frappe.ui.form.on('eFactura', {
 		}
 
         if (!frm.is_new()) {
-            autofillEfDetails(frm, "supplier");
-            autofillEfDetails(frm, "customer");
-            if (frm.transporter_party_type && frm.transporter_party) {
-                autofillEfDetails(frm, "transporter");
-            }
-
             frm.add_custom_button(
                 __("Download XML"),
                 function () {
@@ -192,54 +191,59 @@ frappe.ui.form.on('eFactura', {
         }
 
         function autofillEfDetails(frm, party_type) {
-            let html_content = '<table class="table">';
+            let html_content = '<span></span>';
 
-            html_content += `<tr>
-                <td><b>${__("Name")}:</b></td>
-                <td>${frm.doc[`ef_${party_type}_name`] || __("Unknown")}</td>
-            </tr>`;
+            if (frm.doc[`ef_${party_type}_name`]) {
+                html_content += '<table class="table">';
 
-            html_content += `<tr>
-                <td width="30%"><b>${__("IDNO")}:</b></td>
-                <td>${frm.doc[`ef_${party_type}_idno`] || __("Unknown")}</td>
-            </tr>`;
+                html_content += `<tr>
+                    <td><b>${__("Name")}:</b></td>
+                    <td>${frm.doc[`ef_${party_type}_name`] || __("Unknown")}</td>
+                </tr>`;
 
-            html_content += `<tr>
-                <td><b>${__("VAT ID")}:</b></td>
-                <td>${frm.doc[`ef_${party_type}_vat_id`] || __("Unknown")}</td>
-            </tr>`;
+                html_content += `<tr>
+                    <td width="30%"><b>${__("IDNO")}:</b></td>
+                    <td>${frm.doc[`ef_${party_type}_idno`] || __("Unknown")}</td>
+                </tr>`;
 
-            html_content += `<tr>
-                <td><b>${__("Address")}:</b></td>
-                <td>${frm.doc[`ef_${party_type}_address`] || __("Unknown")}</td>
-            </tr>`;
+                html_content += `<tr>
+                    <td><b>${__("VAT ID")}:</b></td>
+                    <td>${frm.doc[`ef_${party_type}_vat_id`] || __("Unknown")}</td>
+                </tr>`;
 
-            html_content += `<tr>
-                <td><b>${__("Bank account")}:</b></td>
-                <td>${frm.doc[`ef_${party_type}_bank_account`] || __("Unknown")}</td>
-            </tr>`;
+                html_content += `<tr>
+                    <td><b>${__("Address")}:</b></td>
+                    <td>${frm.doc[`ef_${party_type}_address`] || __("Unknown")}</td>
+                </tr>`;
 
-            html_content += `<tr>
-                <td><b>${__("Bank name")}:</b></td>
-                <td>${frm.doc[`ef_${party_type}_bank_name`] || __("Unknown")}</td>
-            </tr>`;
+                html_content += `<tr>
+                    <td><b>${__("Bank account")}:</b></td>
+                    <td>${frm.doc[`ef_${party_type}_bank_account`] || __("Unknown")}</td>
+                </tr>`;
 
-            html_content += `<tr>
-                <td><b>${__("Bank code")}:</b></td>
-                <td>${frm.doc[`ef_${party_type}_bank_code`] || __("Unknown")}</td>
-            </tr>`;
+                html_content += `<tr>
+                    <td><b>${__("Bank name")}:</b></td>
+                    <td>${frm.doc[`ef_${party_type}_bank_name`] || __("Unknown")}</td>
+                </tr>`;
 
-            const is_user = frm.doc[`ef_${party_type}_is_user`];
-            const is_user_str =
-                is_user === "" ? __("Unknown") : __(is_user);
+                html_content += `<tr>
+                    <td><b>${__("Bank code")}:</b></td>
+                    <td>${frm.doc[`ef_${party_type}_bank_code`] || __("Unknown")}</td>
+                </tr>`;
 
-            html_content += `<tr>
-                <td><b>${__("Is eFactura User")}:</b></td>
-                <td>${is_user_str}</td>
-            </tr>`;
+                const is_user = frm.doc[`ef_${party_type}_is_user`];
+                const is_user_str =
+                    is_user === "" ? __("Unknown") : __(is_user);
 
-            html_content += "</table>";
+                html_content += `<tr>
+                    <td><b>${__("Is eFactura User")}:</b></td>
+                    <td>${is_user_str}</td>
+                </tr>`;
 
+                html_content += "</table>";
+            }
+
+            
             frm.set_df_property(`ef_${party_type}_details`, "options", html_content.replace('\'', '&#39;'));
         }
     },
