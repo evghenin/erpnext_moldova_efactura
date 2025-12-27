@@ -259,5 +259,16 @@ override_doctype_dashboards = {
 # }
 
 fixtures = [
-    {"doctype": "Custom Field", "filters": {"module": ["in", ["Moldova eFactura"]]}},
+    {
+        "doctype": "Custom Field", 
+        "filters": [
+            ["module", "in", ["Moldova eFactura"]]
+        ]
+    },
+	{
+		"doctype": "List View Settings",
+		"filters": [
+			["name", "in", ["eFactura"]]
+		]
+	},
 ]

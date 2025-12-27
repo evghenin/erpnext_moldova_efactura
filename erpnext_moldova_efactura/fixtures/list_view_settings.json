@@ -1,0 +1,16 @@
+[
+ {
+  "allow_edit": 0,
+  "disable_auto_refresh": 0,
+  "disable_automatic_recency_filters": 0,
+  "disable_comment_count": 0,
+  "disable_count": 0,
+  "disable_sidebar_stats": 0,
+  "docstatus": 0,
+  "doctype": "List View Settings",
+  "fields": "[{\"fieldname\":\"name\",\"label\":\"ID\"},{\"fieldname\":\"customer_party\",\"label\":\"Customer Party\"},{\"fieldname\":\"status_field\",\"label\":\"Status\"},{\"fieldname\":\"total\",\"label\":\"Total\"}]",
+  "modified": "2025-12-27 18:06:45.283481",
+  "name": "eFactura",
+  "total_fields": "5"
+ }
+]
