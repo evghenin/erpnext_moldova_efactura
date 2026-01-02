@@ -9,7 +9,7 @@ readme = "README.md"
 dynamic = ["version"]
 dependencies = [
     "zeep",
-    "frappe~=15.0.0", # Installed and managed by bench.
+    # "frappe~=15.0.0" # Installed and managed by bench.
 ]
 
 [build-system]
