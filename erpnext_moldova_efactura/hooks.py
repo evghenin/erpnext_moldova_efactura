@@ -271,4 +271,34 @@ fixtures = [
 			["name", "in", ["eFactura"]]
 		]
 	},
+    {
+        "doctype": "Number Card",
+        "filters": [
+            ["document_type", "=", "eFactura"]
+        ]
+    },
+    {
+        "doctype": "Number Card",
+        "filters": [
+            ["document_type", "=", "eFactura"]
+        ]
+    },
+    {
+        "doctype": "Dashboard Chart",
+        "filters": [
+            ["document_type", "=", "eFactura"]
+        ]
+    },
+    {
+        "doctype": "Dashboard Chart",
+        "filters": [
+            ["document_type", "=", "eFactura"]
+        ]
+    },
+    {
+        "doctype": "Workspace",
+        "filters": [
+            ["module", "=", "Moldova eFactura"]
+        ]
+    }
 ]

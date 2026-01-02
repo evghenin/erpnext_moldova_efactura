@@ -1,0 +1,151 @@
+[
+ {
+  "charts": [
+   {
+    "chart_name": "eFactura",
+    "label": "Statuses Overview",
+    "parent": "Moldova eFactura",
+    "parentfield": "charts",
+    "parenttype": "Workspace"
+   }
+  ],
+  "content": "[{\"id\":\"4S9yGuwkQ-\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Moldova eFactura</span>\",\"col\":12}},{\"id\":\"bkAUWN6AL9\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Statuses Overview\",\"col\":12}},{\"id\":\"wdbjAIShpQ\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Finished\",\"col\":3}},{\"id\":\"3RFpphiyte\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Pending Customer Signature\",\"col\":3}},{\"id\":\"pr9BUMU7Wh\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Pending Registration\",\"col\":3}},{\"id\":\"QjxGlDdz5E\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Rejected by Customer\",\"col\":3}},{\"id\":\"zC5xTlpUFV\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Waiting Customer\",\"col\":6}},{\"id\":\"cyrhGJOjYR\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"New eFactura\",\"col\":6}},{\"id\":\"88WjqoX2kc\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Pending\",\"col\":6}},{\"id\":\"Xiuz5OTHzP\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"eFactura Settings\",\"col\":6}},{\"id\":\"X7gNqIxwfy\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Rejected\",\"col\":12}}]",
+  "custom_blocks": [],
+  "docstatus": 0,
+  "doctype": "Workspace",
+  "for_user": "",
+  "hide_custom": 0,
+  "icon": "accounting",
+  "indicator_color": "",
+  "is_hidden": 0,
+  "label": "Moldova eFactura",
+  "links": [],
+  "modified": "2025-12-27 19:46:34.439485",
+  "module": "Moldova eFactura",
+  "name": "Moldova eFactura",
+  "number_cards": [
+   {
+    "label": "Finished",
+    "number_card_name": "Finished",
+    "parent": "Moldova eFactura",
+    "parentfield": "number_cards",
+    "parenttype": "Workspace"
+   },
+   {
+    "label": "Pending Registration",
+    "number_card_name": "Pending Registration",
+    "parent": "Moldova eFactura",
+    "parentfield": "number_cards",
+    "parenttype": "Workspace"
+   },
+   {
+    "label": "Pending Customer Signature",
+    "number_card_name": "Pending Customer Signature",
+    "parent": "Moldova eFactura",
+    "parentfield": "number_cards",
+    "parenttype": "Workspace"
+   },
+   {
+    "label": "Rejected by Customer",
+    "number_card_name": "Rejected by Customer",
+    "parent": "Moldova eFactura",
+    "parentfield": "number_cards",
+    "parenttype": "Workspace"
+   }
+  ],
+  "parent_page": "Accounting",
+  "public": 1,
+  "quick_lists": [],
+  "restrict_to_domain": null,
+  "roles": [],
+  "sequence_id": 28.0,
+  "shortcuts": [
+   {
+    "color": "Grey",
+    "doc_view": "List",
+    "format": null,
+    "icon": null,
+    "kanban_board": null,
+    "label": "eFactura Settings",
+    "link_to": "eFactura Settings",
+    "parent": "Moldova eFactura",
+    "parentfield": "shortcuts",
+    "parenttype": "Workspace",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": null,
+    "type": "DocType",
+    "url": null
+   },
+   {
+    "color": "Grey",
+    "doc_view": "New",
+    "format": null,
+    "icon": null,
+    "kanban_board": null,
+    "label": "New eFactura",
+    "link_to": "eFactura",
+    "parent": "Moldova eFactura",
+    "parentfield": "shortcuts",
+    "parenttype": "Workspace",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": "[]",
+    "type": "DocType",
+    "url": null
+   },
+   {
+    "color": "Red",
+    "doc_view": "List",
+    "format": null,
+    "icon": null,
+    "kanban_board": null,
+    "label": "Pending",
+    "link_to": "eFactura",
+    "parent": "Moldova eFactura",
+    "parentfield": "shortcuts",
+    "parenttype": "Workspace",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": "[[\"eFactura\",\"status\",\"in\",[\"Draft\",\"Pending Registration\",\"Registered as Draft\",null],false]]",
+    "type": "DocType",
+    "url": null
+   },
+   {
+    "color": "Red",
+    "doc_view": "List",
+    "format": null,
+    "icon": null,
+    "kanban_board": null,
+    "label": "Rejected",
+    "link_to": "eFactura",
+    "parent": "Moldova eFactura",
+    "parentfield": "shortcuts",
+    "parenttype": "Workspace",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": "[[\"eFactura\",\"status\",\"=\",\"Rejected by Customer\",false]]",
+    "type": "DocType",
+    "url": null
+   },
+   {
+    "color": "Yellow",
+    "doc_view": "List",
+    "format": null,
+    "icon": null,
+    "kanban_board": null,
+    "label": "Waiting Customer",
+    "link_to": "eFactura",
+    "parent": "Moldova eFactura",
+    "parentfield": "shortcuts",
+    "parenttype": "Workspace",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": "[[\"eFactura\",\"status\",\"in\",[\"Accepted by Customer\",\"Sent to Customer\"],false]]",
+    "type": "DocType",
+    "url": null
+   }
+  ],
+  "title": "Moldova eFactura"
+ }
+]
