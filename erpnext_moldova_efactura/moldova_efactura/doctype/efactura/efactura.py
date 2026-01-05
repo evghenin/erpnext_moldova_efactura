@@ -364,7 +364,7 @@ class eFactura(Document):
 @frappe.whitelist()
 def download_xml(efactura_name):
     efactura = frappe.get_doc("eFactura", efactura_name)
-    ef_lang = True
+    ef_lang = frappe.db.get_single_value("eFactura Settings", "language")
 
     xml_content = _generate_invoice_xml(
         efactura=efactura,
@@ -406,8 +406,8 @@ def download_pdf(efactura_name):
 
 @frappe.whitelist()
 def get_for_sign(efactura_name):
-    efactura = frappe.get_doc("eFactura", efactura_name)
-    ef_lang = True
+    efactura = frappe.get_doc("eFactura", efactura_name)   
+    ef_lang = frappe.db.get_single_value("eFactura Settings", "language")
 
     if not efactura.ef_series or not efactura.ef_number:
         client = EFacturaAPIClient.from_settings()
@@ -449,7 +449,7 @@ def get_for_sign(efactura_name):
 @frappe.whitelist()
 def send_unsigned(efactura_name):
     efactura = frappe.get_doc("eFactura", efactura_name)
-    ef_lang = True
+    ef_lang = frappe.db.get_single_value("eFactura Settings", "language")
 
     client = EFacturaAPIClient.from_settings()
 
@@ -745,6 +745,29 @@ def _generate_invoice_xml(
         efactura.delivery_date, datetime.min.time()
     ).isoformat()
 
+    # Validate required fields
+    required_fields = [
+        "ef_supplier_idno",
+        "ef_supplier_name",
+        "ef_supplier_address",
+        "ef_supplier_taxpayer_type",
+        "ef_supplier_bank_account",
+        "ef_supplier_bank_name",
+        "ef_supplier_bank_code",
+        "ef_customer_idno",
+        "ef_customer_name",
+        "ef_customer_address",
+        "ef_customer_taxpayer_type",
+    ]
+
+    for fieldname in required_fields:
+        if not efactura.get(fieldname):
+            label = efactura.meta.get_label(fieldname)
+            
+            frappe.throw(
+                _("e-Factura XML Error: {0} ({1}) must not be empty").format(label, fieldname)
+            )
+
     # Supplier
     supplier = ET.SubElement(
         supplier_info,
@@ -816,14 +839,22 @@ def _generate_invoice_xml(
     merchandises = ET.SubElement(supplier_info, "Merchandises")
 
     for item in efactura.items:
+
+        uom = frappe.get_doc("UOM", item.ef_uom)
+        qty = item.ef_qty or 0
+
+        if not qty:
+            label = item.meta.get_label("eFactura Item")
+            frappe.throw(_("e-Factura XML Error: Item {0} {1} must not be 0").format(item.idx, label))
+
         ET.SubElement(
             merchandises,
             "Row",
             {
                 "Code": item.item_code,
                 "Name": item.item_name,
-                "UnitOfMeasure": _(item.ef_uom, language),
-                "Quantity": str(item.ef_qty or 0),
+                "UnitOfMeasure": _(uom.print_name or uom.name, language),
+                "Quantity": str(qty),
                 "UnitPriceWithoutTVA": str(round(flt(item.ef_net_rate or 0), 2)),
                 "TotalPriceWithoutTVA": str(round(flt(item.ef_net_amount or 0), 2)),
                 "TVA": str(int(item.ef_vat_rate or 0)),
