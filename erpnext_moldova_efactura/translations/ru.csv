@@ -9,7 +9,7 @@ Bank code,Банковский код
 Bank name,Название банка
 Both Issue Date and Delivery Date are required.,Дата выписки и дата поставки обязательны.
 Bulk fiscal status failed for {0}.,Массовое обновление фискального статуса не удалось для {0}.
-Canceled by Supplier,Отменено поставщиком
+Canceled by Supplier,Отменена поставщиком
 Company IDNO field,Поле IDNO компании
 Connections,Подключения
 Currency (MDL),Валюта (MDL)
@@ -57,9 +57,9 @@ Qty In eFactura UOM,Количество в ЕИ eFactura
 Rate (eFactura Currency),Ставка (валюта eFactura)
 Rate at which document currency is converted to eFactura currency,Курс конвертации валюты документа в валюту eFactura
 Rate eFactura UOM (eFactura Currency),Ставка ЕИ eFactura (валюта eFactura)
-Register Signed,Зарегистрировать подписанный
-Register Unsigned,Зарегистрировать неподписанный
-Registered as Draft,Зарегистрирован как черновик
+Register Signed,Подписать и зарегистрировать
+Register Unsigned,Зарегистрировать без подписи
+Registered as Draft,Зарегистрирована как черновик
 Registering unsigned XML to e-Factura system...,Регистрация неподписанного XML в системе e-Factura...
 Rejected by Customer,Отклонена клиентом
 Root territory that defines Moldova fiscal scope,Корневая территория, определяющая фискальную зону Молдовы

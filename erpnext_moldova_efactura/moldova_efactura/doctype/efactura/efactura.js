@@ -202,7 +202,7 @@ frappe.ui.form.on('eFactura', {
                 </tr>`;
 
                 html_content += `<tr>
-                    <td width="30%"><b>${__("IDNO")}:</b></td>
+                    <td width="40%"><b>${__("IDNO")}:</b></td>
                     <td>${frm.doc[`ef_${party_type}_idno`] || __("Unknown")}</td>
                 </tr>`;
 
