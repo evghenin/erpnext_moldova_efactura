@@ -47,7 +47,7 @@ def determine_fiscal_status(si):
         if ef.status in (
             "Registered as Draft", 
             "Signed by Supplier", 
-            "Accepted by Customer", 
+            "Accepted by Customer",
             "Sent to Customer", 
             "Pending Registration", 
             "Transportation"
@@ -56,9 +56,8 @@ def determine_fiscal_status(si):
             return "In Progress"
 
     # 9) Compare totals
-    # TODO fix bug: compare just totals of finished e-Facturas
-    ef_total = sum((ef.total or 0) for ef in ef_docs)
-    si_total = si.grand_total or 0
+    ef_total = float(sum((ef.total or 0) for ef in ef_docs if ef.status == "Signed by Customer"))
+    si_total = float(si.grand_total or 0)
 
     if ef_total < si_total:
         return "Partial"
@@ -138,7 +137,8 @@ def get_efacturas_for_invoice(si_name):
     return frappe.get_all(
         "eFactura",
         filters={
-            "sales_invoice": si_name,
+            "reference_doctype": "Sales Invoice",
+            "reference_name": si_name,
             "docstatus": ["!=", 2],
         },
         fields=["name", "status", "total"],

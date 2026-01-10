@@ -7,13 +7,13 @@ frappe.ui.form.on("Sales Invoice", {
         if (status) {
             const color_map = {
                 "Pending": "red",
-                "In Progress": "orange",
-                "Partial": "orange",
+                "In Progress": "yellow",
+                "Partial": "red",
                 "Completed": "green",
                 "Failed": "red",
                 "Not Required": "gray",
                 "Not Applicable": "gray",
-                "Unknown": "gray",
+                "Unknown": "red",
             };
 
             const color = color_map[status] || "gray";
