@@ -52,6 +52,9 @@ doctype_js = {
     "Company": "public/js/company.js",
     "Sales Invoice": "public/js/sales_invoice.js",
 }
+doctype_list_js = {
+    "Sales Invoice": "public/js/sales_invoice_list.js",
+}
 
 # Svg Icons
 # ------------------
@@ -149,6 +152,12 @@ doctype_js = {
 # 		"on_trash": "method"
 # 	}
 # }
+
+doc_events = {
+    "Sales Invoice": {
+        "on_submit": "erpnext_moldova_efactura.overrides.sales_invoice.on_submit",
+    }
+}
 
 # Scheduled Tasks
 # ---------------

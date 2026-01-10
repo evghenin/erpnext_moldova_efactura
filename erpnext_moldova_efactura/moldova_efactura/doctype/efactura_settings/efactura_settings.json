@@ -10,6 +10,7 @@
   "language",
   "currency",
   "vat_included_in_rate",
+  "fiscal_territory",
   "idno_column",
   "company_idno_field",
   "customer_idno_field",
@@ -99,13 +100,21 @@
   {
    "fieldname": "section_break_vxfv",
    "fieldtype": "Section Break"
+  },
+  {
+   "description": "Root territory that defines Moldova fiscal scope",
+   "fieldname": "fiscal_territory",
+   "fieldtype": "Link",
+   "label": "Fiscal Territory",
+   "options": "Territory",
+   "reqd": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-01-03 23:45:33.148230",
+ "modified": "2026-01-10 15:52:53.927338",
  "modified_by": "Administrator",
  "module": "Moldova eFactura",
  "name": "eFactura Settings",

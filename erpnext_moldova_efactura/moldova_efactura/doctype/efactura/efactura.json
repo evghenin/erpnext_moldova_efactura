@@ -619,7 +619,7 @@
    "hidden": 1,
    "label": "Status",
    "no_copy": 1,
-   "options": "Draft\nCanceled\nPending Registration\nRegistered as Draft\nSigned by Supplier\nRejected by Customer\nAccepted by Customer\nCanceled by Supplier\nSent to Customer\nSigned by Customer\nTransported"
+   "options": "Draft\nCanceled\nPending Registration\nRegistered as Draft\nSigned by Supplier\nRejected by Customer\nAccepted by Customer\nCanceled by Supplier\nSent to Customer\nSigned by Customer\nTransportation"
   },
   {
    "fieldname": "ef_series",
@@ -791,8 +791,8 @@
    "title": "Signed by Customer"
   },
   {
-   "color": "Green",
-   "title": "VoidedTransported"
+   "color": "Yellow",
+   "title": "Transportation"
   }
  ],
  "track_changes": 1

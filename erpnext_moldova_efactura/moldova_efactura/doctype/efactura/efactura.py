@@ -3,6 +3,7 @@
 
 import json, base64, re, frappe, hashlib, uuid
 import xml.etree.ElementTree as ET
+from erpnext_moldova_efactura.utils.fiscal_status import determine_fiscal_status
 
 from datetime import datetime
 from frappe import _
@@ -54,7 +55,7 @@ class eFactura(Document):
         Canceled by Supplier |     1     |     5     | Canceled by Supplier
         Sent to Customer     |     1     |     7     | Sent to Customer
         Signed by Customer   |     1     |     8     | Signed by Customer
-        Transported          |     1     |    10     | Transported
+        Transportation       |     1     |    10     | Transportation
 
         """
 
@@ -70,7 +71,7 @@ class eFactura(Document):
             5:  "Canceled by Supplier",
             7:  "Sent to Customer",
             8:  "Signed by Customer",
-            10: "Transported",
+            10: "Transportation",
         }
 
         if self.docstatus == 0:
@@ -84,6 +85,16 @@ class eFactura(Document):
             self.status = ef_status_labels.get(self.ef_status)
 
         self.db_set("status", self.status, update_modified=False)
+
+        # --- Update linked Sales Invoice fiscal status ---
+        if self.reference_doctype == "Sales Invoice" and self.reference_name:
+            try:
+                si = frappe.get_doc("Sales Invoice", self.reference_name)
+                new_status = determine_fiscal_status(si)
+                si.db_set("fiscal_status", new_status, update_modified=False)
+            except frappe.ValidationError:
+                # configuration error or blocked state – do not break eFactura flow
+                pass
 
     def update_items_available_qty(self):
         if self.reference_doctype != "Sales Invoice" or not self.reference_name:
