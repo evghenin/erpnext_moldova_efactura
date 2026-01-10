@@ -13,6 +13,7 @@ frappe.ui.form.on("Sales Invoice", {
                 "Failed": "red",
                 "Not Required": "gray",
                 "Not Applicable": "gray",
+                "Unknown": "gray",
             };
 
             const color = color_map[status] || "gray";

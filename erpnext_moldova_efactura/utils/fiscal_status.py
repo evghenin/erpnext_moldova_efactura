@@ -29,15 +29,34 @@ def determine_fiscal_status(si):
 
     # 6) Failed has highest priority
     for ef in ef_docs:
-        if ef.status in ("Rejected", "Cancelled", "Error"):
+        if ef.status in (
+            "Rejected by Customer", 
+            "Canceled by Supplier", 
+            ):
             return "Failed"
 
-    # 7) In Progress
+    # 7) Pending
     for ef in ef_docs:
-        if ef.status in ("Draft", "Sent", "Pending", "Processing"):
+        if ef.status in (
+            "Pending Registration", 
+            ):
+            return "Pending"
+        
+    # 8) In Progress
+    for ef in ef_docs:
+        if ef.status in (
+            "Registered as Draft", 
+            "Signed by Supplier", 
+            "Accepted by Customer", 
+            "Sent to Customer", 
+            "Pending Registration", 
+            "Transportation"
+            ):
+
             return "In Progress"
 
-    # 8) Compare totals
+    # 9) Compare totals
+    # TODO fix bug: compare just totals of finished e-Facturas
     ef_total = sum((ef.total or 0) for ef in ef_docs)
     si_total = si.grand_total or 0
 
@@ -47,8 +66,8 @@ def determine_fiscal_status(si):
     if ef_total == si_total:
         return "Completed"
 
-    # 9) Any unexpected situation
-    return "Failed"
+    # 10) Any unexpected situation
+    return "Unknown"
 
 
 def territory_in_fiscal_scope(customer_territory: str) -> bool:

@@ -14,6 +14,7 @@ frappe.listview_settings['Sales Invoice'] = {
         "Failed": "red",
         "Not Required": "gray",
         "Not Applicable": "gray",
+        "Unknown": "gray",
       };
 
       const color = color_map[value] || "gray";
