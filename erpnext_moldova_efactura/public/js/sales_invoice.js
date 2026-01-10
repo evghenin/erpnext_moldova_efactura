@@ -18,7 +18,7 @@ frappe.ui.form.on("Sales Invoice", {
             const color = color_map[status] || "gray";
 
             frm.page.set_indicator(
-                __('Fiscalization {0}', [status]),
+                __('Fiscalization: {0}', [__(status)]),
                 color
             );
         }

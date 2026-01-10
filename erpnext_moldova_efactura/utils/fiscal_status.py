@@ -1,15 +1,6 @@
 import frappe
 from frappe import _
 
-FISCAL_STATUSES = [
-    "Pending",
-    "In Progress",
-    "Partial",
-    "Completed",
-    "Failed",
-    "Not Required",
-    "Not Applicable",
-]
 
 def determine_fiscal_status(si):
     # Draft documents are ignored
@@ -113,20 +104,8 @@ def ensure_fiscal_territory_configured(doc=None):
         "Please set Fiscal Territory in eFactura Settings."
     )
 
-    # Add comment to document (once)
-    if doc and doc.doctype == "Sales Invoice":
-        existing = frappe.get_all(
-            "Comment",
-            filters={
-                "reference_doctype": "Sales Invoice",
-                "reference_name": doc.name,
-                "content": ["like", "%eFactura is not configured%"],
-            },
-            limit=1,
-        )
-
-        if not existing:
-            doc.add_comment("Comment", message)
+    # Add comment to document
+    doc.add_comment("Comment", message)
 
     frappe.throw(
         message,

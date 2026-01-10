@@ -133,7 +133,7 @@ class eFactura(Document):
     def set_ef_currency_from_settings(self):
         ef_cur = frappe.db.get_single_value("eFactura Settings", "currency")
         if not ef_cur:
-            frappe.throw("Please set Currency in eFactura Settings.")
+            frappe.throw(_("Please set Currency in eFactura Settings."))
         self.ef_currency = ef_cur
 
     def apply_ef_conversion_rate_rules(self):
@@ -405,7 +405,7 @@ def download_pdf(efactura_name):
 
     # sanity check
     if not pdf_content.startswith(b"%PDF"):
-        frappe.throw("e-Factura returned non-PDF content in Result.Content")
+        frappe.throw(_("e-Factura returned non-PDF content in Result.Content"))
 
     filename = f"{efactura.ef_series}{efactura.ef_number}.pdf"
 

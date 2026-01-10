@@ -1,0 +1,155 @@
+About,Despre
+Accepted by Customer,Acceptat de client
+Actualize Fiscal Status,Actualizare statut fiscal
+Actualizing Fiscal Status,Actualizare statut fiscal în curs
+Amount (eFactura Currency),Sumă (monedă eFactura)
+Apps,Aplicații
+Available Qty In Stock UOM,Cantitate disponibilă în UM stoc
+Bank account,Cont bancar
+Bank code,Cod bancar
+Bank name,Denumirea băncii
+Both Issue Date and Delivery Date are required.,Data emiterii și data livrării sunt obligatorii.
+Bulk fiscal status failed for {0}.,Actualizarea în masă a statutului fiscal a eșuat pentru {0}.
+Canceled by Supplier,Anulată de furnizor
+Company IDNO field,Câmp IDNO companie
+Connections,Conexiuni
+Currency (MDL),Monedă (MDL)
+Customer IDNO field,Câmp IDNO client
+Customer Party,Parte client
+Customer Party Type,Tip parte client
+Dates can be updated only for submitted documents.,Datele pot fi modificate doar pentru documente confirmate.
+Dates can be updated only in Pending Registration status.,Datele pot fi modificate doar în statutul „În așteptare”.
+Dates updated successfully.,Datele au fost actualizate cu succes.
+Documentation,Documentație
+Download XML,Descarcă XML
+Failed to register unsigned XML in e-Factura system.,Înregistrarea XML nesemnat în sistemul e-Factura a eșuat.
+Fiscal Territory,Territoriu fiscal
+Fiscal status can be actualized only for submitted invoices.,Statutul fiscal poate fi actualizat doar pentru facturi confirmate.
+Fiscal status updated for {0} invoices.,Statutul fiscal a fost actualizat pentru {0} facturi.
+Fiscal status updated to {0}.,Statutul fiscal a fost actualizat la {0}.
+Fiscal status updated.,Statutul fiscal a fost actualizat.
+Fiscalization,Fiscalizare
+Fiscalization {0},Fiscalizare: {0}
+Frappe School,Școala Frappe
+Frappe Support,Suport Frappe
+IDNO,IDNO
+If the company is registered as an user of the e-Factura system and is able to accept e-Factura electronic invoices.,Dacă compania este înregistrată ca utilizator al sistemului e-Factura și poate accepta facturi electronice e-Factura.
+Invalid base64 payload.,Payload base64 invalid.
+Is VAT included in Rate?,TVA este inclus în tarif?
+Is eFactura User,Utilizator eFactura
+Language (Romanian),Limbă (română)
+Last Status Check,Ultima verificare statut
+Log out,Deconectare
+Missing content.,Conținut lipsă.
+Missing eFactura document name.,Lipsește denumirea documentului eFactura.
+Missing signature.,Semnătură lipsă.
+Moldova eFactura,eFactura Moldova
+My Profile,Profilul meu
+My Settings,Setările mele
+Net Amount (eFactura Currency),Sumă netă (monedă eFactura)
+Net Rate (eFactura Currency),Tarif net (monedă eFactura)
+Net Total (eFactura Currency),Total net (monedă eFactura)
+Non-Transfer,Netansferabil
+Pending Registration,În așteptare înregistrare
+Please Select a Customer Party Type "Customer" and Customer Party first.,Selectați mai întâi tipul de parte „Client” și clientul.
+Please select at least one Sales Invoice.,Selectați cel puțin o factură de vânzare.
+Please set Currency in eFactura Settings.,Setați moneda în setările eFactura.
+Print Name,Nume pentru tipărire
+Processing {0} of {1},Se procesează {0} din {1}
+Qty In Stock UOM,Cantitate în UM stoc
+Qty In eFactura UOM,Cantitate în UM eFactura
+Rate (eFactura Currency),Tarif (monedă eFactura)
+Rate at which document currency is converted to eFactura currency,Cursul de conversie al monedei documentului în moneda eFactura
+Rate eFactura UOM (eFactura Currency),Tarif UM eFactura (monedă eFactura)
+Register Signed,Înregistrează semnat
+Register Unsigned,Înregistrează nesemnat
+Registered as Draft,Înregistrată ca nouă
+Registering unsigned XML to e-Factura system...,Se înregistrează XML nesemnat în sistemul e-Factura...
+Rejected by Customer,Respins de client
+Report an Issue,Raportează o problemă
+Root territory that defines Moldova fiscal scope,Territoriu rădăcină care definește aria fiscală a Moldovei
+Sales Invoice could not be submitted because eFactura is not configured. Please set Fiscal Territory in eFactura Settings.,Factura de vânzare nu poate fi confirmată deoarece eFactura nu este configurată. Setați teritoriul fiscal în setările eFactura.
+Select certificate,Selectați certificatul
+Select field from Company used to store IDNO,Selectați câmpul din Companie pentru stocarea IDNO
+Select field from Customer used to store IDNO,Selectați câmpul din Client pentru stocarea IDNO
+Select field from Supplier used to store IDNO,Selectați câmpul din Furnizor pentru stocarea IDNO
+Sent to Customer,Trimisă clientului
+Sign,Semnează
+Signed by Customer,Semnată de client
+Signed by Supplier,Semnată de furnizor
+Signed successfully,Semnată cu succes
+Signing error,Eroare de semnare
+Signing via MoldSign...,Semnare prin MoldSign...
+Starting…,Pornire…
+Successfully sent {0} signed invoice(s) to e-Factura system.,{0} facturi semnate au fost transmise cu succes în e-Factura.
+Successfully sent {0} unsigned invoice(s) to e-Factura system.,{0} facturi nesemnate au fost transmise cu succes în e-Factura.
+Supplier Bank Account,Cont bancar furnizor
+Supplier IDNO field,Câmp IDNO furnizor
+Supplier Party,Parte furnizor
+Supplier Party Type,Tip parte furnizor
+Toggle Full Width,Comutare lățime completă
+Toggle Theme,Comutare temă
+Total (eFactura Currency),Total (monedă eFactura)
+Transporter Party,Parte transportator
+Transporter Party Type,Tip parte transportator
+Unsigned XML registered successfully in e-Factura system.,XML nesemnat a fost înregistrat cu succes în sistemul e-Factura.
+Update Dates,Actualizează datele
+Updating dates...,Se actualizează datele...
+Used for eFactura VAT rate definition taken from Item Tax Template,Utilizat pentru definirea cotei TVA eFactura din șablonul de taxe al articolului
+Used for eFactura and documents printing,Utilizat pentru eFactura și tipărirea documentelor
+User Forum,Forum utilizatori
+VAT Account,Cont TVA
+VAT Amount (eFactura Currency),Sumă TVA (monedă eFactura)
+VAT ID,ID TVA
+VAT Rate,Cotă TVA
+VAT Total,Total TVA
+VAT Total (eFactura Currency),Total TVA (monedă eFactura)
+Vat Amount,Sumă TVA
+e-Factura API Error: Invoices posted: {0} / {1},Eroare API e-Factura: Facturi transmise: {0} / {1}
+e-Factura API Error: Unable to obtain Series and Number,Eroare API e-Factura: Nu se pot obține seria și numărul
+e-Factura API Error: {0},Eroare API e-Factura: {0}
+e-Factura XML Error: Item {0} {1} must not be 0,Eroare XML e-Factura: Articolul {0} {1} nu trebuie să fie 0
+e-Factura XML Error: {0} ({1}) must not be empty,Eroare XML e-Factura: {0} ({1}) nu trebuie să fie gol
+e-Factura returned non-PDF content in Result.Content,e-Factura a returnat conținut non-PDF în Result.Content
+eF Customer Address,Adresă client eF
+eF Customer Bank Account,Cont bancar client eF
+eF Customer Bank Code,Cod bancar client eF
+eF Customer Bank Name,Banca client eF
+eF Customer IDNO,IDNO client eF
+eF Customer Name,Nume client eF
+eF Customer Taxpayer Type,Tip contribuabil client eF
+eF Customer VAT Id,ID TVA client eF
+eF Customer e-Factura User,Client eF utilizator e-Factura
+eF Supplier Address,Adresă furnizor eF
+eF Supplier Bank Account,Cont bancar furnizor eF
+eF Supplier Bank Code,Cod bancar furnizor eF
+eF Supplier Bank Name,Banca furnizor eF
+eF Supplier IDNO,IDNO furnizor eF
+eF Supplier Name,Nume furnizor eF
+eF Supplier Taxpayer Type,Tip contribuabil furnizor eF
+eF Supplier VAT Id,ID TVA furnizor eF
+eF Supplier e-Factura User,Furnizor eF utilizator e-Factura
+eF Transporter Address,Adresă transportator eF
+eF Transporter Bank Account,Cont bancar transportator eF
+eF Transporter Bank Code,Cod bancar transportator eF
+eF Transporter Bank Name,Banca transportator eF
+eF Transporter IDNO,IDNO transportator eF
+eF Transporter Name,Nume transportator eF
+eF Transporter Taxpayer Type,Tip contribuabil transportator eF
+eF Transporter VAT Id,ID TVA transportator eF
+eF Transporter e-Factura User,Transportator eF utilizator e-Factura
+eFactura,eFactura
+eFactura Actions,Acțiuni eFactura
+eFactura Configuration Required. Fiscal Territory must be set.,Configurarea eFactura este necesară. Teritoriul fiscal trebuie setat.
+eFactura Currency,Monedă eFactura
+eFactura Exchange Rate,Curs eFactura
+eFactura Item,Articol eFactura
+eFactura Number,Număr eFactura
+eFactura Series,Serie eFactura
+eFactura Settings,Setări eFactura
+eFactura Settings: API username/password are not set.,Setări eFactura: utilizator/parolă API necompletate.
+eFactura Settings: api_wsdl_url is not set.,Setări eFactura: api_wsdl_url nu este setat.
+eFactura Status,Statut eFactura
+eFactura UOM,UM eFactura
+eFactura UOM Conversion Factor,Factor de conversie UM eFactura
+eFactura can be cancelled only in Pending Registration status.,eFactura poate fi anulată doar în statutul „În așteptare”.

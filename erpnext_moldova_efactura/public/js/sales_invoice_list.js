@@ -21,7 +21,7 @@ frappe.listview_settings['Sales Invoice'] = {
       // 2) Render clean badge (NO DOT)
       return `
         <span class="indicator-pill no-indicator-dot ${color}">
-          ${value}
+          ${__(value)}
         </span>
       `;
     }

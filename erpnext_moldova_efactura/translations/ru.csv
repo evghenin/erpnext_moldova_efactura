@@ -1,0 +1,147 @@
+Accepted by Customer,Принято клиентом
+Actualize Fiscal Status,Актуализировать фискальный статус
+Actualizing Fiscal Status,Актуализация фискального статуса
+Amount (eFactura Currency),Сумма (валюта eFactura)
+Apps,Приложения
+Available Qty In Stock UOM,Доступное количество в складской ЕИ
+Bank account,Банковский счёт
+Bank code,Банковский код
+Bank name,Название банка
+Both Issue Date and Delivery Date are required.,Дата выписки и дата поставки обязательны.
+Bulk fiscal status failed for {0}.,Массовое обновление фискального статуса не удалось для {0}.
+Canceled by Supplier,Отменено поставщиком
+Company IDNO field,Поле IDNO компании
+Connections,Подключения
+Currency (MDL),Валюта (MDL)
+Customer IDNO field,Поле IDNO клиента
+Customer Party,Сторона клиента
+Customer Party Type,Тип стороны клиента
+Dates can be updated only for submitted documents.,Даты можно изменять только у проведённых документов.
+Dates can be updated only in Pending Registration status.,Даты можно изменять только в статусе «Ожидает регистрации».
+Dates updated successfully.,Даты успешно обновлены.
+Download XML,Скачать XML
+Failed to register unsigned XML in e-Factura system.,Не удалось зарегистрировать неподписанный XML в системе e-Factura.
+Fiscal Territory,Фискальная территория
+Fiscal status can be actualized only for submitted invoices.,Фискальный статус можно обновлять только у проведённых счетов.
+Fiscal status updated for {0} invoices.,Фискальный статус обновлён для {0} счетов.
+Fiscal status updated to {0}.,Фискальный статус обновлён на {0}.
+Fiscal status updated.,Фискальный статус обновлён.
+Fiscalization,Фискализация
+Fiscalization {0},Фискализация: {0}
+Frappe School,Школа Frappe
+Frappe Support,Поддержка Frappe
+IDNO,IDNO
+If the company is registered as an user of the e-Factura system and is able to accept e-Factura electronic invoices.,Если компания зарегистрирована как пользователь системы e-Factura и может принимать электронные счета e-Factura.
+Invalid base64 payload.,Некорректный base64 payload.
+Is VAT included in Rate?,НДС включён в ставку?
+Is eFactura User,Пользователь eFactura
+Language (Romanian),Язык (румынский)
+Last Status Check,Последняя проверка статуса
+Log out,Выйти
+Missing content.,Отсутствует содержимое.
+Missing eFactura document name.,Отсутствует имя документа eFactura.
+Missing signature.,Отсутствует подпись.
+Moldova eFactura,eFactura Молдова
+Net Amount (eFactura Currency),Сумма нетто (валюта eFactura)
+Net Rate (eFactura Currency),Ставка нетто (валюта eFactura)
+Net Total (eFactura Currency),Итого нетто (валюта eFactura)
+Non-Transfer,Непередаваемый
+Pending Registration,Ожидает регистрации
+Please Select a Customer Party Type "Customer" and Customer Party first.,Сначала выберите тип стороны «Клиент» и клиента.
+Please select at least one Sales Invoice.,Выберите хотя бы один счёт продажи.
+Please set Currency in eFactura Settings.,Укажите валюту в настройках eFactura.
+Print Name,Имя для печати
+Processing {0} of {1},Обработка {0} из {1}
+Qty In Stock UOM,Количество в складской ЕИ
+Qty In eFactura UOM,Количество в ЕИ eFactura
+Rate (eFactura Currency),Ставка (валюта eFactura)
+Rate at which document currency is converted to eFactura currency,Курс конвертации валюты документа в валюту eFactura
+Rate eFactura UOM (eFactura Currency),Ставка ЕИ eFactura (валюта eFactura)
+Register Signed,Зарегистрировать подписанный
+Register Unsigned,Зарегистрировать неподписанный
+Registered as Draft,Зарегистрирован как черновик
+Registering unsigned XML to e-Factura system...,Регистрация неподписанного XML в системе e-Factura...
+Rejected by Customer,Отклонена клиентом
+Root territory that defines Moldova fiscal scope,Корневая территория, определяющая фискальную зону Молдовы
+Sales Invoice could not be submitted because eFactura is not configured. Please set Fiscal Territory in eFactura Settings.,Счёт продажи не может быть проведён, так как eFactura не настроена. Укажите фискальную территорию в настройках eFactura.
+Select certificate,Выберите сертификат
+Select field from Company used to store IDNO,Выберите поле компании для хранения IDNO
+Select field from Customer used to store IDNO,Выберите поле клиента для хранения IDNO
+Select field from Supplier used to store IDNO,Выберите поле поставщика для хранения IDNO
+Sent to Customer,Отправлена клиенту
+Sign,Подписать
+Signed by Customer,Подписана клиентом
+Signed by Supplier,Подписана поставщиком
+Signed successfully,Успешно подписана
+Signing error,Ошибка подписания
+Signing via MoldSign...,Подписание через MoldSign...
+Starting…,Запуск…
+Successfully sent {0} signed invoice(s) to e-Factura system.,Успешно отправлено подписанных счетов: {0}.
+Successfully sent {0} unsigned invoice(s) to e-Factura system.,Успешно отправлено неподписанных счетов: {0}.
+Supplier Bank Account,Банковский счёт поставщика
+Supplier IDNO field,Поле IDNO поставщика
+Supplier Party,Сторона поставщика
+Supplier Party Type,Тип стороны поставщика
+Total (eFactura Currency),Итого (валюта eFactura)
+Transporter Party,Сторона перевозчика
+Transporter Party Type,Тип стороны перевозчика
+Unsigned XML registered successfully in e-Factura system.,Неподписанный XML успешно зарегистрирован в системе e-Factura.
+Update Dates,Обновить даты
+Updating dates...,Обновление дат...
+Used for eFactura VAT rate definition taken from Item Tax Template,Используется для определения ставки НДС eFactura из шаблона налога товара
+Used for eFactura and documents printing,Используется для eFactura и печати документов
+VAT Account,Счёт НДС
+VAT Amount (eFactura Currency),Сумма НДС (валюта eFactura)
+VAT ID,ID НДС
+VAT Rate,Ставка НДС
+VAT Total,Сумма НДС
+VAT Total (eFactura Currency),Сумма НДС (валюта eFactura)
+Vat Amount,Сумма НДС
+e-Factura API Error: Invoices posted: {0} / {1},Ошибка API e-Factura: Отправлено счетов: {0} / {1}
+e-Factura API Error: Unable to obtain Series and Number,Ошибка API e-Factura: Не удалось получить серию и номер
+e-Factura API Error: {0},Ошибка API e-Factura: {0}
+e-Factura XML Error: Item {0} {1} must not be 0,Ошибка XML e-Factura: Позиция {0} {1} не должна быть 0
+e-Factura XML Error: {0} ({1}) must not be empty,Ошибка XML e-Factura: {0} ({1}) не должно быть пустым
+e-Factura returned non-PDF content in Result.Content,e-Factura вернула не-PDF содержимое в Result.Content
+eF Customer Address,Адрес клиента eF
+eF Customer Bank Account,Банковский счёт клиента eF
+eF Customer Bank Code,Банковский код клиента eF
+eF Customer Bank Name,Банк клиента eF
+eF Customer IDNO,IDNO клиента eF
+eF Customer Name,Имя клиента eF
+eF Customer Taxpayer Type,Тип налогоплательщика клиента eF
+eF Customer VAT Id,НДС ID клиента eF
+eF Customer e-Factura User,Клиент eF пользователь e-Factura
+eF Supplier Address,Адрес поставщика eF
+eF Supplier Bank Account,Банковский счёт поставщика eF
+eF Supplier Bank Code,Банковский код поставщика eF
+eF Supplier Bank Name,Банк поставщика eF
+eF Supplier IDNO,IDNO поставщика eF
+eF Supplier Name,Имя поставщика eF
+eF Supplier Taxpayer Type,Тип налогоплательщика поставщика eF
+eF Supplier VAT Id,НДС ID поставщика eF
+eF Supplier e-Factura User,Поставщик eF пользователь e-Factura
+eF Transporter Address,Адрес перевозчика eF
+eF Transporter Bank Account,Банковский счёт перевозчика eF
+eF Transporter Bank Code,Банковский код перевозчика eF
+eF Transporter Bank Name,Банк перевозчика eF
+eF Transporter IDNO,IDNO перевозчика eF
+eF Transporter Name,Имя перевозчика eF
+eF Transporter Taxpayer Type,Тип налогоплательщика перевозчика eF
+eF Transporter VAT Id,НДС ID перевозчика eF
+eF Transporter e-Factura User,Перевозчик eF пользователь e-Factura
+eFactura,eFactura
+eFactura Actions,Действия eFactura
+eFactura Configuration Required. Fiscal Territory must be set.,Требуется настройка eFactura. Необходимо указать фискальную территорию.
+eFactura Currency,Валюта eFactura
+eFactura Exchange Rate,Курс eFactura
+eFactura Item,Позиция eFactura
+eFactura Number,Номер eFactura
+eFactura Series,Серия eFactura
+eFactura Settings,Настройки eFactura
+eFactura Settings: API username/password are not set.,Настройки eFactura: не заданы API логин/пароль.
+eFactura Settings: api_wsdl_url is not set.,Настройки eFactura: api_wsdl_url не задан.
+eFactura Status,Статус eFactura
+eFactura UOM,ЕИ eFactura
+eFactura UOM Conversion Factor,Коэффициент конверсии ЕИ eFactura
+eFactura can be cancelled only in Pending Registration status.,eFactura может быть отменена только в статусе «Ожидает регистрации».

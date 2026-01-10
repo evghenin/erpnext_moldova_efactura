@@ -67,7 +67,7 @@ def _bulk_si_job(names, user):
         except Exception:
             frappe.log_error(
                 frappe.get_traceback(),
-                f"Bulk fiscal status failed for {name}",
+                _("Bulk fiscal status failed for {0}.").format(name),
             )
 
         # publish progress

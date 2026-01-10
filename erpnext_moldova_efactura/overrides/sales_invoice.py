@@ -8,5 +8,4 @@ def on_submit(doc, method=None):
     """
     status = determine_fiscal_status(doc)
 
-    # пишем напрямую в БД, без повторного save
     doc.db_set("fiscal_status", status, update_modified=False)
