@@ -95,7 +95,7 @@
   "name": "Sales Invoice-fiscal_status",
   "no_copy": 0,
   "non_negative": 0,
-  "options": "Pending\nIn Progress\nPartial\nCompleted\nFailed\nNot Required\nNot Applicable",
+  "options": "Pending\nIn Progress\nPartial\nCompleted\nFailed\nNot Required\nNot Applicable\nUnknown",
   "permlevel": 0,
   "placeholder": null,
   "precision": "",
