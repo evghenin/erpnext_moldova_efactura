@@ -9,6 +9,9 @@
         // 1) No status → render empty cell
         if (!value) return '';
 
+        // 2) Canceled invoices with "Pending" status → render empty cell 
+        if (doc.docstatus == 2 && value == "Pending") return '';
+
         const color_map = {
           "Pending": "red",
           "In Progress": "yellow",
@@ -22,7 +25,7 @@
 
         const color = color_map[value] || "gray";
 
-        // 2) Render clean badge (NO DOT)
+        // 3) Render clean badge (NO DOT)
         return `
           <span class="indicator-pill no-indicator-dot ${color}">
             ${__(value)}
