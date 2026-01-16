@@ -216,20 +216,26 @@ frappe.ui.form.on('eFactura', {
                     <td>${frm.doc[`ef_${party_type}_address`] || __("Unknown")}</td>
                 </tr>`;
 
-                html_content += `<tr>
-                    <td><b>${__("Bank account")}:</b></td>
-                    <td>${frm.doc[`ef_${party_type}_bank_account`] || __("Unknown")}</td>
-                </tr>`;
+                if (frm.doc[`ef_${party_type}_bank_account`]) {
+                    html_content += `<tr>
+                        <td><b>${__("Bank account")}:</b></td>
+                        <td>${frm.doc[`ef_${party_type}_bank_account`] || __("Unknown")}</td>
+                    </tr>`;
+                }
 
-                html_content += `<tr>
-                    <td><b>${__("Bank name")}:</b></td>
-                    <td>${frm.doc[`ef_${party_type}_bank_name`] || __("Unknown")}</td>
-                </tr>`;
+                if (frm.doc[`ef_${party_type}_bank_name`]) {
+                    html_content += `<tr>
+                        <td><b>${__("Bank name")}:</b></td>
+                        <td>${frm.doc[`ef_${party_type}_bank_name`] || __("Unknown")}</td>
+                    </tr>`;
+                }
 
-                html_content += `<tr>
-                    <td><b>${__("Bank code")}:</b></td>
-                    <td>${frm.doc[`ef_${party_type}_bank_code`] || __("Unknown")}</td>
-                </tr>`;
+                if (frm.doc[`ef_${party_type}_bank_code`]) {
+                    html_content += `<tr>
+                        <td><b>${__("Bank code")}:</b></td>
+                        <td>${frm.doc[`ef_${party_type}_bank_code`] || __("Unknown")}</td>
+                    </tr>`;
+                }
 
                 const is_user = frm.doc[`ef_${party_type}_is_user`];
                 const is_user_str =
