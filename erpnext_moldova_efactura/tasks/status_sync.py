@@ -1,5 +1,5 @@
 import frappe
-from frappe.utils import now_datetime
+from frappe.utils import now_datetime, add_days
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient
 
 
@@ -13,7 +13,10 @@ CHECKABLE_EF_STATUSES = (
     # 8,  # Signed by Customer
     # 10, # Transported
 )
-
+DRAFT = 0
+CANCELLED_BY_SUPPLIER = 5
+DEFAULT_LOOKBACK_DAYS = 365
+MAX_RESULTS_PER_RUN = 20000  # safety limit
 BATCH_SIZE = 50
 
 def sync_efactura_statuses():
@@ -144,3 +147,124 @@ def _extract_status_map(response: dict) -> dict:
             result[(str(seria), str(number))] = status_code
 
     return result
+
+
+def sync_efactura_cancelled_from_search_invoices():
+    """
+    Daily job:
+    - Pull invoices from e-Factura via SearchInvoices
+    - Filter InvoiceStatus == 5 (Canceled by Supplier)
+    - Update local docs to ef_status = 5
+    """
+    settings = frappe.get_single("eFactura Settings")
+
+    lookback_days = int(getattr(settings, "cancel_sync_lookback_days", None) or DEFAULT_LOOKBACK_DAYS)
+    date_from = add_days(now_datetime(), -lookback_days)
+
+    date_to = now_datetime()
+
+    # Build API call
+    from erpnext_moldova_efactura.api_client import EFacturaAPIClient
+    client = EFacturaAPIClient.from_settings()
+
+    # NOTE: parameter names depend on the SOAP contract you use.
+    # Replace keys below to match your API spec if needed.
+    parameters = {
+        "InvoiceStatus": CANCELLED_BY_SUPPLIER,
+        "IssuedOn": {
+            "StartDate": date_from
+        }
+    }
+
+    try:
+        resp = client.search_invoices(actor_role=1, parameters=parameters)
+    except Exception:
+        frappe.log_error(title="e-Factura SearchInvoices failed", message=frappe.get_traceback())
+        return
+
+    cancelled = _extract_rows_from_invoices_response(resp)
+    
+    if not cancelled:
+        return
+
+    # Optional: limit to avoid excessive DB load
+    cancelled = cancelled[:MAX_RESULTS_PER_RUN]
+
+    updated = _apply_cancelled_status_to_local_docs(cancelled)
+
+    frappe.logger().info(
+        f"e-Factura cancelled sync finished. from={date_from} to={date_to} cancelled={len(cancelled)} updated={updated}"
+    )
+
+
+def _extract_rows_from_invoices_response(resp: dict) -> list[tuple[str, str, int]]:
+    """
+    Returns list of (Seria, Number, Status) for InvoiceStatus == 5
+    """
+    out: list[tuple[str, str, int]] = []
+    if not isinstance(resp, dict):
+        return out
+
+    results = resp.get("Results") or resp
+    invoices = results.get("Invoice") if isinstance(results, dict) else None
+
+    if not invoices:
+        return out
+
+    # Sometimes SOAP serializers return a dict for single item
+    if isinstance(invoices, dict):
+        invoices = [invoices]
+
+    for inv in invoices:
+        if not isinstance(inv, dict):
+            continue
+        try:
+            status = int(inv.get("InvoiceStatus"))
+        except Exception:
+            continue
+
+        if status != CANCELLED_BY_SUPPLIER:
+            continue
+
+        seria = (inv.get("Seria") or "").strip()
+        number = (inv.get("Number") or "").strip()
+        status = int(inv.get("InvoiceStatus"))
+
+        if seria and number and status:
+            out.append((seria, number, status))
+
+    # Deduplicate
+    out = list(dict.fromkeys(out))
+    return out
+
+
+def _apply_cancelled_status_to_local_docs(keys: list[tuple[str, str, int]]) -> int:
+    """
+    Update local records. Adjust Doctype/fields below to match your data model.
+    """
+    updated = 0
+    now_ts = now_datetime()
+
+    for seria, number, status in keys:
+        if status != CANCELLED_BY_SUPPLIER:
+            continue
+
+        # Example Doctype: "eFactura" (adjust if you store ef fields in Sales Invoice)
+        name = frappe.db.get_value(
+            "eFactura",
+            {"ef_series": seria, "ef_number": number, "docstatus": 1},
+            "name",
+        )
+        if not name:
+            continue
+
+        doc = frappe.get_doc("eFactura", name)
+
+        if int(doc.ef_status or 0) != status:
+            doc.db_set("ef_status", status, update_modified=False)
+            doc.set_status()
+            updated += 1
+
+        doc.db_set("last_status_check", now_ts, update_modified=False)
+
+    return updated
