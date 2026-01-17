@@ -182,7 +182,8 @@ doc_events = {
 
 scheduler_events = {
     "hourly": [
-        "erpnext_moldova_efactura.tasks.status_sync.sync_efactura_statuses"
+        "erpnext_moldova_efactura.tasks.status_sync.sync_efactura_statuses",
+        "erpnext_moldova_efactura.tasks.status_sync.sync_efactura_draft_invoices_by_api_invoice_id",
     ],
     "daily": [
         "erpnext_moldova_efactura.tasks.status_sync.sync_efactura_cancelled_from_search_invoices",

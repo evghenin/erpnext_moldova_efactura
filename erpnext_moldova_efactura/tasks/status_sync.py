@@ -268,3 +268,170 @@ def _apply_cancelled_status_to_local_docs(keys: list[tuple[str, str, int]]) -> i
         doc.db_set("last_status_check", now_ts, update_modified=False)
 
     return updated
+
+
+def sync_efactura_draft_invoices_by_api_invoice_id():
+    """Sync series/number/status for locally Draft invoices using APIInvoiceId.
+
+    Use case: invoices were posted to e-Factura as *unsigned* XML, therefore the local
+    document may remain ef_status == 0 (Draft) and without ef_series/ef_number, while
+    e-Factura may already have assigned a series/number and an updated status.
+
+    Strategy:
+    - Select submitted local docs with ef_status == 0 (Draft)
+    - For each doc call SearchInvoices with Parameters.APIInvoiceId == doc.name
+    - Expect a single invoice in response; update ef_series, ef_number, ef_status locally
+    """
+
+    started_at = now_datetime()
+
+    # IMPORTANT: Table/Doctype name here matches your current code.
+    # If you store e-Factura fields on Sales Invoice instead, change "eFactura".
+    docs = frappe.db.sql(
+        """
+        SELECT
+            name,
+            ef_series,
+            ef_number,
+            ef_status,
+            last_status_check
+        FROM `tabeFactura`
+        WHERE
+            docstatus = 1
+            AND ef_status = %(draft)s
+        ORDER BY
+            CASE
+                WHEN last_status_check IS NULL THEN 0
+                ELSE 1
+            END,
+            last_status_check ASC
+        LIMIT %(limit)s
+        """,
+        {"draft": DRAFT, "limit": BATCH_SIZE},
+        as_dict=True,
+    )
+
+    if not docs:
+        return
+
+    client = EFacturaAPIClient.from_settings()
+
+    total = len(docs)
+    updated = 0
+    unchanged = 0
+    missing_in_api = 0
+    multiple_found = 0
+    errors = 0
+
+    now_ts = now_datetime()
+
+    # Keep a short sample in logs
+    sample_missing = []
+    sample_multi = []
+
+    for row in docs:
+        try:
+            # NOTE: actor_role=1 is consistent with your cancelled sync job.
+            params = {"APIInvoiceId": row.name}
+
+            resp = client.search_invoices(actor_role=1, parameters=params)
+            inv = _extract_single_invoice_from_search_response(resp)
+
+            if inv is None:
+                missing_in_api += 1
+                if len(sample_missing) < 5:
+                    sample_missing.append(row.name)
+                continue
+
+            if isinstance(inv, list):
+                multiple_found += 1
+                if len(sample_multi) < 5:
+                    sample_multi.append(row.name)
+                continue
+
+            remote_series = (inv.get("Seria") or "").strip()
+            remote_number = (inv.get("Number") or "").strip()
+            remote_status = inv.get("InvoiceStatus")
+
+            try:
+                remote_status_code = int(remote_status) if remote_status is not None else None
+            except Exception:
+                remote_status_code = None
+
+            doc = frappe.get_doc("eFactura", row.name)
+
+            changed = False
+
+            # Only set series/number if missing locally
+            if (not (doc.ef_series or "").strip()) and remote_series:
+                doc.db_set("ef_series", remote_series, update_modified=False)
+                changed = True
+
+            if (not (doc.ef_number or "").strip()) and remote_number:
+                doc.db_set("ef_number", remote_number, update_modified=False)
+                changed = True
+
+            # Update status if present and different
+            if remote_status_code is not None and int(doc.ef_status or 0) != remote_status_code:
+                doc.db_set("ef_status", remote_status_code, update_modified=False)
+                doc.set_status()
+                changed = True
+
+            # Always touch last_status_check so we don't re-check too aggressively
+            doc.db_set("last_status_check", now_ts, update_modified=False)
+
+            if changed:
+                updated += 1
+            else:
+                unchanged += 1
+
+        except Exception:
+            errors += 1
+
+    if missing_in_api or multiple_found or errors:
+        msg_lines = [
+            f"Started at: {started_at}",
+            f"Batch size: {total}",
+            f"Updated: {updated}",
+            f"Unchanged: {unchanged}",
+            f"Missing in API response: {missing_in_api}",
+            f"Multiple found in API response: {multiple_found}",
+            f"Errors: {errors}",
+        ]
+        if sample_missing:
+            msg_lines.append(f"Missing (sample): {', '.join(sample_missing)}")
+        if sample_multi:
+            msg_lines.append(f"Multiple (sample): {', '.join(sample_multi)}")
+
+        frappe.log_error(
+            title="eFactura draft sync by APIInvoiceId summary (with issues)",
+            message="\n".join(msg_lines),
+        )
+
+
+def _extract_single_invoice_from_search_response(resp: dict):
+    """Return a single invoice dict from SearchInvoices response.
+
+    Returns:
+    - dict: when exactly one invoice is present
+    - None: when no invoices
+    - list: when multiple invoices (signals caller to treat as anomaly)
+    """
+    if not isinstance(resp, dict):
+        return None
+
+    results = resp.get("Results") or resp
+    invoices = results.get("Invoice") if isinstance(results, dict) else None
+
+    if not invoices:
+        return None
+
+    if isinstance(invoices, dict):
+        return invoices
+
+    if isinstance(invoices, list):
+        if len(invoices) == 1:
+            return invoices[0]
+        return invoices
+
+    return None
