@@ -741,9 +741,9 @@ def _generate_invoice_xml(
     if document:
         root = ET.Element("Documents")
         doc = ET.SubElement(root, "Document")
+        supplier_info = ET.SubElement(doc, "SupplierInfo")
         additional_info = ET.SubElement(doc, "AdditionalInformation")
         ET.SubElement(additional_info, "id").text = str(efactura.name)
-        supplier_info = ET.SubElement(doc, "SupplierInfo")
     else:
         root = supplier_info = ET.Element("SupplierInfo")
 
