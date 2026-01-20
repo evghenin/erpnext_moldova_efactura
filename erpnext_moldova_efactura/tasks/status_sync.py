@@ -11,6 +11,7 @@ CHECKABLE_EF_STATUSES = (
     # 5,  # Canceled by Supplier
     7,  # Sent to Customer
     # 8,  # Signed by Customer
+    9,  # Sent to Customer
     # 10, # Transported
 )
 DRAFT = 0

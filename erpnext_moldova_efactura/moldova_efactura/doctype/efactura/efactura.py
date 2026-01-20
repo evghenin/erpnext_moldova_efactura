@@ -53,7 +53,7 @@ class eFactura(Document):
         Rejected by Customer |     1     |     2     | Rejected by Customer
         Accepted by Customer |     1     |     3     | Accepted by Customer
         Canceled by Supplier |     1     |     5     | Canceled by Supplier
-        Sent to Customer     |     1     |     7     | Sent to Customer
+        Sent to Customer     |     1     |   7,9     | Sent to Customer
         Signed by Customer   |     1     |     8     | Signed by Customer
         Transportation       |     1     |    10     | Transportation
 
@@ -71,6 +71,7 @@ class eFactura(Document):
             5:  "Canceled by Supplier",
             7:  "Sent to Customer",
             8:  "Signed by Customer",
+            9:  "Sent to Customer",
             10: "Transportation",
         }
 
