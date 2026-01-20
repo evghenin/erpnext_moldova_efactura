@@ -300,6 +300,8 @@ def sync_efactura_draft_invoices_by_api_invoice_id():
         WHERE
             docstatus = 1
             AND ef_status = %(draft)s
+            AND (ef_series IS NULL OR ef_series = '')
+            AND (ef_number IS NULL OR ef_number = '')
         ORDER BY
             CASE
                 WHEN last_status_check IS NULL THEN 0
@@ -330,10 +332,23 @@ def sync_efactura_draft_invoices_by_api_invoice_id():
     sample_missing = []
     sample_multi = []
 
+    # List of statuses to check in sequence (eFactura API requires status filter)
+    search_statuses = [0,1,7,8,3,2,5,6,10,4,6,9];
+
     for row in docs:
         try:
-            # NOTE: actor_role=1 is consistent with your cancelled sync job.
-            params = {"APIInvoiceId": row.name}
+            
+            for status in search_statuses:
+                params = {
+                    "APIeInvoiceId": "EF-2026-00017", 
+                    "InvoiceStatus": status,                 
+                }
+
+                resp = client.search_invoices(actor_role=1, parameters=params)
+                inv = _extract_single_invoice_from_search_response(resp)
+                
+                if inv:
+                    break
 
             resp = client.search_invoices(actor_role=1, parameters=params)
             inv = _extract_single_invoice_from_search_response(resp)
@@ -363,12 +378,12 @@ def sync_efactura_draft_invoices_by_api_invoice_id():
 
             changed = False
 
-            # Only set series/number if missing locally
-            if (not (doc.ef_series or "").strip()) and remote_series:
+            # Set series/number if available
+            if remote_series:
                 doc.db_set("ef_series", remote_series, update_modified=False)
                 changed = True
 
-            if (not (doc.ef_number or "").strip()) and remote_number:
+            if remote_number:
                 doc.db_set("ef_number", remote_number, update_modified=False)
                 changed = True
 
