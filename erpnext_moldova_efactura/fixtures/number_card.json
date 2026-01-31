@@ -22,6 +22,7 @@
   "report_field": null,
   "report_function": "Sum",
   "report_name": null,
+  "show_full_number": 0,
   "show_percentage_stats": 1,
   "stats_time_interval": "Weekly",
   "type": "Document Type"
@@ -49,6 +50,7 @@
   "report_field": null,
   "report_function": "Sum",
   "report_name": null,
+  "show_full_number": 0,
   "show_percentage_stats": 1,
   "stats_time_interval": "Daily",
   "type": "Document Type"
@@ -76,6 +78,7 @@
   "report_field": null,
   "report_function": "Sum",
   "report_name": null,
+  "show_full_number": 0,
   "show_percentage_stats": 1,
   "stats_time_interval": "Daily",
   "type": "Document Type"
@@ -103,6 +106,7 @@
   "report_field": null,
   "report_function": "Sum",
   "report_name": null,
+  "show_full_number": 0,
   "show_percentage_stats": 1,
   "stats_time_interval": "Daily",
   "type": "Document Type"

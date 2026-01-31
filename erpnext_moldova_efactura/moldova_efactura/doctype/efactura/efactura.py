@@ -28,9 +28,9 @@ class eFactura(Document):
         self.set_status()
 
     def on_cancel(self):
-        if self.ef_status != -1:
+        if self.ef_status != -1 and self.ef_status != 5:
             frappe.throw(
-                _("eFactura can be cancelled only in Pending Registration status.")
+                _("eFactura can be cancelled only in Pending Registration or Canceled by Supplier status.")
             )
         self.set_status()
 
