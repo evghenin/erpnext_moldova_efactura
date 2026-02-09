@@ -333,7 +333,7 @@ def sync_efactura_draft_invoices_by_api_invoice_id():
     sample_multi = []
 
     # List of statuses to check in sequence (eFactura API requires status filter)
-    search_statuses = [0,1,7,8,3,2,5,6,10,4,6,9]
+    search_statuses = [0,1,7,8,3,2,5,10,4,6,9]
 
     for row in docs:
         try:

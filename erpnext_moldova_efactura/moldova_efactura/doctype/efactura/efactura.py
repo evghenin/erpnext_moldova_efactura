@@ -397,7 +397,7 @@ def update_ef_status(efactura_name):
 
     if not efactura.ef_series or not efactura.ef_number:
         # List of statuses to check in sequence (eFactura API requires status filter)
-        search_statuses = [0,1,7,8,3,2,5,6,10,4,6,9]
+        search_statuses = [0,1,7,8,3,2,5,10,4,6,9]
         for status in search_statuses:
             params = {
                 "APIeInvoiceId": efactura.name, 
@@ -411,19 +411,18 @@ def update_ef_status(efactura_name):
                 break
 
         if isinstance(inv, list):
+            frappe.throw(_("e-Factura returned multiple invoices for APIeInvoiceId={0}: {1}").format(efactura.name, len(inv)))
+
+        if isinstance(inv, dict):
             remote_series = (inv.get("Seria") or "").strip()
             remote_number = (inv.get("Number") or "").strip()
             remote_status = inv.get("InvoiceStatus")
         
             if remote_series and remote_number and remote_status is not None:
-                if (remote_series != efactura.ef_series) or (remote_number != efactura.ef_number):
-                    frappe.throw(_("e-Factura API Error: Series and Number mismatch in search response."))
-
                 efactura.db_set("ef_series", remote_series, update_modified=False)
                 efactura.db_set("ef_number", remote_number, update_modified=False)
                 efactura.db_set("ef_status", remote_status, update_modified=False)
-                efactura.set_status()
-        
+                efactura.set_status()      
 
     else:
         resp = client.check_invoices_status(seria_and_numbers=
