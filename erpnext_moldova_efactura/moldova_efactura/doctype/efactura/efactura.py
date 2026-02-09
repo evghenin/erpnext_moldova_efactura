@@ -543,9 +543,10 @@ def send_unsigned(efactura_name):
     else:
         efactura.db_set("ef_status", 0, update_modified=False)
         efactura.set_status()
-        # тут надо обнулить ef_series & ef_number так как отправленные без подписи 
-        # фактуры получают новые серии и номер при подписании в системе e-factura
-        # обновлять их статус надо отдельно, по поиску, пока не появятся серия и номер 
+        # series and number are assigned only after signing in eFactura system, 
+        # so we need to clear them for unsigned invoices to avoid confusion
+        efactura.db_set("ef_series", None, update_modified=False)
+        efactura.db_set("ef_number", None, update_modified=False)
         return {
             "message": _("Successfully sent {0} unsigned invoice(s) to e-Factura system.").format(
                 posted
