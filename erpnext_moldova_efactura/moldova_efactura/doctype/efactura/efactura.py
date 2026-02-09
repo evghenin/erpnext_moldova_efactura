@@ -399,7 +399,7 @@ def update_ef_status(efactura_name):
         search_statuses = [0,1,7,8,3,2,5,6,10,4,6,9]
         for status in search_statuses:
             params = {
-                "APIeInvoiceId": row.name, 
+                "APIeInvoiceId": efactura.name, 
                 "InvoiceStatus": status,
             }
 
