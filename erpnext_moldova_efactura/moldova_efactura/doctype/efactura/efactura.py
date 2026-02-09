@@ -392,6 +392,7 @@ def download_xml(efactura_name):
 
 @frappe.whitelist()
 def update_ef_status(efactura_name):
+    client = EFacturaAPIClient.from_settings()
     efactura = frappe.get_doc("eFactura", efactura_name)
 
     if not efactura.ef_series or not efactura.ef_number:
@@ -425,7 +426,6 @@ def update_ef_status(efactura_name):
         
 
     else:
-        client = EFacturaAPIClient.from_settings()
         resp = client.check_invoices_status(seria_and_numbers=
             [
                 {
