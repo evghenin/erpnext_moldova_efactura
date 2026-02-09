@@ -333,15 +333,15 @@ def sync_efactura_draft_invoices_by_api_invoice_id():
     sample_multi = []
 
     # List of statuses to check in sequence (eFactura API requires status filter)
-    search_statuses = [0,1,7,8,3,2,5,6,10,4,6,9];
+    search_statuses = [0,1,7,8,3,2,5,6,10,4,6,9]
 
     for row in docs:
         try:
             
             for status in search_statuses:
                 params = {
-                    "APIeInvoiceId": "EF-2026-00017", 
-                    "InvoiceStatus": status,                 
+                    "APIeInvoiceId": row.name, 
+                    "InvoiceStatus": status,
                 }
 
                 resp = client.search_invoices(actor_role=1, parameters=params)
@@ -349,9 +349,6 @@ def sync_efactura_draft_invoices_by_api_invoice_id():
                 
                 if inv:
                     break
-
-            resp = client.search_invoices(actor_role=1, parameters=params)
-            inv = _extract_single_invoice_from_search_response(resp)
 
             if inv is None:
                 missing_in_api += 1

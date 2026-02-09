@@ -19,8 +19,6 @@ frappe.ui.form.on('eFactura', {
         autofillEfDetails(frm, "customer");
         autofillEfDetails(frm, "transporter");
 
-        console.log('!');
-
         if (
 			// !frm.doc.is_return &&
 			frm.is_new() &&
@@ -75,6 +73,7 @@ frappe.ui.form.on('eFactura', {
             );
         }
 
+
         if (
             !frm.is_new() && 
             frm.doc.docstatus === 1 &&
@@ -86,6 +85,26 @@ frappe.ui.form.on('eFactura', {
                     const endpoint = `/api/method/erpnext_moldova_efactura.moldova_efactura.doctype.efactura.efactura.download_pdf?efactura_name=${encodeURIComponent(frm.doc.name)}`;
                     const url = frappe.urllib.get_full_url(endpoint);
                     window.open(url, "_blank");
+                },
+                __("eFactura Actions")
+            );
+
+            frm.add_custom_button(
+                __("Update Status"),
+                function () {
+                    frappe.call({
+                        method: "erpnext_moldova_efactura.moldova_efactura.doctype.efactura.efactura.update_ef_status",
+                        args: { efactura_name: frm.doc.name },
+                        freeze: true,
+                        freeze_message: __("Updating e-Factura status..."),
+                        callback: (r) => {
+                            frappe.show_alert({
+                                message: __("e-Factura status updated successfully."),
+                                indicator: "green",
+                            }, 5);
+                            frm.reload_doc();
+                        },
+                    });
                 },
                 __("eFactura Actions")
             );

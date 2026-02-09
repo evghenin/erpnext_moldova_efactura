@@ -12,6 +12,7 @@ from frappe.model.mapper import get_mapped_doc
 from frappe.utils import cint, flt
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient
 from lxml import etree
+from erpnext_moldova_efactura.tasks.status_sync import _extract_single_invoice_from_search_response, _extract_status_map
 
 class eFactura(Document):
     def onload(self):
@@ -387,6 +388,61 @@ def download_xml(efactura_name):
     frappe.local.response.filecontent = xml_content
     frappe.local.response.type = "download"
     frappe.local.response.content_type = "application/xml"
+
+
+@frappe.whitelist()
+def update_ef_status(efactura_name):
+    efactura = frappe.get_doc("eFactura", efactura_name)
+
+    if not efactura.ef_series or not efactura.ef_number:
+        # List of statuses to check in sequence (eFactura API requires status filter)
+        search_statuses = [0,1,7,8,3,2,5,6,10,4,6,9]
+        for status in search_statuses:
+            params = {
+                "APIeInvoiceId": row.name, 
+                "InvoiceStatus": status,
+            }
+
+            resp = client.search_invoices(actor_role=1, parameters=params)
+            inv = _extract_single_invoice_from_search_response(resp)
+            
+            if inv:
+                break
+
+        if isinstance(inv, list):
+            remote_series = (inv.get("Seria") or "").strip()
+            remote_number = (inv.get("Number") or "").strip()
+            remote_status = inv.get("InvoiceStatus")
+        
+            if remote_series and remote_number and remote_status is not None:
+                if (remote_series != efactura.ef_series) or (remote_number != efactura.ef_number):
+                    frappe.throw(_("e-Factura API Error: Series and Number mismatch in search response."))
+
+                efactura.db_set("ef_series", remote_series, update_modified=False)
+                efactura.db_set("ef_number", remote_number, update_modified=False)
+                efactura.db_set("ef_status", remote_status, update_modified=False)
+                efactura.set_status()
+        
+
+    else:
+        client = EFacturaAPIClient.from_settings()
+        resp = client.check_invoices_status(seria_and_numbers=
+            [
+                {
+                    "Seria": efactura.ef_series,
+                    "Number": efactura.ef_number,
+                }
+            ]
+        )
+
+        statuses = _extract_status_map(resp)
+
+        key = (str(efactura.ef_series), str(efactura.ef_number))
+        status = statuses.get(key)
+
+        if status is not None and status != efactura.ef_status:
+            efactura.db_set("ef_status", status, update_modified=False)
+            efactura.set_status()
 
 
 @frappe.whitelist()
