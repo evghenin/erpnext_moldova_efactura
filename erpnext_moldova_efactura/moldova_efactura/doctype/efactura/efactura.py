@@ -169,6 +169,7 @@ class eFactura(Document):
         self.ef_total = 0
         self.net_total = 0
         self.vat_total = 0
+        self.total = 0
 
         for d in self.items or []:
             qty = flt(d.qty or 0)
@@ -222,9 +223,10 @@ class eFactura(Document):
 
             self.ef_vat_total += d.ef_vat_amount
             self.ef_net_total += d.ef_net_amount
+            self.ef_total += d.ef_amount
             self.vat_total += d.vat_amount
             self.net_total += d.net_amount
-            self.ef_total += d.ef_amount
+            self.total += d.amount
 
     def _autofill_parties_from_efactura_api_after_save(self):
         # Prevent recursion
@@ -690,8 +692,9 @@ def make_efactura_from_delivery_note(source_name, target_doc=None, args=None):
         {
             "Delivery Note": {
                 "doctype": "eFactura",
-                # "field_map": {"is_return": "is_return"},
-                "validation": {"docstatus": ["=", 1]},
+                "validation": {
+                    "docstatus": ["=", 1]
+                },
             },
             "Delivery Note Item": {
                 "doctype": "eFactura Item",
@@ -711,8 +714,12 @@ def make_efactura_from_delivery_note(source_name, target_doc=None, args=None):
                     "sales_invoice": "sales_invoice",
         },},},
         target_doc,
-        _set_missing_values,
+        _postprocess_with_discount,
     )
+
+    if target_doc:
+        target_doc.update_items_available_qty()
+
     doc.update_items_available_qty()
 
     return doc
@@ -727,6 +734,9 @@ def make_efactura_from_sales_invoice(source_name, target_doc=None):
         {
             "Sales Invoice": {
                 "doctype": "eFactura",
+                "validation": {
+                    "docstatus": ["=", 1]
+                },
             },
             "Sales Invoice Item": {
                 "doctype": "eFactura Item",
@@ -745,12 +755,47 @@ def make_efactura_from_sales_invoice(source_name, target_doc=None):
                     "parent": "sales_invoice",
         },},},
         target_doc,
-        _set_missing_values,
+        _postprocess_with_discount,
     )
+    if target_doc:
+        target_doc.update_items_available_qty()
+
     doc.update_items_available_qty()
 
     return doc
 
+
+def _postprocess_with_discount(source, target):
+    _set_missing_values(source, target)
+    _apply_additional_discounts(source, target)
+
+
+def _apply_additional_discounts(source, target):
+    
+    apply_discount_on = source.get("apply_discount_on") # "Net Total" or "Grand Total"
+    discount_amount = flt(source.get("discount_amount", 0))
+
+    if discount_amount <= 0:
+        return
+
+    if apply_discount_on == "Net Total":
+        base_amount = source.get("base_net_total", 0) + discount_amount
+    else:       
+        base_amount = source.get("base_total", 0)
+    
+    discount_percentage = (discount_amount / base_amount * 100) if base_amount else 0
+
+    for d in target.items or []:        
+        discount = discount_percentage * flt(d.amount or 0) / 100
+        d.rate = flt(d.rate or 0) - (discount / flt(d.qty or 1))
+        d.amount = flt(d.rate) * flt(d.qty or 0)
+
+        ef_discount = discount_percentage * flt(d.ef_amount or 0) / 100 
+        d.ef_rate = flt(d.ef_rate or 0) - (ef_discount / flt(d.ef_qty or 1)) 
+        d.ef_amount = flt(d.ef_rate) * flt(d.ef_qty or 0)
+
+    target.apply_vat()  # recalculate VAT after discount
+    
 
 def _set_missing_values(source, target):
     # Parent fields
@@ -763,8 +808,6 @@ def _set_missing_values(source, target):
     target.customer_party_type = "Customer"
     target.customer_party = source.customer
 
-    # If you want: set dates (optional)
-
     target.set_ef_currency_from_settings()
     target.apply_ef_conversion_rate_rules()
     target.apply_vat()
@@ -772,6 +815,7 @@ def _set_missing_values(source, target):
     for d in target.items or []:
         d.ef_uom = d.ef_uom or d.uom
         d.ef_qty = d.ef_qty or d.qty
+
 
 def _get_vat_rate_from_item_tax_template(template_name, cache):
     if not template_name:
@@ -790,6 +834,7 @@ def _get_vat_rate_from_item_tax_template(template_name, cache):
 
     cache[template_name] = rate
     return rate
+
 
 def _generate_invoice_xml(
     efactura, language, save_to_file=False, file_path="output.xml", document=True, declaration=True
