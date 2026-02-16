@@ -357,14 +357,6 @@ frappe.ui.form.on('eFactura', {
         update_transporter_party(frm);
     },
 
-    items_add: async function(frm) {
-        await ef_recalculate_totals(frm);
-    },
-
-    items_remove: async function(frm) {
-        await ef_recalculate_totals(frm);
-    },
-
     ef_conversion_rate: async function(frm) {
         await ef_recalculate_all_items_and_totals(frm);
     },
@@ -701,6 +693,14 @@ frappe.ui.form.on('eFactura Item', {
         await ef_recalculate_totals(frm);
 
         frm.refresh_field('items');
+    },
+
+    items_add: async function(frm) {
+        await ef_recalculate_totals(frm);
+    },
+
+    items_remove: async function(frm) {
+        await ef_recalculate_totals(frm);
     },
 });
 

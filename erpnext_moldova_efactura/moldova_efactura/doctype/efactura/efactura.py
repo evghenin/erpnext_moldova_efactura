@@ -24,6 +24,7 @@ class eFactura(Document):
         self.apply_ef_conversion_rate_rules()
         self.update_items_available_qty()
         self.set_status()
+        self.apply_vat()
 
     def on_submit(self):
         self.set_status()
