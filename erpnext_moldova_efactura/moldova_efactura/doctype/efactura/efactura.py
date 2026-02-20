@@ -45,19 +45,20 @@ class eFactura(Document):
         """
         Map to sync 'status' field:
 
-        status               | docstatus | ef_status | e-Factura            
-        -------------------------------------------------------------------
-        Draft                |     0     |    any    | 
-        Canceled             |     2     |    any    | 
-        Pending Registration |     1     |    -1     |
-        Registered as Draft  |     1     |     0     | Draft
-        Signed by Supplier   |     1     |     1     | Signed by Supplier
-        Rejected by Customer |     1     |     2     | Rejected by Customer
-        Accepted by Customer |     1     |     3     | Accepted by Customer
-        Canceled by Supplier |     1     |     5     | Canceled by Supplier
-        Sent to Customer     |     1     |   7,9     | Sent to Customer
-        Signed by Customer   |     1     |     8     | Signed by Customer
-        Transportation       |     1     |    10     | Transportation
+        status                 | docstatus | ef_status | e-Factura            
+        ------------------------------------------------------------------------
+        Draft                  |     0     |    any    | 
+        Canceled               |     2     |    any    | 
+        Pending Registration   |     1     |    -1     |
+        Registered as Draft    |     1     |     0     | Draft
+        Signed by Supplier     |     1     |     1     | Signed by Supplier
+        Rejected by Customer   |     1     |     2     | Rejected by Customer
+        Accepted by Customer   |     1     |     3     | Accepted by Customer
+        Canceled by Supplier   |     1     |     5     | Canceled by Supplier
+        Sent to Customer       |     1     |   7,9     | Sent to Customer
+        Signed by Customer     |     1     |     8     | Signed by Customer
+        Transportation         |     1     |    10     | Transportation
+        Cancellation Requested |     1     |    11     | Cancellation Requested
 
         """
 
@@ -75,6 +76,7 @@ class eFactura(Document):
             8:  "Signed by Customer",
             9:  "Sent to Customer",
             10: "Transportation",
+            11: "Cancellation Requested",
         }
 
         if self.docstatus == 0:
