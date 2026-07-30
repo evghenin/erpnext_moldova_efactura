@@ -164,7 +164,8 @@ class eFactura(Document):
         vat_included = cint(
             frappe.db.get_single_value("eFactura Settings", "vat_included_in_rate") or 0
         )
-        ef_conv = flt(True)
+        ef_conv = flt(self.ef_conversion_rate) or 1
+
 
         tpl_cache = {}
         self.ef_vat_total = 0
@@ -800,16 +801,32 @@ def _apply_additional_discounts(source, target):
     target.apply_vat()  # recalculate VAT after discount
     
 
+def _resolve_sales_invoice_from_delivery_note(source):
+    """Pick Sales Invoice linked to a Delivery Note (staged delivery against SI)."""
+    for d in source.get("items") or []:
+        si = d.get("against_sales_invoice") or d.get("sales_invoice")
+        if si:
+            return si
+    return None
+
+
 def _set_missing_values(source, target):
     # Parent fields
     target.company = source.company
-    target.reference_doctype = "Sales Invoice"
-    target.reference_name = source.name
     target.currency = source.currency
 
     # Optional but usually correct
     target.customer_party_type = "Customer"
     target.customer_party = source.customer
+
+    # Fiscal document is always tied to Sales Invoice:
+    # - eFactura can be issued without any Delivery Note
+    # - one SI may be fulfilled by several DNs; DN only supplies items
+    target.reference_doctype = "Sales Invoice"
+    if source.doctype == "Sales Invoice":
+        target.reference_name = source.name
+    elif source.doctype == "Delivery Note" and not target.reference_name:
+        target.reference_name = _resolve_sales_invoice_from_delivery_note(source)
 
     target.set_ef_currency_from_settings()
     target.apply_ef_conversion_rate_rules()
