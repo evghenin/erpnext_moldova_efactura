@@ -274,10 +274,10 @@ frappe.ui.form.on('eFactura', {
     },
 
     type: function(frm) {
-        if (frm.doc.document_type == "Transfer") {
+        if (frm.doc.type == "Transfer") {
             frm.set_value("naming_series", "EF-.YYYY.-");
-        } else if (frm.doc.document_type == "Non-Transfer") {
-            frm.set_value("naming_series", "EF-NT-.YYYY.--");
+        } else if (frm.doc.type == "Non-Transfer") {
+            frm.set_value("naming_series", "EF-NT-.YYYY.-");
         }
     },
 
