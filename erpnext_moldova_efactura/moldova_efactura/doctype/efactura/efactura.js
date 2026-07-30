@@ -47,7 +47,7 @@ frappe.ui.form.on('eFactura', {
 						},
 						get_query_filters: {
 							docstatus: 1,
-							status: ["not in", ["Canceled"]],
+							status: ["not in", ["Cancelled"]],
 							// per_delivered: ["<", 99.99],
 							company: frm.doc.company,
 							// project: frm.doc.reference_doctype  == "Sales Invoice" ? frm.doc.reference_name : undefined,

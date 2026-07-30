@@ -48,7 +48,7 @@ class eFactura(Document):
         status                 | docstatus | ef_status | e-Factura            
         ------------------------------------------------------------------------
         Draft                  |     0     |    any    | 
-        Canceled               |     2     |    any    | 
+        Cancelled              |     2     |    any    | 
         Pending Registration   |     1     |    -1     |
         Registered as Draft    |     1     |     0     | Draft
         Signed by Supplier     |     1     |     1     | Signed by Supplier

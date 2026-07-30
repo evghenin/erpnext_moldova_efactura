@@ -5,3 +5,4 @@
 [post_model_sync]
 # Patches added in this section will be executed after doctypes are migrated
 erpnext_moldova_efactura.patches.v1_0.migrate_sales_invoice_fiscal_status
+erpnext_moldova_efactura.patches.v1_0.fix_efactura_cancelled_status_spelling
