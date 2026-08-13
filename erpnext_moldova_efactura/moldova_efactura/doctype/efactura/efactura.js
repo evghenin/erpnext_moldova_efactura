@@ -8,7 +8,60 @@ frappe.ui.form.on('eFactura', {
         });
     },
 
+    before_submit(frm) {
+        if (cint(frm.doc.si_qty_overage_confirmed)) {
+            frm._ef_in_submit = true;
+            return;
+        }
+
+        return frappe
+            .call({
+                method: "erpnext_moldova_efactura.utils.qty_guard.check_si_qty_overage",
+                args: { doc: frm.doc },
+            })
+            .then((r) => {
+                const data = r.message || {};
+                if (!data.overages || !data.overages.length) {
+                    frm._ef_in_submit = true;
+                    return;
+                }
+                return show_si_qty_overage_dialog(frm, data).then(() => {
+                    frm._ef_in_submit = !!frappe.validated;
+                });
+            })
+            .catch(() => {
+                frappe.validated = false;
+                frm._ef_in_submit = false;
+            });
+    },
+
+    before_save(frm) {
+        if (cint(frm.doc.docstatus) !== 0 || frm._ef_in_submit) {
+            return;
+        }
+        if (cint(frm.doc.si_qty_overage_confirmed)) {
+            return;
+        }
+
+        return frappe
+            .call({
+                method: "erpnext_moldova_efactura.utils.qty_guard.check_si_qty_overage",
+                args: { doc: frm.doc, include_drafts: 1 },
+            })
+            .then((r) => {
+                const data = r.message || {};
+                if (!data.overages || !data.overages.length) {
+                    return;
+                }
+                return show_si_qty_overage_dialog(frm, data);
+            })
+            .catch(() => {
+                frappe.validated = false;
+            });
+    },
+
     refresh(frm) {
+        frm._ef_in_submit = false;
         setup_reference_name_query(frm);
         update_supplier_party(frm);
         update_supplier_bank_account(frm);
@@ -1232,4 +1285,58 @@ async function sign_xml_moldsign(frm) {
   } finally {
     frappe.dom.unfreeze();
   }
+}
+
+function show_si_qty_overage_dialog(frm, data) {
+    return new Promise((resolve) => {
+        let settled = false;
+        const finish = (ok) => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            if (!ok) {
+                frappe.validated = false;
+            }
+            resolve();
+        };
+
+        const saveMode = data.mode === "save";
+        const dialog = new frappe.ui.Dialog({
+            title: data.block
+                ? __("Quantity exceeds Sales Invoice")
+                : __("Quantity exceeds Sales Invoice — confirmation required"),
+            indicator: data.block ? "red" : "orange",
+            fields: [
+                {
+                    fieldtype: "HTML",
+                    fieldname: "overage_html",
+                    options: data.message || "",
+                },
+            ],
+            onhide() {
+                finish(false);
+            },
+        });
+
+        if (data.block) {
+            dialog.set_primary_action(__("Close"), () => {
+                finish(false);
+                dialog.hide();
+            });
+        } else {
+            dialog.set_primary_action(saveMode ? __("Save Anyway") : __("Submit Anyway"), () => {
+                frm.doc.si_qty_overage_confirmed = 1;
+                finish(true);
+                dialog.hide();
+            });
+            dialog.set_secondary_action_label(__("Cancel"));
+            dialog.set_secondary_action(() => {
+                finish(false);
+                dialog.hide();
+            });
+        }
+
+        dialog.show();
+    });
 }

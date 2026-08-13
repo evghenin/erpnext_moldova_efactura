@@ -145,3 +145,24 @@ eFactura Status,Статус eFactura
 eFactura UOM,ЕИ eFactura
 eFactura UOM Conversion Factor,Коэффициент конверсии ЕИ eFactura
 eFactura can be cancelled only in Pending Registration status.,eFactura может быть отменена только в статусе «Ожидает регистрации».
+Block Submit When Qty Exceeds Sales Invoice,Блокировать проведение при превышении количества по счёту
+"If enabled, submit is blocked when cumulative stock qty of any item across submitted eFactura exceeds the linked Sales Invoice. If disabled, the user must confirm the overage in the document form before submit.","Если включено, проведение блокируется, когда совокупное складское количество любой позиции по проведённым eFactura превышает связанный счёт продажи. Если выключено, перед проведением нужно подтвердить превышение в форме документа."
+Quantity vs Sales Invoice,Количество относительно счёта продажи
+Outgoing,Исходящие
+Quantity exceeds Sales Invoice,Количество превышает счёт продажи
+Quantity exceeds Sales Invoice — confirmation required,Количество превышает счёт продажи — требуется подтверждение
+"Cumulative eFactura quantity exceeds Sales Invoice {0} for the following items:","Совокупное количество по eFactura превышает счёт продажи {0} по следующим товарам:"
+Sales Invoice Qty,Количество в счёте продажи
+This eFactura,Эта eFactura
+eFactura Qty (total),Количество по eFactura (итого)
+Other submitted eFactura,Другие проведённые eFactura
+Submit Anyway,Провести всё равно
+Checking quantities against Sales Invoice...,Проверка количества по счёту продажи...
+SI Qty Overage Confirmed,Превышение количества по счёту подтверждено
+Exclude Rejected / Canceled from Qty Quota,Не учитывать отклонённые / отменённые в квоте количества
+"If enabled, eFactura in status Rejected by Customer or Canceled by Supplier do not occupy Sales Invoice quantity. You can reissue without cancelling the failed document in ERPNext. If disabled, those documents keep the qty until they are cancelled.","Если включено, eFactura в статусе «Отклонена клиентом» или «Отменена поставщиком» не занимают количество по счёту продажи. Можно выставить заново без отмены неудачного документа в ERPNext. Если выключено, эти документы держат количество, пока их не отменят."
+Confirm Draft Save When Qty Exceeds Sales Invoice,Подтверждать сохранение черновика при превышении количества по счёту
+"If enabled, saving a Draft asks for confirmation when this document plus other Draft and submitted eFactura exceed the Sales Invoice qty. This surfaces overlapping drafts before submit. Submit still checks only submitted documents.","Если включено, при сохранении черновика запрашивается подтверждение, когда этот документ вместе с другими черновиками и проведёнными eFactura превышает количество по счёту продажи. Так пересекающиеся черновики видны до проведения. Проведение по-прежнему проверяет только проведённые документы."
+Other eFactura,Другие eFactura
+Save Anyway,Сохранить всё равно
+"Other Draft eFactura are included. The first document submitted takes the quantity; the other will be blocked or need confirmation.","Учтены другие черновики eFactura. Количество заберёт документ, который проведут первым; второй будет заблокирован или потребует подтверждения."

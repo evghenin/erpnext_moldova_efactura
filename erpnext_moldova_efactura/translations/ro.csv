@@ -153,3 +153,24 @@ eFactura Status,Statut eFactura
 eFactura UOM,UM eFactura
 eFactura UOM Conversion Factor,Factor de conversie UM eFactura
 eFactura can be cancelled only in Pending Registration status.,eFactura poate fi anulată doar în statutul „În așteptare”.
+Block Submit When Qty Exceeds Sales Invoice,Blochează confirmarea dacă cantitatea depășește factura de vânzare
+"If enabled, submit is blocked when cumulative stock qty of any item across submitted eFactura exceeds the linked Sales Invoice. If disabled, the user must confirm the overage in the document form before submit.","Dacă este activat, confirmarea este blocată când cantitatea cumulată în UM stoc a oricărui articol din eFactura confirmate depășește factura de vânzare asociată. Dacă este dezactivat, utilizatorul trebuie să confirme depășirea în formularul documentului înainte de confirmare."
+Quantity vs Sales Invoice,Cantitate față de factura de vânzare
+Outgoing,Ieșire
+Quantity exceeds Sales Invoice,Cantitatea depășește factura de vânzare
+Quantity exceeds Sales Invoice — confirmation required,Cantitatea depășește factura de vânzare — este necesară confirmarea
+"Cumulative eFactura quantity exceeds Sales Invoice {0} for the following items:","Cantitatea cumulată eFactura depășește factura de vânzare {0} pentru următoarele articole:"
+Sales Invoice Qty,Cantitate în factura de vânzare
+This eFactura,Această eFactura
+eFactura Qty (total),Cantitate eFactura (total)
+Other submitted eFactura,Alte eFactura confirmate
+Submit Anyway,Confirmă oricum
+Checking quantities against Sales Invoice...,Verificare cantități față de factura de vânzare...
+SI Qty Overage Confirmed,Depășirea cantității față de factură confirmată
+Exclude Rejected / Canceled from Qty Quota,Nu include respinse / anulate în cota de cantitate
+"If enabled, eFactura in status Rejected by Customer or Canceled by Supplier do not occupy Sales Invoice quantity. You can reissue without cancelling the failed document in ERPNext. If disabled, those documents keep the qty until they are cancelled.","Dacă este activat, eFactura în statutul „Respinsă de client” sau „Anulată de furnizor” nu ocupă cantitatea facturii de vânzare. Puteți reemite fără a anula documentul eșuat în ERPNext. Dacă este dezactivat, aceste documente păstrează cantitatea până la anulare."
+Confirm Draft Save When Qty Exceeds Sales Invoice,Confirmă salvarea ciornei dacă cantitatea depășește factura de vânzare
+"If enabled, saving a Draft asks for confirmation when this document plus other Draft and submitted eFactura exceed the Sales Invoice qty. This surfaces overlapping drafts before submit. Submit still checks only submitted documents.","Dacă este activat, salvarea unei ciorne cere confirmare când acest document plus alte ciorne și eFactura confirmate depășesc cantitatea facturii de vânzare. Astfel ciornele suprapuse sunt vizibile înainte de confirmare. Confirmarea verifică în continuare doar documentele confirmate."
+Other eFactura,Alte eFactura
+Save Anyway,Salvează oricum
+"Other Draft eFactura are included. The first document submitted takes the quantity; the other will be blocked or need confirmation.","Sunt incluse alte eFactura ciornă. Cantitatea o ia documentul confirmat primul; celălalt va fi blocat sau va necesita confirmare."

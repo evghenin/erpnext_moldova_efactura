@@ -4,6 +4,41 @@
 frappe.ui.form.on('eFactura Settings', {
     refresh(frm) {
         set_options_for_idno_selects(frm);
+        frm.add_custom_button(__('Fetch Buyer Invoices'), () => {
+            frappe.prompt(
+                [
+                    {
+                        fieldname: 'lookback_days',
+                        fieldtype: 'Int',
+                        label: __('Lookback days'),
+                        default: 180,
+                        reqd: 1,
+                    },
+                ],
+                (values) => {
+                    frappe.call({
+                        method: 'erpnext_moldova_efactura.tasks.buyer_sync.fetch_buyer_invoices',
+                        args: { lookback_days: values.lookback_days },
+                        freeze: true,
+                        callback(r) {
+                            if (r.message) {
+                                frappe.msgprint(
+                                    __('Found {0}, created {1}, updated {2}, details {3}, errors {4}', [
+                                        r.message.found,
+                                        r.message.created,
+                                        r.message.updated,
+                                        r.message.details_loaded,
+                                        r.message.errors,
+                                    ])
+                                );
+                            }
+                        },
+                    });
+                },
+                __('Fetch Buyer Invoices'),
+                __('Fetch')
+            );
+        });
     }
 });
 

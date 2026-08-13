@@ -14,6 +14,7 @@
   "posting_time",
   "status",
   "last_status_check",
+  "si_qty_overage_confirmed",
   "column_break_grhc",
   "type",
   "ef_status",
@@ -660,13 +661,22 @@
    "label": "eFactura Status",
    "no_copy": 1,
    "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "si_qty_overage_confirmed",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "SI Qty Overage Confirmed",
+   "no_copy": 1,
+   "print_hide": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-02-10 01:13:24.705692",
+ "modified": "2026-08-13 10:40:00.000000",
  "modified_by": "Administrator",
  "module": "Moldova eFactura",
  "name": "eFactura",

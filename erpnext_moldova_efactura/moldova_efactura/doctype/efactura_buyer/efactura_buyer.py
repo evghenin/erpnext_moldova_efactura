@@ -1,0 +1,547 @@
+# Copyright (c) 2026, Evgheni Nemerenco and contributors
+# For license information, please see license.txt
+
+from __future__ import annotations
+
+import frappe
+from frappe import _
+from frappe.model.document import Document
+from frappe.utils import cstr, flt, now_datetime
+
+from erpnext_moldova_efactura.api_client import EFacturaAPIClient
+from erpnext_moldova_efactura.utils.api_response import extract_invoices, invoice_status_map, invoice_xml
+from erpnext_moldova_efactura.utils.buyer_status import compose_buyer_status
+from erpnext_moldova_efactura.utils.invoice_xml import parse_invoice_xml
+from erpnext_moldova_efactura.utils.item_map import resolve_item_code, upsert_item_map
+from erpnext_moldova_efactura.utils.party import find_supplier_by_idno
+from erpnext_moldova_efactura.utils.uom_map import (
+	apply_booking_defaults,
+	apply_uom_to_buyer_row,
+	compute_buyer_item_qtys,
+	ensure_uom_map,
+)
+
+
+class eFacturaBuyer(Document):
+	def validate(self):
+		self._validate_unique_series_number()
+		self._validate_items_immutable()
+		if self.docstatus == 0:
+			self.apply_item_maps()
+			self._persist_learned_maps()
+		self.set_status(update=False)
+
+	def before_insert(self):
+		if not self._is_system_insert_allowed():
+			frappe.throw(
+				_("Incoming e-Factura cannot be created manually. Use Fetch from e-Factura.")
+			)
+		if not self.currency:
+			self.currency = frappe.db.get_single_value("eFactura Settings", "currency") or "MDL"
+
+	def _is_system_insert_allowed(self) -> bool:
+		"""Only sync/tests/patches may create buyer documents."""
+		if self.flags.get("from_efactura_sync"):
+			return True
+		if frappe.flags.in_test or frappe.flags.in_migrate or frappe.flags.in_install or frappe.flags.in_patch:
+			return True
+		return False
+
+	def before_submit(self):
+		if not self.supplier:
+			frappe.throw(_("Supplier is required before submit"))
+		if not self.items:
+			frappe.throw(_("Fetch invoice details from e-Factura before submit"))
+		unmapped = [str(r.idx) for r in self.items if not r.item_code]
+		if unmapped:
+			frappe.throw(
+				_("Map all items before submit (unmapped rows: {0})").format(", ".join(unmapped))
+			)
+		for row in self.items:
+			if not row.ef_uom:
+				frappe.throw(
+					_("eFactura UOM not matched for row {0} (Supplier UOM: {1})").format(
+						row.idx, row.supplier_uom or _("empty")
+					)
+				)
+			if not row.stock_uom:
+				frappe.throw(_("Stock UOM is required for row {0}").format(row.idx))
+			if not row.uom:
+				frappe.throw(_("UOM is required for row {0}").format(row.idx))
+			if not flt(row.qty):
+				frappe.throw(_("Quantity is required for row {0}").format(row.idx))
+		# Also persist on submit (covers manual grid mapping without Map Items dialog)
+		self._persist_learned_maps()
+
+	def _persist_learned_maps(self):
+		"""Write Supplier UOM → ef_uom into Settings when auto-add is enabled."""
+		for row in self.items or []:
+			if row.supplier_uom and row.ef_uom:
+				ensure_uom_map(row.supplier_uom, row.ef_uom)
+			if self.supplier and row.item_code and (row.supplier_item_code or row.supplier_item_name):
+				upsert_item_map(
+					self.supplier,
+					row.supplier_item_code,
+					row.supplier_item_name,
+					row.item_code,
+					row.uom,
+				)
+
+	def _validate_unique_series_number(self):
+		if not (self.company and self.ef_series and self.ef_number):
+			return
+		existing = frappe.db.exists(
+			"eFactura Buyer",
+			{
+				"company": self.company,
+				"ef_series": self.ef_series,
+				"ef_number": self.ef_number,
+				"name": ["!=", self.name],
+			},
+		)
+		if existing:
+			frappe.throw(
+				_("eFactura Buyer {0} already exists for {1}{2}").format(
+					existing, self.ef_series, self.ef_number
+				)
+			)
+
+	def _item_fingerprint(self, row) -> tuple:
+		"""SFS-immutable billing fields only (booking uom/qty may change before submit)."""
+		return (
+			cstr(row.supplier_item_code),
+			cstr(row.supplier_item_name),
+			cstr(row.supplier_uom),
+			flt(row.ef_qty),
+			flt(row.rate),
+			flt(row.amount),
+		)
+
+	def _validate_items_immutable(self):
+		"""SFS billing lines are static; UOM/qty derived fields editable before submit."""
+		if self.is_new() or self.flags.get("allow_sfs_item_refresh"):
+			return
+
+		before = self.get_doc_before_save()
+		if not before or not before.items:
+			return
+
+		old_fp = [self._item_fingerprint(r) for r in before.items]
+		new_fp = [self._item_fingerprint(r) for r in (self.items or [])]
+		if old_fp != new_fp:
+			frappe.throw(_("Items from e-Factura cannot be added, removed, or changed"))
+
+		if self.docstatus == 1:
+			for row in self.items or []:
+				old = next((r for r in before.items if r.idx == row.idx), None)
+				if not old:
+					continue
+				if old.item_code != row.item_code:
+					frappe.throw(_("Item mapping cannot be changed after submit"))
+				if old.uom != row.uom or flt(old.qty) != flt(row.qty):
+					frappe.throw(_("UOM/Quantity cannot be changed after submit"))
+				if old.ef_uom != row.ef_uom:
+					frappe.throw(_("eFactura UOM cannot be changed after submit"))
+
+	def set_status(self, update: bool = True):
+		label = compose_buyer_status(self.ef_status, self.purchase_invoice)
+		self.status = label
+		if update and not self.is_new():
+			self.db_set("status", label, update_modified=False)
+
+	def apply_item_maps(self):
+		"""
+		Auto-fill order per line:
+		1) item_code — by supplier_item_code only if name also matches
+		2) item_code — by supplier_item_name (past invoices / map / Item name)
+		3) ef_uom (+ uom if empty) — Settings UOM Map, then system UOM search
+		4) stock_uom / stock_qty / qty — from Item conversions when possible
+		"""
+		for row in self.items or []:
+			if not row.item_code:
+				mapped = resolve_item_code(
+					self.supplier, row.supplier_item_code, row.supplier_item_name
+				)
+				if mapped:
+					row.item_code = mapped
+			apply_uom_to_buyer_row(row)
+
+	def fill_from_xml(self, xml_content: str, preserve_mapped_items: bool = True):
+		"""Apply a freshly fetched SFS XML payload; XML itself is not stored."""
+		parsed = parse_invoice_xml(xml_content)
+
+		if parsed.get("issue_date"):
+			self.issue_date = parsed["issue_date"]
+		if parsed.get("delivery_date"):
+			self.delivery_date = parsed["delivery_date"]
+
+		self.total = parsed.get("total")
+		self.vat_total = parsed.get("vat_total")
+		self.net_total = parsed.get("net_total")
+
+		sup = parsed.get("supplier") or {}
+		self.ef_supplier_idno = sup.get("idno") or self.ef_supplier_idno
+		self.ef_supplier_name = sup.get("name") or self.ef_supplier_name
+		self.ef_supplier_vat_id = sup.get("vat_id") or self.ef_supplier_vat_id
+		self.ef_supplier_taxpayer_type = sup.get("taxpayer_type") or self.ef_supplier_taxpayer_type
+		self.ef_supplier_address = sup.get("address") or self.ef_supplier_address
+		self.ef_supplier_bank_account = sup.get("bank_account") or self.ef_supplier_bank_account
+		self.ef_supplier_bank_name = sup.get("bank_name") or self.ef_supplier_bank_name
+		self.ef_supplier_bank_code = sup.get("bank_code") or self.ef_supplier_bank_code
+
+		buy = parsed.get("buyer") or {}
+		self.ef_customer_idno = buy.get("idno") or self.ef_customer_idno
+		self.ef_customer_name = buy.get("name") or self.ef_customer_name
+		self.ef_customer_vat_id = buy.get("vat_id") or self.ef_customer_vat_id
+		self.ef_customer_taxpayer_type = buy.get("taxpayer_type") or self.ef_customer_taxpayer_type
+		self.ef_customer_address = buy.get("address") or self.ef_customer_address
+
+		tr = parsed.get("transporter") or {}
+		self.ef_transporter_idno = tr.get("idno") or self.ef_transporter_idno
+		self.ef_transporter_name = tr.get("name") or self.ef_transporter_name
+		self.ef_transporter_address = tr.get("address") or self.ef_transporter_address
+
+		if not self.supplier and self.ef_supplier_idno:
+			self.supplier = find_supplier_by_idno(self.ef_supplier_idno)
+
+		existing_maps = {}
+		if preserve_mapped_items:
+			for row in self.items or []:
+				key = (row.supplier_item_code or "", row.supplier_item_name or "")
+				existing_maps[key] = {
+					"item_code": row.item_code,
+					"ef_uom": row.ef_uom,
+					"uom": row.uom,
+				}
+
+		self.set("items", [])
+		for item in parsed.get("items") or []:
+			key = (item.get("supplier_item_code") or "", item.get("supplier_item_name") or "")
+			row = self.append("items", item)
+			prev = existing_maps.get(key) or {}
+			if prev.get("item_code"):
+				row.item_code = prev["item_code"]
+			if prev.get("ef_uom"):
+				row.ef_uom = prev["ef_uom"]
+			if prev.get("uom"):
+				row.uom = prev["uom"]
+
+		self.apply_item_maps()
+
+	def refresh_from_api(self):
+		client = EFacturaAPIClient.from_settings()
+		resp = client.get_invoices_by_seria_number(
+			[{"Seria": self.ef_series, "Number": self.ef_number}]
+		)
+		invs = extract_invoices(resp)
+		if not invs:
+			frappe.throw(
+				_("No invoice details returned from e-Factura for {0}{1}").format(
+					self.ef_series, self.ef_number
+				)
+			)
+
+		inv = invs[0]
+		if inv.get("InvoiceStatus") is not None:
+			self.ef_status = int(inv.get("InvoiceStatus"))
+
+		# After submit, SFS remains source of truth for status only — items stay frozen
+		if self.docstatus == 0:
+			xml = invoice_xml(inv)
+			if xml:
+				self.flags.allow_sfs_item_refresh = True
+				self.fill_from_xml(xml)
+
+		self.last_status_check = now_datetime()
+		self.set_status(update=False)
+		self.save(ignore_permissions=True)
+
+
+def _require_submitted(doc):
+	if doc.docstatus != 1:
+		frappe.throw(_("Submit eFactura Buyer before this action"))
+
+
+@frappe.whitelist()
+def fetch_details(name: str):
+	doc = frappe.get_doc("eFactura Buyer", name)
+	doc.refresh_from_api()
+	return doc.as_dict()
+
+
+@frappe.whitelist()
+def accept_invoice(name: str):
+	doc = frappe.get_doc("eFactura Buyer", name)
+	_require_submitted(doc)
+	client = EFacturaAPIClient.from_settings()
+	client.post_accepted_invoices([{"Seria": doc.ef_series, "Number": doc.ef_number}])
+	_refresh_status(doc)
+	return {"status": doc.status, "ef_status": doc.ef_status}
+
+
+@frappe.whitelist()
+def download_xml(name: str):
+	"""Download invoice XML from SFS (buyer)."""
+	doc = frappe.get_doc("eFactura Buyer", name)
+	if not doc.ef_series or not doc.ef_number:
+		frappe.throw(_("eFactura Series/Number is required to download XML"))
+
+	client = EFacturaAPIClient.from_settings()
+	resp = client.get_invoices_by_seria_number(
+		[{"Seria": doc.ef_series, "Number": doc.ef_number}]
+	)
+	invs = extract_invoices(resp)
+	xml = invoice_xml(invs[0]) if invs else ""
+	if not xml:
+		frappe.throw(_("No XML returned from e-Factura"))
+
+	xml_content = xml.encode("utf-8") if isinstance(xml, str) else xml
+	frappe.local.response.filename = f"{doc.ef_series}{doc.ef_number}.xml"
+	frappe.local.response.filecontent = xml_content
+	frappe.local.response.type = "download"
+	frappe.local.response.content_type = "application/xml"
+
+
+@frappe.whitelist()
+def download_pdf(name: str):
+	"""Download printable PDF from SFS (buyer, ActorRole=2)."""
+	import base64
+
+	doc = frappe.get_doc("eFactura Buyer", name)
+	if not doc.ef_series or not doc.ef_number:
+		frappe.throw(_("eFactura Series/Number is required to download PDF"))
+
+	client = EFacturaAPIClient.from_settings()
+	resp = client.get_invoices_content_for_print(
+		seria_and_numbers={"Seria": doc.ef_series, "Number": doc.ef_number},
+		actor_role=2,
+	)
+	pdf_content = (resp or {}).get("Result", {}).get("Content") or ""
+	if isinstance(pdf_content, str):
+		try:
+			pdf_content = base64.b64decode(pdf_content)
+		except Exception:
+			pdf_content = pdf_content.encode("latin-1", errors="ignore")
+
+	if not pdf_content or not pdf_content.startswith(b"%PDF"):
+		frappe.throw(_("e-Factura returned non-PDF content in Result.Content"))
+
+	frappe.local.response.filename = f"{doc.ef_series}{doc.ef_number}.pdf"
+	frappe.local.response.filecontent = pdf_content
+	frappe.local.response.type = "download"
+	frappe.local.response.content_type = "application/pdf"
+
+
+@frappe.whitelist()
+def get_xml_for_sign(name: str):
+	"""Return invoice XML + C14N SHA1 hash from SFS for MoldSign (buyer)."""
+	import base64
+	import hashlib
+
+	from lxml import etree
+
+	doc = frappe.get_doc("eFactura Buyer", name)
+	_require_submitted(doc)
+	client = EFacturaAPIClient.from_settings()
+	resp = client.get_invoices_by_seria_number(
+		[{"Seria": doc.ef_series, "Number": doc.ef_number}]
+	)
+	invs = extract_invoices(resp)
+	xml = invoice_xml(invs[0]) if invs else ""
+	if not xml:
+		frappe.throw(_("No XML returned from e-Factura for signing"))
+
+	xml_bytes = xml.encode("utf-8") if isinstance(xml, str) else xml
+	parser = etree.XMLParser(remove_blank_text=True)
+	root = etree.fromstring(xml_bytes, parser)
+	canonical = etree.tostring(root, method="c14n", exclusive=False, with_comments=False)
+	digest = hashlib.sha1(canonical).digest()
+
+	return {
+		"xml_base64": base64.b64encode(xml_bytes).decode("utf-8"),
+		"hash_base64": base64.b64encode(digest).decode("utf-8"),
+		"ef_series": doc.ef_series,
+		"ef_number": doc.ef_number,
+	}
+
+
+@frappe.whitelist()
+def process_signed_xml(name: str, signature: str, content: str):
+	"""Post buyer-signed XML to SFS (ActorRole=2). Same envelope pattern as supplier."""
+	import base64
+	import re
+	import uuid
+
+	doc = frappe.get_doc("eFactura Buyer", name)
+	_require_submitted(doc)
+	if not signature:
+		frappe.throw(_("Missing signature."))
+
+	def _b64_to_text(value: str) -> str:
+		raw = base64.b64decode(value)
+		return raw.decode("utf-8")
+
+	def _strip_xml_declaration(xml: str) -> str:
+		return re.sub(r"^\s*<\?xml[^>]*\?>\s*", "", xml or "", count=1, flags=re.I)
+
+	content_xml = _strip_xml_declaration(_b64_to_text(content))
+	signature_xml = _strip_xml_declaration(_b64_to_text(signature))
+	wrapped = (
+		'<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n'
+		"<Documents>\n"
+		f'<hash Id="_{uuid.uuid4()}">Hash is incapsulated into the signature</hash>\n'
+		f"{signature_xml}\n"
+		f"{content_xml}\n"
+		"</Documents>"
+	)
+
+	client = EFacturaAPIClient.from_settings()
+	client.post_invoices(
+		actor_role=2,
+		invoices_xml=wrapped,
+		invoices_xml_status=1,
+	)
+	_refresh_status(doc)
+	return {"status": doc.status, "ef_status": doc.ef_status}
+
+
+def _refresh_status(doc):
+	client = EFacturaAPIClient.from_settings()
+	resp = client.check_invoices_status([{"Seria": doc.ef_series, "Number": doc.ef_number}])
+	statuses = invoice_status_map(resp)
+	key = (str(doc.ef_series), str(doc.ef_number))
+	if key in statuses:
+		doc.db_set("ef_status", statuses[key], update_modified=False)
+		doc.ef_status = statuses[key]
+	doc.db_set("last_status_check", now_datetime(), update_modified=False)
+	doc.set_status(update=True)
+
+
+@frappe.whitelist()
+def update_status(name: str):
+	"""Refresh InvoiceStatus from SFS into eFactura Buyer."""
+	doc = frappe.get_doc("eFactura Buyer", name)
+	if not doc.ef_series or not doc.ef_number:
+		frappe.throw(_("eFactura Series/Number is required to update status"))
+	_refresh_status(doc)
+	return {"status": doc.status, "ef_status": doc.ef_status}
+
+
+@frappe.whitelist()
+def get_item_qty_fields(item_code=None, ef_uom=None, ef_qty=None, uom=None):
+	"""UI helper: recompute stock_uom / stock_qty / qty from Item UOM conversions."""
+	return compute_buyer_item_qtys(
+		item_code=item_code or None,
+		ef_uom=ef_uom or None,
+		ef_qty=ef_qty,
+		uom=uom or None,
+	)
+
+
+@frappe.whitelist()
+def save_item_mappings(name: str, mappings: str | list | dict):
+	"""mappings: [{idx/row_name, item_code}] or JSON string."""
+	import json
+
+	if isinstance(mappings, str):
+		mappings = json.loads(mappings)
+
+	doc = frappe.get_doc("eFactura Buyer", name)
+	if doc.docstatus != 0:
+		frappe.throw(_("Item mapping is only allowed before submit"))
+	if not doc.supplier:
+		frappe.throw(_("Set Supplier before mapping items"))
+
+	by_idx = {str(m.get("idx")): m.get("item_code") for m in mappings if m.get("item_code")}
+	for row in doc.items:
+		item_code = by_idx.get(str(row.idx))
+		if not item_code:
+			continue
+		row.item_code = item_code
+		apply_booking_defaults(row, force=True)
+		# Persist Supplier UOM text → eFactura UOM when auto-add is enabled
+		ensure_uom_map(row.supplier_uom, row.ef_uom)
+		upsert_item_map(
+			doc.supplier,
+			row.supplier_item_code,
+			row.supplier_item_name,
+			item_code,
+			row.uom,
+		)
+	doc.save()
+	return doc.as_dict()
+
+
+@frappe.whitelist()
+def make_purchase_invoice(source_name: str, target_doc=None):
+	source = frappe.get_doc("eFactura Buyer", source_name)
+	_require_submitted(source)
+	if not source.supplier:
+		frappe.throw(_("Supplier is required to create Purchase Invoice"))
+	if not source.items:
+		frappe.throw(_("No items on eFactura Buyer — fetch details first"))
+	unmapped = [r.idx for r in source.items if not r.item_code]
+	if unmapped:
+		frappe.throw(
+			_("Map all items before creating Purchase Invoice (rows: {0})").format(
+				", ".join(str(i) for i in unmapped)
+			)
+		)
+
+	pi = frappe.new_doc("Purchase Invoice")
+	pi.company = source.company
+	pi.supplier = source.supplier
+	pi.currency = source.currency or "MDL"
+	pi.bill_no = f"{source.ef_series}{source.ef_number}"
+	if source.issue_date:
+		pi.bill_date = source.issue_date
+	if pi.meta.has_field("efactura_buyer"):
+		pi.efactura_buyer = source.name
+
+	from erpnext_moldova_efactura.utils.uom_map import get_item_uom_conversion
+
+	vat_included = bool(frappe.db.get_single_value("eFactura Settings", "vat_included_in_rate"))
+
+	for row in source.items:
+		item = pi.append("items", {})
+		item.item_code = row.item_code
+		item.item_name = row.item_name or row.supplier_item_name
+		item.qty = row.qty
+		if row.uom and frappe.db.exists("UOM", row.uom):
+			item.uom = row.uom
+		# ERPNext: conversion_factor = stock units per PI UOM
+		uom_cf = get_item_uom_conversion(row.item_code, row.uom) or 1
+		item.conversion_factor = uom_cf
+		# Rate source depends on Settings: VAT-inclusive → rate_with_vat, else net rate
+		ef_rate = flt(row.rate_with_vat) if vat_included else flt(row.rate)
+		# eFactura rate is per ef_uom → PI rate per uom (amount-preserving)
+		if flt(row.qty):
+			item.rate = ef_rate * flt(row.ef_qty) / flt(row.qty)
+		else:
+			ef_cf = get_item_uom_conversion(row.item_code, row.ef_uom) or 1
+			item.rate = ef_rate * flt(ef_cf) / flt(uom_cf)
+
+	return pi
+
+
+@frappe.whitelist()
+def link_purchase_invoice(name: str, purchase_invoice: str):
+	doc = frappe.get_doc("eFactura Buyer", name)
+	_require_submitted(doc)
+	if not frappe.db.exists("Purchase Invoice", purchase_invoice):
+		frappe.throw(_("Purchase Invoice {0} not found").format(purchase_invoice))
+
+	pi_supplier = frappe.db.get_value("Purchase Invoice", purchase_invoice, "supplier")
+	if doc.supplier and pi_supplier and doc.supplier != pi_supplier:
+		frappe.msgprint(
+			_("Warning: Purchase Invoice supplier {0} differs from eFactura Buyer supplier {1}").format(
+				pi_supplier, doc.supplier
+			),
+			indicator="orange",
+		)
+
+	doc.purchase_invoice = purchase_invoice
+	doc.set_status(update=False)
+	doc.save()
+	frappe.db.set_value("Purchase Invoice", purchase_invoice, "efactura_buyer", name)
+	return doc.as_dict()

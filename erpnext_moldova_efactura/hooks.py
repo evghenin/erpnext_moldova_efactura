@@ -156,7 +156,10 @@ doctype_list_js = {
 doc_events = {
     "Sales Invoice": {
         "on_submit": "erpnext_moldova_efactura.overrides.sales_invoice.on_submit",
-    }
+    },
+    "Purchase Invoice": {
+        "on_update": "erpnext_moldova_efactura.overrides.purchase_invoice.on_update",
+    },
 }
 
 # Scheduled Tasks
@@ -184,9 +187,11 @@ scheduler_events = {
     "hourly": [
         "erpnext_moldova_efactura.tasks.status_sync.sync_efactura_statuses",
         "erpnext_moldova_efactura.tasks.status_sync.sync_efactura_draft_invoices_by_api_invoice_id",
+        "erpnext_moldova_efactura.tasks.buyer_sync.sync_buyer_statuses",
     ],
     "daily": [
         "erpnext_moldova_efactura.tasks.status_sync.sync_efactura_cancelled_from_search_invoices",
+        "erpnext_moldova_efactura.tasks.buyer_sync.sync_buyer_invoices",
     ]
 }
 

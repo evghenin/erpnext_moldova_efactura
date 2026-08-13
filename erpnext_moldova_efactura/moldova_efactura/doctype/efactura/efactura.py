@@ -26,6 +26,16 @@ class eFactura(Document):
         self.set_status()
         self.apply_vat()
 
+    def before_save(self):
+        from erpnext_moldova_efactura.utils.qty_guard import enforce_si_qty_on_draft_save
+
+        enforce_si_qty_on_draft_save(self)
+
+    def before_submit(self):
+        from erpnext_moldova_efactura.utils.qty_guard import enforce_si_qty_on_submit
+
+        enforce_si_qty_on_submit(self)
+
     def on_submit(self):
         self.set_status()
 
@@ -105,6 +115,17 @@ class eFactura(Document):
         if self.reference_doctype != "Sales Invoice" or not self.reference_name:
             return
 
+        current_qty = {}
+        for item in self.items:
+            if not item.item_code:
+                continue
+            current_qty[item.item_code] = current_qty.get(item.item_code, 0) + flt(item.stock_qty)
+
+        from erpnext_moldova_efactura.utils.qty_guard import get_quota_efactura_names
+
+        exclude_name = self.name if self.name and not self.is_new() else None
+        efactura_names = get_quota_efactura_names(self.reference_name, exclude_name=exclude_name)
+
         for item in self.items:
             if not item.item_code:
                 continue
@@ -116,24 +137,18 @@ class eFactura(Document):
                 )
                 or 0
             )
-            efactura_names = frappe.get_all(
-                "eFactura",
-                filters={
-                    "docstatus": 1,
-                    "reference_name": self.reference_name,
-                    "name": ["!=", self.name],
-                },
-                pluck="name",
-            )
-            used_stock_qty = (
-                frappe.db.get_value(
-                    "eFactura Item",
-                    {"item_code": item.item_code, "parent": ["in", efactura_names]},
-                    "sum(stock_qty)",
+            used_stock_qty = 0
+            if efactura_names:
+                used_stock_qty = (
+                    frappe.db.get_value(
+                        "eFactura Item",
+                        {"item_code": item.item_code, "parent": ["in", efactura_names]},
+                        "sum(stock_qty)",
+                    )
+                    or 0
                 )
-                or 0
-            )
-            item.available_stock_qty = total_si_stock_qty - used_stock_qty
+            sibling_qty = current_qty.get(item.item_code, 0) - flt(item.stock_qty)
+            item.available_stock_qty = flt(total_si_stock_qty) - flt(used_stock_qty) - flt(sibling_qty)
 
     def set_ef_currency_from_settings(self):
         ef_cur = frappe.db.get_single_value("eFactura Settings", "currency")

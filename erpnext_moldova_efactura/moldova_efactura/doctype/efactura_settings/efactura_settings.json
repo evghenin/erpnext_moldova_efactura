@@ -5,6 +5,7 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "tab_general",
   "section_break_vxfv",
   "general_column",
   "language",
@@ -18,9 +19,32 @@
   "idno_section",
   "api_url",
   "api_username",
-  "api_password"
+  "api_password",
+  "tab_outgoing",
+  "outgoing_qty_section",
+  "block_submit_on_si_qty_overage",
+  "exclude_failed_efactura_from_qty_quota",
+  "warn_si_qty_overage_on_draft_save",
+  "tab_incoming",
+  "uom_section",
+  "auto_add_uom_map_on_invoice_mapping",
+  "uom_map"
  ],
  "fields": [
+  {
+   "fieldname": "tab_general",
+   "fieldtype": "Tab Break",
+   "label": "General"
+  },
+  {
+   "fieldname": "section_break_vxfv",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "general_column",
+   "fieldtype": "Column Break",
+   "label": "General"
+  },
   {
    "fieldname": "language",
    "fieldtype": "Link",
@@ -43,9 +67,48 @@
    "label": "Is VAT included in Rate?"
   },
   {
-   "fieldname": "idno_section",
+   "description": "Root territory that defines Moldova fiscal scope",
+   "fieldname": "fiscal_territory",
+   "fieldtype": "Link",
+   "label": "Fiscal Territory",
+   "options": "Territory",
+   "reqd": 1
+  },
+  {
+   "fieldname": "tab_outgoing",
+   "fieldtype": "Tab Break",
+   "label": "Outgoing"
+  },
+  {
+   "fieldname": "outgoing_qty_section",
    "fieldtype": "Section Break",
-   "label": "API"
+   "label": "Quantity vs Sales Invoice"
+  },
+  {
+   "default": "0",
+   "description": "If enabled, submit is blocked when cumulative stock qty of any item across submitted eFactura exceeds the linked Sales Invoice. If disabled, the user must confirm the overage in the document form before submit.",
+   "fieldname": "block_submit_on_si_qty_overage",
+   "fieldtype": "Check",
+   "label": "Block Submit When Qty Exceeds Sales Invoice"
+  },
+  {
+   "default": "0",
+   "description": "If enabled, eFactura in status Rejected by Customer or Canceled by Supplier do not occupy Sales Invoice quantity. You can reissue without cancelling the failed document in ERPNext. If disabled, those documents keep the qty until they are cancelled.",
+   "fieldname": "exclude_failed_efactura_from_qty_quota",
+   "fieldtype": "Check",
+   "label": "Exclude Rejected / Canceled from Qty Quota"
+  },
+  {
+   "default": "0",
+   "description": "If enabled, saving a Draft asks for confirmation when this document plus other Draft and submitted eFactura exceed the Sales Invoice qty. This surfaces overlapping drafts before submit. Submit still checks only submitted documents.",
+   "fieldname": "warn_si_qty_overage_on_draft_save",
+   "fieldtype": "Check",
+   "label": "Confirm Draft Save When Qty Exceeds Sales Invoice"
+  },
+  {
+   "fieldname": "idno_column",
+   "fieldtype": "Column Break",
+   "label": "IDNO"
   },
   {
    "description": "Select field from Company used to store IDNO",
@@ -69,14 +132,9 @@
    "reqd": 1
   },
   {
-   "fieldname": "general_column",
-   "fieldtype": "Column Break",
-   "label": "General"
-  },
-  {
-   "fieldname": "idno_column",
-   "fieldtype": "Column Break",
-   "label": "IDNO"
+   "fieldname": "idno_section",
+   "fieldtype": "Section Break",
+   "label": "API"
   },
   {
    "default": "https://efactura-api.sfs.md/Service.svc?wsdl",
@@ -98,23 +156,33 @@
    "reqd": 1
   },
   {
-   "fieldname": "section_break_vxfv",
-   "fieldtype": "Section Break"
+   "fieldname": "tab_incoming",
+   "fieldtype": "Tab Break",
+   "label": "Incoming"
   },
   {
-   "description": "Root territory that defines Moldova fiscal scope",
-   "fieldname": "fiscal_territory",
-   "fieldtype": "Link",
-   "label": "Fiscal Territory",
-   "options": "Territory",
-   "reqd": 1
+   "fieldname": "uom_section",
+   "fieldtype": "Section Break",
+   "label": "UOM Mapping"
+  },
+  {
+   "default": "0",
+   "fieldname": "auto_add_uom_map_on_invoice_mapping",
+   "fieldtype": "Check",
+   "label": "Auto-add UOM Map on Invoice Mapping"
+  },
+  {
+   "fieldname": "uom_map",
+   "fieldtype": "Table",
+   "label": "UOM Map",
+   "options": "eFactura UOM Map"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-01-10 15:52:53.927338",
+ "modified": "2026-08-13 11:25:00.000000",
  "modified_by": "Administrator",
  "module": "Moldova eFactura",
  "name": "eFactura Settings",

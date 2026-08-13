@@ -1,0 +1,428 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "naming_series:",
+ "creation": "2026-07-30 21:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_main",
+  "naming_series",
+  "company",
+  "status",
+  "column_main",
+  "ef_series",
+  "ef_number",
+  "ef_status",
+  "last_status_check",
+  "section_dates",
+  "issue_date",
+  "delivery_date",
+  "column_dates",
+  "currency",
+  "purchase_invoice",
+  "section_supplier",
+  "supplier",
+  "column_supplier",
+  "ef_supplier_idno",
+  "ef_supplier_name",
+  "ef_supplier_vat_id",
+  "ef_supplier_taxpayer_type",
+  "ef_supplier_address",
+  "ef_supplier_bank_account",
+  "ef_supplier_bank_name",
+  "ef_supplier_bank_code",
+  "section_customer",
+  "ef_customer_idno",
+  "ef_customer_name",
+  "column_customer",
+  "ef_customer_vat_id",
+  "ef_customer_taxpayer_type",
+  "ef_customer_address",
+  "section_transporter",
+  "ef_transporter_idno",
+  "ef_transporter_name",
+  "column_transporter",
+  "ef_transporter_address",
+  "section_items",
+  "items",
+  "section_totals",
+  "net_total",
+  "vat_total",
+  "column_totals",
+  "total",
+  "section_meta",
+  "rejection_reason"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_main",
+   "fieldtype": "Section Break",
+   "label": "Incoming eFactura"
+  },
+  {
+   "default": "EFB-.YYYY.-",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "EFB-.YYYY.-",
+   "reqd": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_main",
+   "fieldtype": "Column Break"
+  },
+  {
+   "bold": 1,
+   "fieldname": "ef_series",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "eFactura Series",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "bold": 1,
+   "fieldname": "ef_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "eFactura Number",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "ef_status",
+   "fieldtype": "Int",
+   "hidden": 1,
+   "label": "eF Status Code",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_status_check",
+   "fieldtype": "Datetime",
+   "label": "Last Status Check",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_dates",
+   "fieldtype": "Section Break",
+   "label": "Dates"
+  },
+  {
+   "fieldname": "issue_date",
+   "fieldtype": "Date",
+   "label": "Issue Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "delivery_date",
+   "fieldtype": "Date",
+   "label": "Delivery Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_dates",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "MDL",
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "purchase_invoice",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Purchase Invoice",
+   "options": "Purchase Invoice"
+  },
+  {
+   "fieldname": "section_supplier",
+   "fieldtype": "Section Break",
+   "label": "Supplier"
+  },
+  {
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Supplier",
+   "options": "Supplier"
+  },
+  {
+   "fieldname": "column_supplier",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "ef_supplier_idno",
+   "fieldtype": "Data",
+   "label": "Supplier IDNO",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_supplier_name",
+   "fieldtype": "Data",
+   "label": "Supplier Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_supplier_vat_id",
+   "fieldtype": "Data",
+   "label": "Supplier VAT ID",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_supplier_taxpayer_type",
+   "fieldtype": "Data",
+   "label": "Supplier Taxpayer Type",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_supplier_address",
+   "fieldtype": "Small Text",
+   "label": "Supplier Address",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_supplier_bank_account",
+   "fieldtype": "Data",
+   "label": "Supplier Bank Account",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_supplier_bank_name",
+   "fieldtype": "Data",
+   "label": "Supplier Bank Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_supplier_bank_code",
+   "fieldtype": "Data",
+   "label": "Supplier Bank Code",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_customer",
+   "fieldtype": "Section Break",
+   "label": "Buyer (from eFactura)"
+  },
+  {
+   "fieldname": "ef_customer_idno",
+   "fieldtype": "Data",
+   "label": "Buyer IDNO",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_customer_name",
+   "fieldtype": "Data",
+   "label": "Buyer Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_customer",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "ef_customer_vat_id",
+   "fieldtype": "Data",
+   "label": "Buyer VAT ID",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_customer_taxpayer_type",
+   "fieldtype": "Data",
+   "label": "Buyer Taxpayer Type",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_customer_address",
+   "fieldtype": "Small Text",
+   "label": "Buyer Address",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_transporter",
+   "fieldtype": "Section Break",
+   "label": "Transporter"
+  },
+  {
+   "fieldname": "ef_transporter_idno",
+   "fieldtype": "Data",
+   "label": "Transporter IDNO",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_transporter_name",
+   "fieldtype": "Data",
+   "label": "Transporter Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_transporter",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "ef_transporter_address",
+   "fieldtype": "Small Text",
+   "label": "Transporter Address",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_items",
+   "fieldtype": "Section Break",
+   "label": "Items"
+  },
+  {
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Items",
+   "options": "eFactura Buyer Item"
+  },
+  {
+   "fieldname": "section_totals",
+   "fieldtype": "Section Break",
+   "label": "Totals"
+  },
+  {
+   "fieldname": "net_total",
+   "fieldtype": "Currency",
+   "label": "Net Total",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "vat_total",
+   "fieldtype": "Currency",
+   "label": "VAT Total",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_totals",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Grand Total",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_meta",
+   "fieldtype": "Section Break",
+   "label": "Meta"
+  },
+  {
+   "fieldname": "rejection_reason",
+   "fieldtype": "Small Text",
+   "label": "Rejection Reason"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-07-30 22:20:00.000000",
+ "modified_by": "Administrator",
+ "module": "Moldova eFactura",
+ "name": "eFactura Buyer",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 0,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 0,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [
+  {
+   "color": "Orange",
+   "title": "Sent to Buyer"
+  },
+  {
+   "color": "Orange",
+   "title": "Signed by Supplier"
+  },
+  {
+   "color": "Green",
+   "title": "Accepted"
+  },
+  {
+   "color": "Red",
+   "title": "Rejected"
+  },
+  {
+   "color": "Green",
+   "title": "Signed by Buyer"
+  },
+  {
+   "color": "Yellow",
+   "title": "Transportation"
+  },
+  {
+   "color": "Gray",
+   "title": "Canceled by Supplier"
+  },
+  {
+   "color": "Purple",
+   "title": "Cancellation Requested"
+  }
+ ],
+ "title_field": "ef_number",
+ "track_changes": 1
+}
