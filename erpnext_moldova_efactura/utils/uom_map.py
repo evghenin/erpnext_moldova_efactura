@@ -221,13 +221,20 @@ def compute_buyer_item_qtys(
 	return result
 
 
+def _item_purchase_and_stock_uom(item_code: str) -> tuple[str | None, str | None]:
+	vals = frappe.db.get_value("Item", item_code, ["purchase_uom", "stock_uom"], as_dict=True)
+	if not vals:
+		return None, None
+	return vals.purchase_uom or None, vals.stock_uom or None
+
+
 def apply_billing_uom(row) -> None:
 	"""
 	Resolve ef_uom from supplier_uom text.
 
 	- Settings map, then system UOM search
 	- On match: set ef_uom; if uom empty, set uom = ef_uom
-	- On no match: leave ef_uom / uom empty (do not invent stock_uom)
+	- On no match: leave ef_uom empty unless a valid one is already set
 	"""
 	raw = getattr(row, "supplier_uom", None)
 	legacy = getattr(row, "ef_uom", None)
@@ -247,7 +254,6 @@ def apply_billing_uom(row) -> None:
 		if not row.uom:
 			row.uom = matched
 	else:
-		# Explicit: unknown supplier UOM → leave empty
 		row.ef_uom = None
 
 
@@ -255,14 +261,17 @@ def apply_qty_defaults(row, force: bool = False) -> None:
 	"""
 	Derive stock_uom/stock_qty and PI qty from eFactura qty + Item UOM conversions.
 
-	Does not invent ef_uom/uom from item stock/purchase UOM (except force on manual map).
-	Always refreshes stock_qty when item_code + ef_uom are known.
+	If supplier UOM (e.g. buc) is unknown, once item_code is mapped fall back to
+	the Item Stock UOM so the mapper does not leave eFactura UOM empty.
 	"""
 	apply_billing_uom(row)
 
-	if force and row.item_code and not row.uom:
-		purchase_uom = frappe.db.get_value("Item", row.item_code, "purchase_uom")
-		stock_uom = frappe.db.get_value("Item", row.item_code, "stock_uom")
+	if row.item_code and not row.ef_uom:
+		_purchase_uom, stock_uom = _item_purchase_and_stock_uom(row.item_code)
+		row.ef_uom = stock_uom
+
+	if row.item_code and not row.uom:
+		purchase_uom, stock_uom = _item_purchase_and_stock_uom(row.item_code)
 		row.uom = row.ef_uom or purchase_uom or stock_uom
 
 	computed = compute_buyer_item_qtys(

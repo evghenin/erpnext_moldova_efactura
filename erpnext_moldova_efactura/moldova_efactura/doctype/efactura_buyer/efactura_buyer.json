@@ -22,6 +22,7 @@
   "column_dates",
   "currency",
   "purchase_invoice",
+  "purchase_order",
   "section_supplier",
   "supplier",
   "column_supplier",
@@ -153,11 +154,22 @@
    "read_only": 1
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "purchase_invoice",
    "fieldtype": "Link",
    "in_standard_filter": 1,
    "label": "Purchase Invoice",
-   "options": "Purchase Invoice"
+   "options": "Purchase Invoice",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "purchase_order",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Purchase Order",
+   "options": "Purchase Order",
+   "read_only": 1
   },
   {
    "fieldname": "section_supplier",
@@ -343,13 +355,15 @@
   {
    "fieldname": "rejection_reason",
    "fieldtype": "Small Text",
-   "label": "Rejection Reason"
+   "label": "Rejection Reason",
+   "no_copy": 1,
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-07-30 22:20:00.000000",
+ "modified": "2026-08-13 13:00:00.000000",
  "modified_by": "Administrator",
  "module": "Moldova eFactura",
  "name": "eFactura Buyer",

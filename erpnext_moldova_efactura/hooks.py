@@ -160,6 +160,9 @@ doc_events = {
     "Purchase Invoice": {
         "on_update": "erpnext_moldova_efactura.overrides.purchase_invoice.on_update",
     },
+    "Purchase Order": {
+        "on_update": "erpnext_moldova_efactura.overrides.purchase_order.on_update",
+    },
 }
 
 # Scheduled Tasks

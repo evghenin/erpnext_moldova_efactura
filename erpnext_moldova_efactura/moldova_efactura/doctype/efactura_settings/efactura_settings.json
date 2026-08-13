@@ -26,6 +26,8 @@
   "exclude_failed_efactura_from_qty_quota",
   "warn_si_qty_overage_on_draft_save",
   "tab_incoming",
+  "buying_tax_section",
+  "company_settings",
   "uom_section",
   "auto_add_uom_map_on_invoice_mapping",
   "uom_map"
@@ -161,6 +163,18 @@
    "label": "Incoming"
   },
   {
+   "fieldname": "buying_tax_section",
+   "fieldtype": "Section Break",
+   "label": "Company Settings"
+  },
+  {
+   "description": "Per-company Tax Category, Purchase Taxes template, and VAT account (which template row is e-Factura VAT).",
+   "fieldname": "company_settings",
+   "fieldtype": "Table",
+   "label": "Company Settings",
+   "options": "eFactura Company Setting"
+  },
+  {
    "fieldname": "uom_section",
    "fieldtype": "Section Break",
    "label": "UOM Mapping"
@@ -182,7 +196,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-08-13 11:25:00.000000",
+ "modified": "2026-08-13 15:40:00.000000",
  "modified_by": "Administrator",
  "module": "Moldova eFactura",
  "name": "eFactura Settings",

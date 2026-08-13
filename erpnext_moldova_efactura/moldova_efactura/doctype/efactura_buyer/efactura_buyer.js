@@ -1,4 +1,7 @@
 frappe.ui.form.on("eFactura Buyer", {
+	setup(frm) {
+		ensure_supplier_idno_field(frm);
+	},
 	onload(frm) {
 		if (frm.is_new()) {
 			frappe.show_alert({
@@ -8,8 +11,13 @@ frappe.ui.form.on("eFactura Buyer", {
 			frappe.set_route("List", "eFactura Buyer");
 		}
 	},
+	supplier(frm) {
+		persist_maps_when_supplier_set(frm);
+	},
 	refresh(frm) {
 		lock_items_grid(frm);
+		setup_new_supplier_from_factura(frm);
+		ensure_supplier_idno_field(frm);
 
 		if (frm.is_new()) {
 			return;
@@ -97,6 +105,43 @@ frappe.ui.form.on("eFactura Buyer", {
 					},
 					efActions
 				);
+				frm.add_custom_button(
+					__("Reject"),
+					() => {
+						frappe.prompt(
+							[
+								{
+									fieldname: "reason",
+									fieldtype: "Small Text",
+									label: __("Rejection Reason"),
+									reqd: 1,
+									default: frm.doc.rejection_reason || "",
+								},
+							],
+							(values) => {
+								frappe.call({
+									method: "erpnext_moldova_efactura.moldova_efactura.doctype.efactura_buyer.efactura_buyer.reject_invoice",
+									args: {
+										name: frm.doc.name,
+										reason: values.reason,
+									},
+									freeze: true,
+									freeze_message: __("Rejecting e-Factura..."),
+									callback() {
+										frappe.show_alert({
+											message: __("e-Factura rejected."),
+											indicator: "orange",
+										});
+										frm.reload_doc();
+									},
+								});
+							},
+							__("Reject e-Factura"),
+							__("Reject")
+						);
+					},
+					efActions
+				);
 			}
 			if ([1, 7, 9, 3].includes(efStatus)) {
 				frm.add_custom_button(
@@ -105,61 +150,48 @@ frappe.ui.form.on("eFactura Buyer", {
 					efActions
 				);
 			}
+		}
 
-			if (frm.doc.supplier && (frm.doc.items || []).length && !frm.doc.purchase_invoice) {
+		if (frm.doc.supplier && (frm.doc.items || []).length && !frm.doc.purchase_invoice) {
+			frm.add_custom_button(__("Link Purchase Invoice"), () => link_purchase_invoice_dialog(frm));
+		}
+
+		if (frm.doc.docstatus === 1 && frm.doc.supplier && (frm.doc.items || []).length && !frm.doc.purchase_invoice) {
+			const createMenu = __("Create");
+			if (!frm.doc.purchase_order) {
 				frm.add_custom_button(
-					__("Create Purchase Invoice"),
+					__("Purchase Order"),
 					() => {
 						frappe.model.open_mapped_doc({
-							method: "erpnext_moldova_efactura.moldova_efactura.doctype.efactura_buyer.efactura_buyer.make_purchase_invoice",
+							method: "erpnext_moldova_efactura.moldova_efactura.doctype.efactura_buyer.efactura_buyer.make_purchase_order",
 							frm: frm,
 						});
 					},
-					__("Purchase Invoice")
-				);
-
-				frm.add_custom_button(
-					__("Link Purchase Invoice"),
-					() => {
-						frappe.prompt(
-							[
-								{
-									fieldname: "purchase_invoice",
-									fieldtype: "Link",
-									options: "Purchase Invoice",
-									label: __("Purchase Invoice"),
-									reqd: 1,
-									get_query: () => ({
-										filters: frm.doc.supplier ? { supplier: frm.doc.supplier } : {},
-									}),
-								},
-							],
-							(values) => {
-								frappe.call({
-									method: "erpnext_moldova_efactura.moldova_efactura.doctype.efactura_buyer.efactura_buyer.link_purchase_invoice",
-									args: {
-										name: frm.doc.name,
-										purchase_invoice: values.purchase_invoice,
-									},
-									callback() {
-										frm.reload_doc();
-									},
-								});
-							},
-							__("Link Purchase Invoice"),
-							__("Link")
-						);
-					},
-					__("Purchase Invoice")
+					createMenu
 				);
 			}
+
+			frm.add_custom_button(
+				__("Purchase Invoice"),
+				() => {
+					frappe.model.open_mapped_doc({
+						method: "erpnext_moldova_efactura.moldova_efactura.doctype.efactura_buyer.efactura_buyer.make_purchase_invoice",
+						frm: frm,
+					});
+				},
+				createMenu
+			);
+		}
+
+		if (frm.doc.purchase_order) {
+			frm.add_custom_button(__("Open Purchase Order"), () =>
+				frappe.set_route("Form", "Purchase Order", frm.doc.purchase_order)
+			);
 		}
 
 		if (frm.doc.purchase_invoice) {
-			frm.add_custom_button(
-				__("Open Purchase Invoice"),
-				() => frappe.set_route("Form", "Purchase Invoice", frm.doc.purchase_invoice),
-				__("Purchase Invoice")
+			frm.add_custom_button(__("Open Purchase Invoice"), () =>
+				frappe.set_route("Form", "Purchase Invoice", frm.doc.purchase_invoice)
 			);
 		}
 	},
@@ -180,6 +212,147 @@ frappe.ui.form.on("eFactura Buyer Item", {
 	},
 });
 
+function normalize_supplier_title(name) {
+	if (!name) {
+		return "";
+	}
+	let text = String(name).replace(/["'«»„“”‘’`]/g, "");
+	text = text.replace(/^\s*(?:S\s*\.\s*C\s*\.?|SC\b)\s*/i, "");
+	const hadSrl = /\bS\s*\.\s*R\s*\.\s*L\s*\.?/i.test(text) || /\bSRL\b/i.test(text);
+	const hadSa = /\bS\s*\.\s*A\s*\.?/i.test(text) || /\bSA\b/i.test(text);
+	text = text
+		.replace(/\bS\s*\.\s*R\s*\.\s*L\s*\.?/gi, " ")
+		.replace(/\bSRL\b/gi, " ")
+		.replace(/\bS\s*\.\s*A\s*\.?/gi, " ")
+		.replace(/\bSA\b/gi, " ");
+	text = text.replace(/\s+/g, " ").trim().toUpperCase();
+	const suffixes = [];
+	if (hadSrl) {
+		suffixes.push("SRL");
+	}
+	if (hadSa) {
+		suffixes.push("SA");
+	}
+	if (suffixes.length) {
+		return [text, ...suffixes].filter(Boolean).join(" ");
+	}
+	return text;
+}
+
+function persist_maps_when_supplier_set(frm) {
+	if (frm.doc.docstatus !== 0 || frm.is_new() || !frm.doc.supplier) {
+		return;
+	}
+	if (!(frm.doc.items || []).some((r) => r.item_code)) {
+		return;
+	}
+	if (frm._ef_persisting_maps) {
+		return;
+	}
+	frm._ef_persisting_maps = true;
+	frm.save(
+		undefined,
+		() => {
+			frm._ef_persisting_maps = false;
+		},
+		null,
+		() => {
+			frm._ef_persisting_maps = false;
+		}
+	);
+}
+
+function ensure_supplier_idno_field(frm) {
+	if (frm._supplier_idno_field) {
+		return;
+	}
+	frappe.db.get_single_value("eFactura Settings", "supplier_idno_field").then((field) => {
+		frm._supplier_idno_field = field;
+	});
+}
+
+function setup_new_supplier_from_factura(frm) {
+	const field = frm.fields_dict.supplier;
+	const df = frm.get_docfield("supplier");
+	if (!field || !df) {
+		return;
+	}
+
+	df.get_route_options_for_new_doc = () => {
+		const opts = {};
+		const supplierName = normalize_supplier_title(frm.doc.ef_supplier_name);
+		if (supplierName) {
+			// Supplier.supplier_name is no_copy; title is set via name_field in new_doc wrap.
+			opts.name_field = supplierName;
+			opts.supplier_name = supplierName;
+		}
+		const idnoField = frm._supplier_idno_field;
+		const idno = (frm.doc.ef_supplier_idno || "").trim();
+		if (idnoField && idno) {
+			opts[idnoField] = idno;
+		}
+		return opts;
+	};
+
+	if (field._ef_new_doc_wrapped) {
+		return;
+	}
+	field._ef_new_doc_wrapped = true;
+	const original_new_doc = field.new_doc.bind(field);
+	field.new_doc = function () {
+		const result = original_new_doc();
+		// Link.new_doc overwrites name_field with the typed search text (often empty).
+		const supplierName = normalize_supplier_title(frm.doc.ef_supplier_name);
+		if (supplierName && frappe.route_options) {
+			frappe.route_options.name_field = supplierName;
+		}
+		return result;
+	};
+}
+
+function link_purchase_invoice_dialog(frm) {
+	frappe.prompt(
+		[
+			{
+				fieldname: "purchase_invoice",
+				fieldtype: "Link",
+				options: "Purchase Invoice",
+				label: __("Purchase Invoice"),
+				reqd: 1,
+				get_query: () => ({
+					filters: {
+						docstatus: ["<", 2],
+						...(frm.doc.supplier ? { supplier: frm.doc.supplier } : {}),
+						...(frm.doc.company ? { company: frm.doc.company } : {}),
+					},
+				}),
+			},
+		],
+		(values) => {
+			frappe.call({
+				method: "erpnext_moldova_efactura.moldova_efactura.doctype.efactura_buyer.efactura_buyer.link_purchase_invoice",
+				args: {
+					name: frm.doc.name,
+					purchase_invoice: values.purchase_invoice,
+				},
+				freeze: true,
+				freeze_message: __("Matching Purchase Invoice..."),
+				callback(r) {
+					if (!r.exc) {
+						frappe.show_alert({
+							message: __("Purchase Invoice linked. Items mapped from the invoice."),
+							indicator: "green",
+						});
+						frm.reload_doc();
+					}
+				},
+			});
+		},
+		__("Link Purchase Invoice"),
+		__("Link")
+	);
+}
+
 function recalc_buyer_item_qtys(frm, cdt, cdn) {
 	const row = locals[cdt][cdn];
 	if (!row || frm.doc.docstatus !== 0) {
@@ -199,11 +372,18 @@ function recalc_buyer_item_qtys(frm, cdt, cdn) {
 				return;
 			}
 			const data = r.message;
-			frappe.model.set_value(cdt, cdn, {
+			const updates = {
 				stock_uom: data.stock_uom || null,
 				stock_qty: flt(data.stock_qty),
 				qty: flt(data.qty),
-			});
+			};
+			if (!row.ef_uom && data.ef_uom) {
+				updates.ef_uom = data.ef_uom;
+			}
+			if (!row.uom && data.uom) {
+				updates.uom = data.uom;
+			}
+			frappe.model.set_value(cdt, cdn, updates);
 		},
 	});
 }
@@ -265,10 +445,6 @@ function open_map_dialog(frm) {
 	const rows = (frm.doc.items || []).filter((r) => !r.item_code);
 	if (!rows.length) {
 		frappe.msgprint(__("All items are already mapped."));
-		return;
-	}
-	if (!frm.doc.supplier) {
-		frappe.msgprint(__("Set Supplier first."));
 		return;
 	}
 

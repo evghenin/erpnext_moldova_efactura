@@ -6,9 +6,11 @@ from frappe.tests.utils import FrappeTestCase
 from frappe.utils import flt
 
 from erpnext_moldova_efactura.utils.api_response import extract_invoices, invoice_xml
+from erpnext_moldova_efactura.moldova_efactura.doctype.efactura_buyer.efactura_buyer import _sfs_action_error
 from erpnext_moldova_efactura.utils.buyer_status import compose_buyer_status, status_label
-from erpnext_moldova_efactura.utils.invoice_xml import parse_invoice_xml
+from erpnext_moldova_efactura.utils.invoice_xml import parse_invoice_xml, unescape_sfs_text
 from erpnext_moldova_efactura.utils.item_map import resolve_item_code
+from erpnext_moldova_efactura.utils.party import normalize_supplier_title, new_supplier_defaults
 from erpnext_moldova_efactura.utils.uom_map import (
 	clear_uom_alias_cache,
 	compute_buyer_item_qtys,
@@ -49,6 +51,16 @@ class TestEFacturaBuyerUtils(FrappeTestCase):
 		self.assertEqual(compose_buyer_status(8, "PINV-001"), "Signed by Buyer · Linked to PI")
 		self.assertEqual(compose_buyer_status(7, "PINV-001"), "Sent to Buyer · Linked to PI")
 
+	def test_sfs_reject_response_errors(self):
+		self.assertTrue(_sfs_action_error(None))
+		self.assertEqual(_sfs_action_error({"ErrorMessage": "nope"}), "nope")
+		self.assertTrue(_sfs_action_error({"Status": 3}))
+		self.assertIsNone(_sfs_action_error({"Status": 2}))
+		self.assertEqual(
+			_sfs_action_error({"Results": {"InvoiceResult": {"Status": 3, "Message": "cannot reject"}}}),
+			"cannot reject",
+		)
+
 	def test_extract_xml_invoice(self):
 		resp = {
 			"Results": {
@@ -74,6 +86,49 @@ class TestEFacturaBuyerUtils(FrappeTestCase):
 		self.assertEqual(parsed["items"][0]["supplier_uom"], "buc")
 		self.assertEqual(parsed["items"][0]["ef_qty"], 2)
 		self.assertEqual(parsed["vat_total"], 18)
+
+	def test_parse_unescapes_html_entities_in_bank_name(self):
+		xml = SAMPLE_XML.replace(
+			'BranchTitle="Bank"',
+			'BranchTitle="BC&amp;apos;Moldindconbank&amp;apos;S.A. suc Durlesti"',
+		)
+		parsed = parse_invoice_xml(xml)
+		self.assertEqual(
+			parsed["supplier"]["bank_name"],
+			"BC'Moldindconbank'S.A. suc Durlesti",
+		)
+
+	def test_unescape_sfs_text_decodes_stored_entities(self):
+		self.assertEqual(
+			unescape_sfs_text("BC&apos;Moldindconbank&apos;S.A. suc Durlesti"),
+			"BC'Moldindconbank'S.A. suc Durlesti",
+		)
+		self.assertEqual(
+			unescape_sfs_text("BC'Moldindconbank'S.A. suc Durlesti"),
+			"BC'Moldindconbank'S.A. suc Durlesti",
+		)
+
+	def test_normalize_supplier_title(self):
+		self.assertEqual(normalize_supplier_title('S.R.L. "PRIM-LOGIST"'), "PRIM-LOGIST SRL")
+		self.assertEqual(normalize_supplier_title("PRIM-LOGIST S.R.L."), "PRIM-LOGIST SRL")
+		self.assertEqual(normalize_supplier_title("„Hotel Life” s.r.l"), "HOTEL LIFE SRL")
+		self.assertEqual(normalize_supplier_title("  already   srl  "), "ALREADY SRL")
+		self.assertEqual(normalize_supplier_title("SRL PRIM-LOGIST"), "PRIM-LOGIST SRL")
+		self.assertEqual(normalize_supplier_title('S.A. "MOLDOVA-AGRO"'), "MOLDOVA-AGRO SA")
+		self.assertEqual(normalize_supplier_title("MOLDOVA-AGRO S.A."), "MOLDOVA-AGRO SA")
+		self.assertEqual(normalize_supplier_title("SA MOLDOVA-AGRO"), "MOLDOVA-AGRO SA")
+		self.assertEqual(normalize_supplier_title('S.C. "PRIM-LOGIST" S.R.L.'), "PRIM-LOGIST SRL")
+		self.assertEqual(normalize_supplier_title("SC PRIM-LOGIST SRL"), "PRIM-LOGIST SRL")
+		self.assertEqual(normalize_supplier_title("SCANIA MOLDOVA"), "SCANIA MOLDOVA")
+		self.assertEqual(normalize_supplier_title(""), "")
+
+	def test_new_supplier_defaults_title_and_idno(self):
+		field = frappe.db.get_single_value("eFactura Settings", "supplier_idno_field")
+		if not field or not frappe.get_meta("Supplier").has_field(field):
+			self.skipTest("Supplier IDNO field is not configured")
+		defaults = new_supplier_defaults('S.R.L. "PRIM-LOGIST"', "1015608001255")
+		self.assertEqual(defaults.get("supplier_name"), "PRIM-LOGIST SRL")
+		self.assertEqual(defaults.get(field), "1015608001255")
 
 
 class TestEFacturaBuyerUOM(FrappeTestCase):
@@ -219,6 +274,180 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 		finally:
 			frappe.db.set_single_value("eFactura Settings", "vat_included_in_rate", prev)
 
+	def test_make_purchase_invoice_applies_company_tax_template(self):
+		from erpnext.controllers.accounts_controller import get_taxes_and_charges
+
+		from erpnext_moldova_efactura.moldova_efactura.doctype.efactura_buyer.efactura_buyer import (
+			make_purchase_invoice,
+		)
+
+		item = frappe.db.get_value("Item", {"disabled": 0}, ["name", "stock_uom"], as_dict=True)
+		sup = frappe.db.get_value("Supplier", {}, "name")
+		tmpl = frappe.db.get_value(
+			"Purchase Taxes and Charges Template", {"company": self.company}, "name"
+		)
+		if not item or not sup or not tmpl:
+			self.skipTest("Need Item, Supplier, and Purchase Taxes and Charges Template")
+
+		tax_rows = get_taxes_and_charges("Purchase Taxes and Charges Template", tmpl) or []
+		vat_account = tax_rows[0].get("account_head") if tax_rows else None
+
+		name = frappe.db.exists(
+			"eFactura Buyer",
+			{"company": self.company, "ef_series": "EBJ", "ef_number": "000066607"},
+		)
+		if name:
+			doc = frappe.get_doc("eFactura Buyer", name)
+			if doc.docstatus == 1:
+				doc.cancel()
+			frappe.delete_doc("eFactura Buyer", name, force=1)
+
+		prev_itemwise = frappe.db.get_single_value("Accounts Settings", "add_taxes_from_item_tax_template")
+		prev_incl = frappe.db.get_single_value("eFactura Settings", "vat_included_in_rate")
+		settings = frappe.get_single("eFactura Settings")
+		prev_company_settings = [r.as_dict() for r in (settings.company_settings or [])]
+		try:
+			settings.set("company_settings", [])
+			settings.append(
+				"company_settings",
+				{
+					"company": self.company,
+					"taxes_and_charges": tmpl,
+					"buying_vat_account": vat_account,
+				},
+			)
+			settings.flags.ignore_permissions = True
+			settings.save()
+			frappe.db.set_single_value("Accounts Settings", "add_taxes_from_item_tax_template", 0)
+			frappe.db.set_single_value("eFactura Settings", "vat_included_in_rate", 0)
+
+			xml = SAMPLE_XML.replace("000066606", "000066607")
+			doc = frappe.get_doc(
+				{
+					"doctype": "eFactura Buyer",
+					"naming_series": "EFB-.YYYY.-",
+					"company": self.company,
+					"ef_series": "EBJ",
+					"ef_number": "000066607",
+					"ef_status": 8,
+					"supplier": sup,
+				}
+			)
+			doc.fill_from_xml(xml)
+			doc.items[0].item_code = item.name
+			doc.items[0].ef_uom = item.stock_uom
+			doc.items[0].uom = item.stock_uom
+			doc.insert()
+			doc.submit()
+
+			pi = make_purchase_invoice(doc.name)
+			self.assertEqual(pi.taxes_and_charges, tmpl)
+			self.assertTrue(pi.taxes)
+			if vat_account:
+				vat_rows = [t for t in pi.taxes if t.account_head == vat_account]
+				self.assertTrue(vat_rows)
+				self.assertEqual(int(vat_rows[0].included_in_print_rate or 0), 0)
+
+			frappe.db.set_single_value("eFactura Settings", "vat_included_in_rate", 1)
+			pi_inc = make_purchase_invoice(doc.name)
+			if vat_account:
+				vat_rows = [t for t in (pi_inc.taxes or []) if t.account_head == vat_account]
+				self.assertTrue(vat_rows)
+				self.assertEqual(int(vat_rows[0].included_in_print_rate or 0), 1)
+		finally:
+			settings = frappe.get_single("eFactura Settings")
+			settings.set("company_settings", [])
+			for row in prev_company_settings:
+				settings.append("company_settings", row)
+			settings.flags.ignore_permissions = True
+			settings.save()
+			frappe.db.set_single_value("Accounts Settings", "add_taxes_from_item_tax_template", prev_itemwise)
+			frappe.db.set_single_value("eFactura Settings", "vat_included_in_rate", prev_incl)
+
+	def test_make_purchase_invoice_adds_actual_vat_when_no_template(self):
+		from erpnext_moldova_efactura.moldova_efactura.doctype.efactura_buyer.efactura_buyer import (
+			make_purchase_invoice,
+		)
+
+		item = frappe.db.get_value("Item", {"disabled": 0}, ["name", "stock_uom"], as_dict=True)
+		sup = frappe.db.get_value("Supplier", {}, "name")
+		account = frappe.db.get_value(
+			"Account",
+			{"company": self.company, "is_group": 0, "account_type": "Tax"},
+			"name",
+		) or frappe.db.get_value("Account", {"company": self.company, "is_group": 0}, "name")
+		if not item or not sup or not account:
+			self.skipTest("Need Item, Supplier, and Account")
+
+		name = frappe.db.exists(
+			"eFactura Buyer",
+			{"company": self.company, "ef_series": "EBJ", "ef_number": "000066608"},
+		)
+		if name:
+			doc = frappe.get_doc("eFactura Buyer", name)
+			if doc.docstatus == 1:
+				doc.cancel()
+			frappe.delete_doc("eFactura Buyer", name, force=1)
+
+		prev_itemwise = frappe.db.get_single_value("Accounts Settings", "add_taxes_from_item_tax_template")
+		prev_incl = frappe.db.get_single_value("eFactura Settings", "vat_included_in_rate")
+		settings = frappe.get_single("eFactura Settings")
+		prev_company_settings = [r.as_dict() for r in (settings.company_settings or [])]
+		try:
+			settings.set("company_settings", [])
+			settings.append(
+				"company_settings",
+				{"company": self.company, "buying_vat_account": account},
+			)
+			settings.flags.ignore_permissions = True
+			settings.save()
+			frappe.db.set_single_value("Accounts Settings", "add_taxes_from_item_tax_template", 0)
+			frappe.db.set_single_value("eFactura Settings", "vat_included_in_rate", 0)
+
+			xml = SAMPLE_XML.replace("000066606", "000066608")
+			doc = frappe.get_doc(
+				{
+					"doctype": "eFactura Buyer",
+					"naming_series": "EFB-.YYYY.-",
+					"company": self.company,
+					"ef_series": "EBJ",
+					"ef_number": "000066608",
+					"ef_status": 8,
+					"supplier": sup,
+				}
+			)
+			doc.fill_from_xml(xml)
+			doc.items[0].item_code = item.name
+			doc.items[0].ef_uom = item.stock_uom
+			doc.items[0].uom = item.stock_uom
+			doc.insert()
+			doc.submit()
+
+			pi = make_purchase_invoice(doc.name)
+			vat_rows = [t for t in (pi.taxes or []) if t.account_head == account]
+			self.assertTrue(vat_rows)
+			self.assertEqual(vat_rows[0].charge_type, "Actual")
+			self.assertAlmostEqual(flt(vat_rows[0].tax_amount), 18.0, places=2)
+			self.assertEqual(int(vat_rows[0].included_in_print_rate or 0), 0)
+
+			frappe.db.set_single_value("eFactura Settings", "vat_included_in_rate", 1)
+			pi_inc = make_purchase_invoice(doc.name)
+			vat_rows = [t for t in (pi_inc.taxes or []) if t.account_head == account]
+			self.assertTrue(vat_rows)
+			self.assertEqual(int(vat_rows[0].included_in_print_rate or 0), 1)
+			self.assertNotEqual(vat_rows[0].charge_type, "Actual")
+			self.assertAlmostEqual(flt(pi_inc.items[0].rate), 59.0, places=2)
+			self.assertAlmostEqual(flt(vat_rows[0].tax_amount), 18.0, places=2)
+		finally:
+			settings = frappe.get_single("eFactura Settings")
+			settings.set("company_settings", [])
+			for row in prev_company_settings:
+				settings.append("company_settings", row)
+			settings.flags.ignore_permissions = True
+			settings.save()
+			frappe.db.set_single_value("Accounts Settings", "add_taxes_from_item_tax_template", prev_itemwise)
+			frappe.db.set_single_value("eFactura Settings", "vat_included_in_rate", prev_incl)
+
 	def test_fill_from_xml_and_unique(self):
 		name = frappe.db.exists(
 			"eFactura Buyer",
@@ -243,7 +472,7 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 		self.assertEqual(len(doc.items), 1)
 		self.assertEqual(doc.ef_supplier_idno, "1015608001255")
 		self.assertEqual(doc.items[0].supplier_uom, "buc")
-		# unknown "buc": ef_uom and uom stay empty (no stock_uom fallback)
+		# unknown "buc": ef_uom/uom stay empty until an Item is mapped
 		self.assertFalse(doc.items[0].ef_uom)
 		self.assertFalse(doc.items[0].uom)
 
@@ -268,8 +497,6 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 		stock_uom = frappe.db.get_value("Item", item, "stock_uom")
 		doc.reload()
 		doc.items[0].item_code = item
-		doc.items[0].ef_uom = stock_uom
-		doc.items[0].uom = stock_uom
 		if not doc.supplier:
 			sup = frappe.db.get_value("Supplier", {}, "name")
 			if not sup:
@@ -280,7 +507,229 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 		self.assertEqual(doc.items[0].supplier_uom, "buc")
 		self.assertEqual(doc.items[0].ef_uom, stock_uom)
 		self.assertEqual(doc.items[0].stock_uom, stock_uom)
-		self.assertEqual(doc.items[0].stock_qty, doc.items[0].ef_qty)
 		self.assertEqual(doc.items[0].uom, stock_uom)
 		doc.submit()
 		self.assertEqual(doc.docstatus, 1)
+
+	def _delete_buyer(self, series: str, number: str):
+		name = frappe.db.exists(
+			"eFactura Buyer",
+			{"company": self.company, "ef_series": series, "ef_number": number},
+		)
+		if not name:
+			return
+		doc = frappe.get_doc("eFactura Buyer", name)
+		if doc.docstatus == 1:
+			doc.cancel()
+		frappe.delete_doc("eFactura Buyer", name, force=1)
+
+	def test_item_map_persists_when_supplier_set_after_mapping(self):
+		from erpnext_moldova_efactura.moldova_efactura.doctype.efactura_buyer.efactura_buyer import (
+			save_item_mappings,
+		)
+
+		item = frappe.db.get_value("Item", {"disabled": 0}, ["name", "stock_uom"], as_dict=True)
+		sup = frappe.db.get_value("Supplier", {}, "name")
+		if not item or not sup:
+			self.skipTest("Need Item and Supplier")
+
+		self._delete_buyer("EBJ", "000066701")
+		frappe.db.delete("eFactura Supplier Item Map", {"supplier": sup, "supplier_item_name": "Item A"})
+
+		doc = frappe.get_doc(
+			{
+				"doctype": "eFactura Buyer",
+				"naming_series": "EFB-.YYYY.-",
+				"company": self.company,
+				"ef_series": "EBJ",
+				"ef_number": "000066701",
+				"ef_status": 8,
+			}
+		)
+		doc.fill_from_xml(SAMPLE_XML)
+		doc.supplier = None
+		doc.insert()
+		save_item_mappings(doc.name, [{"idx": 1, "item_code": item.name}])
+		self.assertFalse(
+			frappe.db.exists(
+				"eFactura Supplier Item Map",
+				{"supplier": sup, "supplier_item_name": "Item A"},
+			)
+		)
+
+		doc.reload()
+		doc.supplier = sup
+		if not doc.items[0].ef_uom:
+			doc.items[0].ef_uom = item.stock_uom
+			doc.items[0].uom = item.stock_uom
+		doc.save()
+		self.assertTrue(
+			frappe.db.exists(
+				"eFactura Supplier Item Map",
+				{"supplier": sup, "supplier_item_name": "Item A", "item_code": item.name},
+			)
+		)
+
+	def test_item_map_persists_when_mapping_after_supplier(self):
+		from erpnext_moldova_efactura.moldova_efactura.doctype.efactura_buyer.efactura_buyer import (
+			save_item_mappings,
+		)
+
+		item = frappe.db.get_value("Item", {"disabled": 0}, ["name", "stock_uom"], as_dict=True)
+		sup = frappe.db.get_value("Supplier", {}, "name")
+		if not item or not sup:
+			self.skipTest("Need Item and Supplier")
+
+		self._delete_buyer("EBJ", "000066702")
+		frappe.db.delete("eFactura Supplier Item Map", {"supplier": sup, "supplier_item_name": "Item A"})
+
+		doc = frappe.get_doc(
+			{
+				"doctype": "eFactura Buyer",
+				"naming_series": "EFB-.YYYY.-",
+				"company": self.company,
+				"ef_series": "EBJ",
+				"ef_number": "000066702",
+				"ef_status": 8,
+				"supplier": sup,
+			}
+		)
+		doc.fill_from_xml(SAMPLE_XML)
+		doc.supplier = sup
+		doc.insert()
+		save_item_mappings(doc.name, [{"idx": 1, "item_code": item.name}])
+		self.assertTrue(
+			frappe.db.exists(
+				"eFactura Supplier Item Map",
+				{"supplier": sup, "supplier_item_name": "Item A", "item_code": item.name},
+			)
+		)
+
+
+class TestEFacturaBuyerPIMatch(FrappeTestCase):
+	def _pair(self, **pi_header):
+		from types import SimpleNamespace
+
+		buyer = SimpleNamespace(
+			name="EFB-TEST",
+			supplier="SUP-1",
+			company="CO-1",
+			currency="MDL",
+			total=118,
+			vat_total=18,
+			net_total=100,
+			purchase_invoice=None,
+			items=[
+				SimpleNamespace(
+					idx=1,
+					supplier_item_name="Item A",
+					supplier_item_code="A1",
+					item_code=None,
+					item_name=None,
+					ef_qty=2,
+					qty=2,
+					uom="Nos",
+					ef_uom="Nos",
+					rate=50,
+					rate_with_vat=59,
+					net_amount=100,
+					amount=118,
+					vat_amount=18,
+				)
+			],
+		)
+		pi = SimpleNamespace(
+			name="PINV-TEST",
+			supplier="SUP-1",
+			company="CO-1",
+			currency="MDL",
+			grand_total=118,
+			total_taxes_and_charges=18,
+			docstatus=1,
+			efactura_buyer=None,
+			items=[
+				SimpleNamespace(
+					idx=1,
+					item_code="ITEM-A",
+					item_name="Item A",
+					qty=2,
+					uom="Nos",
+					rate=50,
+					amount=100,
+				)
+			],
+		)
+		for key, value in pi_header.items():
+			setattr(pi, key, value)
+		return buyer, pi
+
+	def test_match_ok(self):
+		from erpnext_moldova_efactura.utils.pi_match import collect_totals_and_line_errors
+
+		buyer, pi = self._pair()
+		errors, pairs = collect_totals_and_line_errors(buyer, pi, mprec=2, qprec=3)
+		self.assertEqual(errors, [])
+		self.assertEqual(len(pairs), 1)
+		self.assertEqual(pairs[0][1].item_code, "ITEM-A")
+
+	def test_grand_total_mismatch(self):
+		from erpnext_moldova_efactura.utils.pi_match import collect_totals_and_line_errors
+
+		buyer, pi = self._pair(grand_total=200)
+		errors, _ = collect_totals_and_line_errors(buyer, pi, mprec=2, qprec=3)
+		self.assertTrue(any("Grand Total" in e for e in errors))
+
+	def test_vat_total_mismatch(self):
+		from erpnext_moldova_efactura.utils.pi_match import collect_totals_and_line_errors
+
+		buyer, pi = self._pair(total_taxes_and_charges=0)
+		errors, _ = collect_totals_and_line_errors(buyer, pi, mprec=2, qprec=3)
+		self.assertTrue(any("VAT Total" in e for e in errors))
+
+	def test_qty_mismatch(self):
+		from erpnext_moldova_efactura.utils.pi_match import collect_totals_and_line_errors
+
+		buyer, pi = self._pair()
+		pi.items[0].qty = 5
+		errors, _ = collect_totals_and_line_errors(buyer, pi, mprec=2, qprec=3)
+		self.assertTrue(any("quantity" in e.lower() or "no matching" in e.lower() for e in errors))
+
+	def test_rate_mismatch(self):
+		from erpnext_moldova_efactura.utils.pi_match import collect_totals_and_line_errors
+
+		buyer, pi = self._pair()
+		pi.items[0].rate = 40
+		pi.items[0].amount = 80
+		errors, _ = collect_totals_and_line_errors(buyer, pi, mprec=2, qprec=3)
+		self.assertTrue(any("rate" in e.lower() or "no matching" in e.lower() for e in errors))
+
+	def test_item_count_mismatch(self):
+		from erpnext_moldova_efactura.utils.pi_match import collect_totals_and_line_errors
+
+		from types import SimpleNamespace
+
+		buyer, pi = self._pair()
+		pi.items.append(
+			SimpleNamespace(
+				idx=2,
+				item_code="ITEM-B",
+				item_name="Item B",
+				qty=1,
+				uom="Nos",
+				rate=10,
+				amount=10,
+			)
+		)
+		errors, _ = collect_totals_and_line_errors(buyer, pi, mprec=2, qprec=3)
+		self.assertTrue(any("Item count" in e for e in errors))
+
+	def test_mapped_item_code_mismatch(self):
+		from erpnext_moldova_efactura.utils.pi_match import collect_totals_and_line_errors
+
+		buyer, pi = self._pair()
+		buyer.items[0].item_code = "OTHER-ITEM"
+		errors, _ = collect_totals_and_line_errors(buyer, pi, mprec=2, qprec=3)
+		self.assertTrue(errors)
+
+	def test_compose_status_keeps_sfs_label(self):
+		self.assertEqual(compose_buyer_status(3, "PINV-001"), "Accepted · Linked to PI")

@@ -2,10 +2,29 @@
 
 from __future__ import annotations
 
+import html
 from typing import Any
 from xml.etree import ElementTree as ET
 
 from frappe.utils import flt, getdate
+
+
+def unescape_sfs_text(value: str | None) -> str:
+	"""Decode HTML entities; SFS often double-encodes (&amp;apos; → &apos; → ')."""
+	if value is None:
+		return ""
+	if not isinstance(value, str):
+		value = str(value)
+	if not value:
+		return value
+	prev = None
+	cur = value
+	for _ in range(3):
+		if prev == cur:
+			break
+		prev = cur
+		cur = html.unescape(cur)
+	return cur.strip()
 
 
 def _local(tag: str) -> str:
@@ -15,7 +34,7 @@ def _local(tag: str) -> str:
 def _attr(el: ET.Element | None, name: str, default: str = "") -> str:
 	if el is None:
 		return default
-	return (el.attrib.get(name) or default).strip()
+	return unescape_sfs_text(el.attrib.get(name) or default)
 
 
 def _text(parent: ET.Element | None, child: str, default: str = "") -> str:
@@ -23,7 +42,7 @@ def _text(parent: ET.Element | None, child: str, default: str = "") -> str:
 		return default
 	for el in list(parent):
 		if _local(el.tag) == child:
-			return (el.text or default).strip()
+			return unescape_sfs_text(el.text or default)
 	return default
 
 

@@ -166,3 +166,57 @@ Confirm Draft Save When Qty Exceeds Sales Invoice,Подтверждать со�
 Other eFactura,Другие eFactura
 Save Anyway,Сохранить всё равно
 "Other Draft eFactura are included. The first document submitted takes the quantity; the other will be blocked or need confirmation.","Учтены другие черновики eFactura. Количество заберёт документ, который проведут первым; второй будет заблокирован или потребует подтверждения."
+Reject,Отклонить
+Reject e-Factura,Отклонить e-Factura
+Rejection Reason,Причина отклонения
+Rejection Reason is required,Укажите причину отклонения
+Rejecting e-Factura...,Отклонение e-Factura...
+e-Factura rejected.,e-Factura отклонена.
+eFactura can be accepted or rejected only in Sent to Buyer or Signed by Supplier status.,eFactura можно принять или отклонить только в статусе «Отправлена покупателю» или «Подписана поставщиком».
+Link Purchase Invoice,Связать счёт покупки
+Create,Создать
+Create Purchase Order,Создать заказ поставщику
+Create Purchase Invoice,Создать счёт покупки
+Purchase Invoice,Счёт покупки
+Open Purchase Order,Открыть заказ поставщику
+Open Purchase Invoice,Открыть счёт покупки
+Matching Purchase Invoice...,Сверка со счётом покупки...
+Purchase Invoice linked. Items mapped from the invoice.,Счёт покупки связан. Позиции замаплены из счёта.
+Cannot link Purchase Invoice {0}:,Нельзя связать счёт покупки {0}:
+e-Factura and Purchase Invoice do not match,e-Factura и счёт покупки не совпадают
+"Grand Total mismatch: e-Factura {0} {2}, Purchase Invoice {1} {2}","Не совпадает Grand Total: e-Factura {0} {2}, счёт покупки {1} {2}"
+"VAT Total mismatch: e-Factura {0} {2}, Purchase Invoice {1} {2}","Не совпадает НДС: e-Factura {0} {2}, счёт покупки {1} {2}"
+"Item count mismatch: e-Factura has {0} row(s), Purchase Invoice has {1} row(s)","Не совпадает число строк: в e-Factura {0}, в счёте покупки {1}"
+"Supplier mismatch: e-Factura {0}, Purchase Invoice {1}","Не совпадает поставщик: e-Factura {0}, счёт покупки {1}"
+"Company mismatch: e-Factura {0}, Purchase Invoice {1}","Не совпадает компания: e-Factura {0}, счёт покупки {1}"
+Purchase Invoice {0} is cancelled,Счёт покупки {0} отменён
+Purchase Invoice {0} is already linked to e-Factura {1},Счёт покупки {0} уже связан с e-Factura {1}
+e-Factura is already linked to Purchase Invoice {0},e-Factura уже связана со счётом покупки {0}
+Submit Purchase Order {0} before creating Purchase Invoice,Проведите заказ поставщику {0} перед созданием счёта покупки
+Purchase Invoice {0} is already linked,Счёт покупки {0} уже связан
+Purchase Order {0} is already linked,Заказ поставщику {0} уже связан
+Cannot link Purchase Invoice to a cancelled e-Factura,Нельзя связать счёт покупки с отменённой e-Factura
+Fetch invoice details from e-Factura before linking a Purchase Invoice,Сначала загрузите детали фактуры из e-Factura
+Map all items before creating {0} (rows: {1}),Замапьте все позиции перед созданием {0} (строки: {1})
+Supplier is required to create {0},Для создания {0} нужен поставщик
+Purchase Order,Заказ поставщику
+Purchase Taxes,Налоги закупки
+Company Settings,Настройки компании
+VAT Account (Purchase),Счёт НДС (закупка)
+Tax Category,Категория налога
+Purchase Taxes and Charges Template,Шаблон налогов закупки
+"Set on Purchase Order / Purchase Invoice. Used to pick Item Tax Template.","Ставится на заказ поставщику / счёт покупки. Нужна для выбора Item Tax Template."
+"Default Purchase Taxes and Charges Template for this company. Applied when Item-wise tax is not used.","Шаблон налогов закупки по умолчанию для компании. Применяется, если Item-wise налог не используется."
+"Which tax account is e-Factura VAT. If the Purchase Taxes template does not include this account, it is added as Actual with the VAT amount from the factura.","Какой счёт — НДС e-Factura. Если его нет в шаблоне налогов, он добавляется как Actual с суммой НДС из фактуры."
+"Per-company Tax Category, Purchase Taxes template, and VAT account for Purchase Order / Purchase Invoice created from e-Factura.","Категория налога, шаблон налогов закупки и счёт НДС по компании для заказа / счёта из e-Factura."
+Purchase Taxes and Charges Template {0} does not belong to company {1},Шаблон налогов закупки {0} не относится к компании {1}
+"VAT is included in Rate, so Actual tax cannot be used (ERPNext forbids 'Is this Tax included in Basic Rate?' on Actual). Set Purchase Taxes and Charges Template or Item Tax Templates for company {0}.","НДС включён в ставку, Actual нельзя (ERPNext запрещает «Is this Tax included in Basic Rate?» для Actual). Укажите шаблон налогов закупки или Item Tax Template для компании {0}."
+"e-Factura VAT is {0} but Purchase taxes are empty. For company {1} set VAT Account (Purchase) or Purchase Taxes and Charges Template in eFactura Settings (Incoming → Company Settings).","В e-Factura НДС {0}, а в закупке налоги пустые. Для компании {1} укажите счёт НДС (закупка) или шаблон налогов закупки в eFactura Settings (Incoming → Company Settings)."
+"Used when Item-wise tax is not applied. VAT from e-Factura is posted as Actual tax on Purchase Order and Purchase Invoice.","Если Item-wise налог не применяется, НДС из e-Factura ставится как Actual в заказ поставщику и счёт покупки."
+"Per-company VAT account used when Item-wise tax is not applied. Amounts are copied from e-Factura onto Purchase Order and Purchase Invoice.","Счёт НДС по компании, если Item-wise налог не применяется. Суммы копируются из e-Factura в заказ поставщику и счёт покупки."
+"VAT Account (Purchase) must be a ledger account, not a group","Счёт НДС (закупка) должен быть листовым, не группой"
+VAT Account {0} does not belong to company {1},Счёт НДС {0} не относится к компании {1}
+Company {0} is listed more than once,Компания {0} указана более одного раза
+VAT {0}%,НДС {0}%
+VAT,НДС
+"e-Factura VAT is {0} but Purchase taxes are empty. Set VAT Account for company {1} in eFactura Settings (Incoming → Company Settings), or enable Item-wise tax (Accounts Settings → Add taxes from Item Tax Template) and assign Item Tax Templates.","В e-Factura НДС {0}, а в закупке налоги пустые. Укажите счёт НДС для компании {1} в eFactura Settings (Incoming → Company Settings) либо включите Item-wise налог (Accounts Settings → Add taxes from Item Tax Template) и назначьте Item Tax Template."

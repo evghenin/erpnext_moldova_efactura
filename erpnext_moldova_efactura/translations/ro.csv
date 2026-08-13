@@ -174,3 +174,57 @@ Confirm Draft Save When Qty Exceeds Sales Invoice,Confirmă salvarea ciornei dac
 Other eFactura,Alte eFactura
 Save Anyway,Salvează oricum
 "Other Draft eFactura are included. The first document submitted takes the quantity; the other will be blocked or need confirmation.","Sunt incluse alte eFactura ciornă. Cantitatea o ia documentul confirmat primul; celălalt va fi blocat sau va necesita confirmare."
+Reject,Respinge
+Reject e-Factura,Respinge e-Factura
+Rejection Reason,Motivul respingerii
+Rejection Reason is required,Motivul respingerii este obligatoriu
+Rejecting e-Factura...,Respingere e-Factura...
+e-Factura rejected.,e-Factura a fost respinsă.
+eFactura can be accepted or rejected only in Sent to Buyer or Signed by Supplier status.,eFactura poate fi acceptată sau respinsă doar în statutul „Trimisă cumpărătorului” sau „Semnată de furnizor”.
+Link Purchase Invoice,Leagă factura de achiziție
+Create,Creează
+Create Purchase Order,Creează comandă de achiziție
+Create Purchase Invoice,Creează factura de achiziție
+Purchase Invoice,Factură de achiziție
+Open Purchase Order,Deschide comanda de achiziție
+Open Purchase Invoice,Deschide factura de achiziție
+Matching Purchase Invoice...,Verificare cu factura de achiziție...
+Purchase Invoice linked. Items mapped from the invoice.,Factura de achiziție a fost legată. Articolele au fost mapate din factură.
+Cannot link Purchase Invoice {0}:,Nu se poate lega factura de achiziție {0}:
+e-Factura and Purchase Invoice do not match,e-Factura și factura de achiziție nu coincid
+"Grand Total mismatch: e-Factura {0} {2}, Purchase Invoice {1} {2}","Total general diferit: e-Factura {0} {2}, factura de achiziție {1} {2}"
+"VAT Total mismatch: e-Factura {0} {2}, Purchase Invoice {1} {2}","TVA total diferit: e-Factura {0} {2}, factura de achiziție {1} {2}"
+"Item count mismatch: e-Factura has {0} row(s), Purchase Invoice has {1} row(s)","Număr de rânduri diferit: e-Factura {0}, factura de achiziție {1}"
+"Supplier mismatch: e-Factura {0}, Purchase Invoice {1}","Furnizor diferit: e-Factura {0}, factura de achiziție {1}"
+"Company mismatch: e-Factura {0}, Purchase Invoice {1}","Companie diferită: e-Factura {0}, factura de achiziție {1}"
+Purchase Invoice {0} is cancelled,Factura de achiziție {0} este anulată
+Purchase Invoice {0} is already linked to e-Factura {1},Factura de achiziție {0} este deja legată de e-Factura {1}
+e-Factura is already linked to Purchase Invoice {0},e-Factura este deja legată de factura de achiziție {0}
+Submit Purchase Order {0} before creating Purchase Invoice,Confirmați comanda de achiziție {0} înainte de a crea factura
+Purchase Invoice {0} is already linked,Factura de achiziție {0} este deja legată
+Purchase Order {0} is already linked,Comanda de achiziție {0} este deja legată
+Cannot link Purchase Invoice to a cancelled e-Factura,Nu se poate lega o factură de achiziție de o e-Factura anulată
+Fetch invoice details from e-Factura before linking a Purchase Invoice,Încărcați detaliile facturii din e-Factura înainte de a lega factura de achiziție
+Map all items before creating {0} (rows: {1}),Mapați toate articolele înainte de a crea {0} (rânduri: {1})
+Supplier is required to create {0},Furnizorul este necesar pentru a crea {0}
+Purchase Order,Comandă de achiziție
+Purchase Taxes,Taxe de achiziție
+Company Settings,Setări companie
+VAT Account (Purchase),Cont TVA (achiziție)
+Tax Category,Categorie de taxă
+Purchase Taxes and Charges Template,Șablon de taxe de achiziție
+"Set on Purchase Order / Purchase Invoice. Used to pick Item Tax Template.","Se pune pe comandă / factură de achiziție. Servește la alegerea Item Tax Template."
+"Default Purchase Taxes and Charges Template for this company. Applied when Item-wise tax is not used.","Șablonul implicit de taxe de achiziție pentru companie. Se aplică dacă taxa Item-wise nu este folosită."
+"Which tax account is e-Factura VAT. If the Purchase Taxes template does not include this account, it is added as Actual with the VAT amount from the factura.","Contul TVA e-Factura. Dacă lipsește din șablonul de taxe, se adaugă ca Actual cu suma TVA din factură."
+"Per-company Tax Category, Purchase Taxes template, and VAT account for Purchase Order / Purchase Invoice created from e-Factura.","Categorie de taxă, șablon de taxe și cont TVA pe companie pentru comandă / factură din e-Factura."
+Purchase Taxes and Charges Template {0} does not belong to company {1},Șablonul de taxe de achiziție {0} nu aparține companiei {1}
+"VAT is included in Rate, so Actual tax cannot be used (ERPNext forbids 'Is this Tax included in Basic Rate?' on Actual). Set Purchase Taxes and Charges Template or Item Tax Templates for company {0}.","TVA este inclus în preț, Actual nu poate fi folosit (ERPNext interzice «Is this Tax included in Basic Rate?» pe Actual). Setați șablonul de taxe sau Item Tax Template pentru compania {0}."
+"e-Factura VAT is {0} but Purchase taxes are empty. For company {1} set VAT Account (Purchase) or Purchase Taxes and Charges Template in eFactura Settings (Incoming → Company Settings).","TVA e-Factura este {0}, dar taxele de achiziție sunt goale. Pentru compania {1} setați contul TVA (achiziție) sau șablonul de taxe în eFactura Settings (Incoming → Company Settings)."
+"Used when Item-wise tax is not applied. VAT from e-Factura is posted as Actual tax on Purchase Order and Purchase Invoice.","Dacă taxa Item-wise nu se aplică, TVA din e-Factura se trece ca Actual pe comandă și factură de achiziție."
+"Per-company VAT account used when Item-wise tax is not applied. Amounts are copied from e-Factura onto Purchase Order and Purchase Invoice.","Cont TVA pe companie, dacă taxa Item-wise nu se aplică. Sumele se copiază din e-Factura pe comandă și factură de achiziție."
+"VAT Account (Purchase) must be a ledger account, not a group","Contul TVA (achiziție) trebuie să fie un cont ledger, nu grup"
+VAT Account {0} does not belong to company {1},Contul TVA {0} nu aparține companiei {1}
+Company {0} is listed more than once,Compania {0} este listată de mai multe ori
+VAT {0}%,TVA {0}%
+VAT,TVA
+"e-Factura VAT is {0} but Purchase taxes are empty. Set VAT Account for company {1} in eFactura Settings (Incoming → Company Settings), or enable Item-wise tax (Accounts Settings → Add taxes from Item Tax Template) and assign Item Tax Templates.","TVA e-Factura este {0}, dar taxele de achiziție sunt goale. Setați contul TVA pentru compania {1} în eFactura Settings (Incoming → Company Settings) sau activați taxa Item-wise (Accounts Settings → Add taxes from Item Tax Template) și atribuiți Item Tax Template."

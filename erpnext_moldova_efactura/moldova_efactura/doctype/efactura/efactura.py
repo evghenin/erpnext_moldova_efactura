@@ -11,6 +11,7 @@ from frappe.model.document import Document
 from frappe.model.mapper import get_mapped_doc
 from frappe.utils import cint, flt
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient
+from erpnext_moldova_efactura.utils.invoice_xml import unescape_sfs_text
 from lxml import etree
 from erpnext_moldova_efactura.tasks.status_sync import _extract_single_invoice_from_search_response, _extract_status_map
 
@@ -380,7 +381,7 @@ class eFactura(Document):
                     for bank in bank_accounts or []:
                         if bank.get("AccountNumber") == ba.iban:
                             bank_account = bank.get("AccountNumber") or ""
-                            bank_name = bank.get("BranchTitle") or ""
+                            bank_name = unescape_sfs_text(bank.get("BranchTitle") or "")
                             bank_code = bank.get("BranchCode") or ""
                 else:
                     bank_account = getattr(self, f"ef_{prefix}_bank_account", "")
