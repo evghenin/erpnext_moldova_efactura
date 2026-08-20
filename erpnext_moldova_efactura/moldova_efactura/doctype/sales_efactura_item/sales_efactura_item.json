@@ -84,7 +84,7 @@
    "depends_on": "eval:doc.uom != doc.stock_uom || doc.uom != doc.ef_uom ",
    "fieldname": "stock_qty",
    "fieldtype": "Float",
-   "label": "Qty In Stock UOM",
+   "label": "Quantity In Stock UOM",
    "no_copy": 1,
    "print_hide": 1,
    "read_only": 1
@@ -291,7 +291,7 @@
   {
    "fieldname": "vat_amount",
    "fieldtype": "Currency",
-   "label": "Vat Amount",
+   "label": "VAT Amount",
    "options": "currency",
    "print_hide": 1,
    "read_only": 1
@@ -299,7 +299,7 @@
   {
    "fieldname": "ef_qty",
    "fieldtype": "Float",
-   "label": "Qty In eFactura UOM",
+   "label": "Quantity In eFactura UOM",
    "no_copy": 1,
    "print_hide": 1,
    "read_only": 1
@@ -336,7 +336,7 @@
    "fieldname": "available_stock_qty",
    "fieldtype": "Float",
    "hidden": 1,
-   "label": "Available Qty In Stock UOM",
+   "label": "Available Quantity In Stock UOM",
    "no_copy": 1,
    "print_hide": 1,
    "read_only": 1
@@ -346,10 +346,10 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-12-19 01:31:12.341614",
+ "modified": "2026-08-15 01:48:28.382546",
  "modified_by": "Administrator",
  "module": "Moldova eFactura",
- "name": "eFactura Item",
+ "name": "Sales eFactura Item",
  "naming_rule": "Random",
  "owner": "Administrator",
  "permissions": [],

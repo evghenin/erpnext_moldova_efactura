@@ -20,6 +20,17 @@ Customer Party Type,Tip parte client
 Dates can be updated only for submitted documents.,Datele pot fi modificate doar pentru documente confirmate.
 Dates can be updated only in Pending Registration status.,Datele pot fi modificate doar în statutul „În așteptare”.
 Dates updated successfully.,Datele au fost actualizate cu succes.
+Sent unsigned invoice to e-Factura (draft).,Factura nesemnată a fost trimisă în e-Factura (draft).
+Sent signed invoice to e-Factura.,Factura semnată a fost trimisă în e-Factura.
+Issue Date / Delivery Date updated: {0} / {1} → {2} / {3},Data emiterii / data livrării actualizate: {0} / {1} → {2} / {3}
+Assigned series and number {0}{1} from e-Factura.,Seria și numărul {0}{1} au fost atribuite din e-Factura.
+Assigned series and number {0}{1} for signing.,Seria și numărul {0}{1} au fost atribuite pentru semnare.
+Status changed: {0} → {1},Statutul a fost schimbat: {0} → {1}
+Accepted invoice in e-Factura.,Factura a fost acceptată în e-Factura.
+Rejected invoice in e-Factura: {0},Factura a fost respinsă în e-Factura: {0}
+Signed invoice in e-Factura (buyer).,Factura a fost semnată în e-Factura (cumpărător).
+Fetched invoice details from e-Factura.,Detaliile facturii au fost încărcate din e-Factura.
+Linked Purchase Invoice {0}.,Factura de cumpărare {0} a fost asociată.
 Documentation,Documentație
 Download XML,Descarcă XML
 Failed to register unsigned XML in e-Factura system.,Înregistrarea XML nesemnat în sistemul e-Factura a eșuat.
@@ -30,6 +41,11 @@ Fiscal status updated to {0}.,Statutul fiscal a fost actualizat la {0}.
 Fiscal status updated.,Statutul fiscal a fost actualizat.
 Fiscalization,Fiscalizare
 Fiscalization {0},Fiscalizare: {0}
+Partial,Parțială
+Not Required,Nu este necesar
+Completed,Finalizată
+In Progress,În curs
+Pending,În așteptare
 Frappe School,Școala Frappe
 Frappe Support,Suport Frappe
 IDNO,IDNO
@@ -85,6 +101,9 @@ Successfully sent {0} signed invoice(s) to e-Factura system.,{0} facturi semnate
 Successfully sent {0} unsigned invoice(s) to e-Factura system.,{0} facturi nesemnate au fost transmise cu succes în e-Factura.
 Supplier Bank Account,Cont bancar furnizor
 Supplier IDNO field,Câmp IDNO furnizor
+Supplier IDNO mismatch,IDNO-ul furnizorului nu coincide
+Supplier {0} IDNO ({1}) does not match e-Factura supplier IDNO {2},IDNO-ul furnizorului {0} ({1}) nu coincide cu IDNO-ul furnizorului din e-Factura {2}
+not set,nu este setat
 Supplier Party,Parte furnizor
 Supplier Party Type,Tip parte furnizor
 Toggle Full Width,Comutare lățime completă
@@ -139,11 +158,24 @@ eF Transporter Taxpayer Type,Tip contribuabil transportator eF
 eF Transporter VAT Id,ID TVA transportator eF
 eF Transporter e-Factura User,Transportator eF utilizator e-Factura
 eFactura,eFactura
+eFactura Sales,Vânzări
+eFactura Purchase,Cumpărări
+Sales eFactura,eFactura de vânzare
+Purchase eFactura,eFactura de cumpărare
+All Sales eFactura,Toate eFactura de vânzare
+All Purchase eFactura,Toate eFactura de cumpărare
+New Sales eFactura,eFactura de vânzare nouă
+Awaiting Customer,În așteptarea clientului
+Awaiting Action,Necesită acțiune
+No Supplier,Fără furnizor
+Need Purchase Invoice,Necesită factură de cumpărare
+Linked to PI,Asociate cu factura
+Purchase eFactura Item,Articol eFactura de cumpărare
 eFactura Actions,Acțiuni eFactura
 eFactura Configuration Required. Fiscal Territory must be set.,Configurarea eFactura este necesară. Teritoriul fiscal trebuie setat.
 eFactura Currency,Monedă eFactura
 eFactura Exchange Rate,Curs eFactura
-eFactura Item,Articol eFactura
+Sales eFactura Item,Articol eFactura de vânzare
 eFactura Number,Număr eFactura
 eFactura Series,Serie eFactura
 eFactura Settings,Setări eFactura
@@ -151,6 +183,7 @@ eFactura Settings: API username/password are not set.,Setări eFactura: utilizat
 eFactura Settings: api_wsdl_url is not set.,Setări eFactura: api_wsdl_url nu este setat.
 eFactura Status,Statut eFactura
 eFactura UOM,UM eFactura
+UOM Conversion Factor,Factor de conversie UM
 eFactura UOM Conversion Factor,Factor de conversie UM eFactura
 eFactura can be cancelled only in Pending Registration status.,eFactura poate fi anulată doar în statutul „În așteptare”.
 Block Submit When Qty Exceeds Sales Invoice,Blochează confirmarea dacă cantitatea depășește factura de vânzare
@@ -186,7 +219,6 @@ Create,Creează
 Create Purchase Order,Creează comandă de achiziție
 Create Purchase Invoice,Creează factura de achiziție
 Purchase Invoice,Factură de achiziție
-Open Purchase Order,Deschide comanda de achiziție
 Open Purchase Invoice,Deschide factura de achiziție
 Matching Purchase Invoice...,Verificare cu factura de achiziție...
 Purchase Invoice linked. Items mapped from the invoice.,Factura de achiziție a fost legată. Articolele au fost mapate din factură.
@@ -205,7 +237,7 @@ Purchase Invoice {0} is already linked,Factura de achiziție {0} este deja legat
 Purchase Order {0} is already linked,Comanda de achiziție {0} este deja legată
 Cannot link Purchase Invoice to a cancelled e-Factura,Nu se poate lega o factură de achiziție de o e-Factura anulată
 Fetch invoice details from e-Factura before linking a Purchase Invoice,Încărcați detaliile facturii din e-Factura înainte de a lega factura de achiziție
-Map all items before creating {0} (rows: {1}),Mapați toate articolele înainte de a crea {0} (rânduri: {1})
+Map all items before creating {0},Mapați toate articolele înainte de a crea {0}
 Supplier is required to create {0},Furnizorul este necesar pentru a crea {0}
 Purchase Order,Comandă de achiziție
 Purchase Taxes,Taxe de achiziție
@@ -227,4 +259,86 @@ VAT Account {0} does not belong to company {1},Contul TVA {0} nu aparține compa
 Company {0} is listed more than once,Compania {0} este listată de mai multe ori
 VAT {0}%,TVA {0}%
 VAT,TVA
+Purchase taxes are empty,Taxele de achiziție sunt goale
 "e-Factura VAT is {0} but Purchase taxes are empty. Set VAT Account for company {1} in eFactura Settings (Incoming → Company Settings), or enable Item-wise tax (Accounts Settings → Add taxes from Item Tax Template) and assign Item Tax Templates.","TVA e-Factura este {0}, dar taxele de achiziție sunt goale. Setați contul TVA pentru compania {1} în eFactura Settings (Incoming → Company Settings) sau activați taxa Item-wise (Accounts Settings → Add taxes from Item Tax Template) și atribuiți Item Tax Template."
+Copy Date from Factura,Copiază data din factură
+"If enabled, Purchase Invoice posting date and time and Purchase Order transaction date are copied from the e-Factura issue date.","Dacă este activat, data și ora de înregistrare a facturii de achiziție și data comenzii de achiziție se copiază din data emiterii e-Factura."
+Issue Time,Ora emiterii
+Link Purchase Order,Leagă comanda de achiziție
+Unlink Purchase Order,Deleagă comanda de achiziție
+Unlink,Deleagă
+Purchase Orders,Comenzi de achiziție
+Linking Purchase Order...,Se leagă comanda de achiziție...
+Purchase Order linked.,Comanda de achiziție a fost legată.
+Purchase Order unlinked.,Comanda de achiziție a fost dezlegată.
+Cannot link Purchase Order to a cancelled e-Factura,Nu se poate lega o comandă de achiziție de o e-Factura anulată
+Cannot link Purchase Order after Purchase Invoice is linked,Nu se poate lega comanda de achiziție după ce factura de achiziție este legată
+Cannot unlink Purchase Order after Purchase Invoice is linked,Nu se poate dezlega comanda de achiziție după ce factura de achiziție este legată
+Purchase Order {0} not found,Comanda de achiziție {0} nu a fost găsită
+Submit Purchase Order {0} before linking,Confirmați comanda de achiziție {0} înainte de a o lega
+"Supplier mismatch: e-Factura {0}, Purchase Order {1}","Furnizor diferit: e-Factura {0}, comanda de achiziție {1}"
+"Company mismatch: e-Factura {0}, Purchase Order {1}","Companie diferită: e-Factura {0}, comanda de achiziție {1}"
+Cannot create Purchase Invoice from e-Factura:,Nu se poate crea factura de achiziție din e-Factura:
+Purchase Order qty is not enough,Cantitatea din comanda de achiziție nu este suficientă
+"e-Factura row {0} «{1}»: qty {2} exceeds remaining Purchase Order qty ({3}). Increase qty on a linked Purchase Order or Link another Purchase Order, then create the invoice again.","Rândul e-Factura {0} «{1}»: cantitatea {2} depășește restul din comanda de achiziție ({3}). Măriți cantitatea pe o comandă legată sau legați încă o comandă, apoi creați factura din nou."
+{0}: no remaining qty for {1},{0}: nu există cantitate rămasă pentru {1}
+Cannot submit Purchase Invoice {0}:,Nu se poate confirma factura de achiziție {0}:
+Cannot submit Purchase Invoice {0},Nu se poate confirma factura de achiziție {0}
+Signing,Semnare
+Received,Recepționată
+Received (Draft),Recepționată (ciornă)
+Pending (Draft),În așteptare (ciornă)
+In Progress (Draft),În curs (ciornă)
+Completed (Draft),Finalizată (ciornă)
+Partial (Draft),Parțială (ciornă)
+Not Required (Draft),Nu este necesar (ciornă)
+Unknown (Draft),Necunoscut (ciornă)
+Please select at least one Purchase Invoice.,Selectați cel puțin o factură de achiziție.
+Link Invoice,Leagă factura
+Select a Supplier,Selectați furnizorul
+Select a Supplier on the e-Factura first,Selectați mai întâi furnizorul pe e-Factura
+Allocate,Alocă
+Allocate Purchase Invoice,Alocă factura de achiziție
+Purchase Invoice Allocations,Alocări facturi de achiziție
+Purchase Invoice linked.,Factura de achiziție a fost legată.
+e-Factura already has Purchase Invoice allocations,e-Factura are deja alocări pe facturi de achiziție
+Map all items,Mapați toate articolele
+Map all items before submit,Mapați toate articolele înainte de confirmare
+Map all items before linking a Purchase Invoice,Mapați toate articolele înainte de a lega factura de achiziție
+"Row {0}: {1} — qty {2}, rate {3} {4}","Rândul {0}: {1} — cant. {2}, preț {3} {4}"
+No matching rows to allocate,Nu există rânduri potrivite pentru alocare
+Allocation quantity must be greater than zero,Cantitatea alocată trebuie să fie mai mare decât zero
+Purchase Invoice Item {0} is allocated more than once,Rândul facturii de achiziție {0} este alocat de mai multe ori
+e-Factura row can only be linked to one Purchase Invoice Item,Rândul e-Factura poate fi legat doar de un rând al facturii de achiziție
+"e-Factura row {0} «{1}» is linked to Purchase Invoice {2} without a Purchase Invoice Item","Rândul e-Factura {0} «{1}» este legat de factura {2} fără un rând al facturii de achiziție"
+Allocation refers to missing e-Factura row {0},Alocarea se referă la un rând e-Factura inexistent {0}
+"e-Factura row {0} «{1}»: linked qty {2} must equal factura qty {3}","Rândul e-Factura {0} «{1}»: cantitatea legată {2} trebuie să coincidă cu cantitatea facturii {3}"
+"e-Factura row {0} «{1}»: linked qty {2} must equal factura qty {3} and Purchase Invoice qty {4}","Rândul e-Factura {0} «{1}»: cantitatea legată {2} trebuie să coincidă cu cantitatea facturii {3} și a facturii de achiziție {4}"
+"e-Factura row {0} «{1}»: allocated qty {2} exceeds factura qty {3}","Rândul e-Factura {0} «{1}»: alocat {2}, depășește cantitatea facturii {3}"
+Purchase Invoice row {0} «{1}» is already linked to an e-Factura,Rândul facturii de achiziție {0} «{1}» este deja legat de o e-Factura
+"Purchase Invoice row {0} «{1}»: qty {2} exceeds remaining e-Factura qty","Rândul facturii de achiziție {0} «{1}»: cantitatea {2} depășește restul e-Factura"
+Cannot allocate Purchase Invoice on a cancelled e-Factura,Nu se poate aloca o factură de achiziție pe o e-Factura anulată
+e-Factura row not found,Rândul e-Factura nu a fost găsit
+Purchase Invoice Item {0} is missing on {1},Rândul facturii de achiziție {0} lipsește pe {1}
+"e-Factura row {0} «{1}»: allocated qty {2} exceeds Purchase Invoice qty {3}","Rândul e-Factura {0} «{1}»: alocat {2}, depășește cantitatea facturii de achiziție {3}"
+ · Linked to PI, · legată de factură
+Linked to PI,Legată de factură
+Allocate all rows to a Purchase Invoice before submit,Alocați toate rândurile la o factură de achiziție înainte de confirmare
+Rows not allocated,Rânduri nealocate
+Cannot create documents from a cancelled Purchase eFactura,Nu se pot crea documente dintr-o eFactura de cumpărare anulată
+Return to Purchase eFactura,Reveniți la eFactura de cumpărare
+Open e-Factura,Deschide eFactura
+Stay here,Rămâneți aici
+"Purchase Invoice {0} is submitted. Open Purchase eFactura {1} to submit it?","Factura de achiziție {0} a fost confirmată. Deschideți eFactura de cumpărare {1} pentru a o confirma?"
+Taxpayer Type,Tip contribuabil
+Supplier Taxpayer Type,Tip contribuabil furnizor
+Buyer Taxpayer Type,Tip contribuabil cumpărător
+Individual,Persoană fizică
+Non-Resident,Nerezident
+Company,Persoană juridică,Purchase eFactura
+Company,Persoană juridică,Sales eFactura
+Supplier Details,Date furnizor
+Buyer Details,Date cumpărător
+Customer Details,Date client
+Transporter Details,Date transportator
+Rate (with VAT) (eFactura Currency),Tarif (cu TVA) (monedă eFactura)

@@ -1,0 +1,311 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-07-30 21:00:00",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "item_code",
+  "item_name",
+  "supplier_item_code",
+  "supplier_item_name",
+  "section_quantity",
+  "column_break_gorm",
+  "supplier_uom",
+  "uom",
+  "qty",
+  "conversion_factor",
+  "column_break_ef",
+  "stock_uom",
+  "stock_qty",
+  "column_break_chqv",
+  "ef_uom",
+  "ef_qty",
+  "ef_conversion_factor",
+  "stock_section",
+  "rate_with_vat",
+  "amount",
+  "column_break_stock",
+  "ef_rate_with_vat",
+  "ef_amount",
+  "column_break_amt",
+  "ef_vat_rate",
+  "section_break_hofx",
+  "rate",
+  "ef_rate",
+  "column_break_nbgt",
+  "net_amount",
+  "ef_net_amount",
+  "column_break_wmlv",
+  "vat_amount",
+  "ef_vat_amount",
+  "references_section",
+  "purchase_invoice",
+  "column_break_jval",
+  "pi_detail"
+ ],
+ "fields": [
+  {
+   "fieldname": "supplier_item_code",
+   "fieldtype": "Data",
+   "label": "Supplier Item Code",
+   "read_only": 1
+  },
+  {
+   "fieldname": "supplier_item_name",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Supplier Item Name",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Item Code",
+   "options": "Item"
+  },
+  {
+   "fetch_from": "item_code.item_name",
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "label": "Item Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "supplier_uom",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Supplier UOM",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ef_uom",
+   "fieldtype": "Link",
+   "label": "eFactura UOM",
+   "options": "UOM"
+  },
+  {
+   "fieldname": "ef_qty",
+   "fieldtype": "Float",
+   "label": "Quantity In eFactura UOM",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_ef",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "rate",
+   "fieldtype": "Currency",
+   "label": "Net Rate",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rate_with_vat",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Rate",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Amount",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:parent.currency !== parent.ef_currency",
+   "fieldname": "ef_rate",
+   "fieldtype": "Currency",
+   "label": "Net Rate (eFactura Currency)",
+   "options": "ef_currency",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:parent.currency !== parent.ef_currency",
+   "fieldname": "ef_rate_with_vat",
+   "fieldtype": "Currency",
+   "label": "Rate (eFactura Currency)",
+   "options": "ef_currency",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:parent.currency !== parent.ef_currency",
+   "fieldname": "ef_amount",
+   "fieldtype": "Currency",
+   "label": "Amount (eFactura Currency)",
+   "options": "ef_currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "stock_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fetch_from": "item_code.stock_uom",
+   "fieldname": "stock_uom",
+   "fieldtype": "Link",
+   "label": "Stock UOM",
+   "options": "UOM",
+   "read_only": 1
+  },
+  {
+   "fieldname": "stock_qty",
+   "fieldtype": "Float",
+   "label": "Quantity In Stock UOM",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_stock",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "uom",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "UOM",
+   "options": "UOM"
+  },
+  {
+   "fieldname": "qty",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Quantity",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.uom != doc.stock_uom || doc.uom != doc.ef_uom",
+   "fieldname": "conversion_factor",
+   "fieldtype": "Float",
+   "label": "UOM Conversion Factor",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.uom != doc.stock_uom || doc.uom != doc.ef_uom",
+   "fieldname": "ef_conversion_factor",
+   "fieldtype": "Float",
+   "label": "eFactura UOM Conversion Factor",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_amt",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "ef_vat_rate",
+   "fieldtype": "Percent",
+   "label": "VAT Rate",
+   "read_only": 1
+  },
+  {
+   "fieldname": "vat_amount",
+   "fieldtype": "Currency",
+   "label": "VAT Amount",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "net_amount",
+   "fieldtype": "Currency",
+   "label": "Net Amount",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:parent.currency !== parent.ef_currency",
+   "fieldname": "ef_vat_amount",
+   "fieldtype": "Currency",
+   "label": "VAT Amount (eFactura Currency)",
+   "options": "ef_currency",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:parent.currency !== parent.ef_currency",
+   "fieldname": "ef_net_amount",
+   "fieldtype": "Currency",
+   "label": "Net Amount (eFactura Currency)",
+   "options": "ef_currency",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "references_section",
+   "fieldtype": "Section Break",
+   "label": "References"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "purchase_invoice",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Purchase Invoice",
+   "no_copy": 1,
+   "options": "Purchase Invoice",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "pi_detail",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Purchase Invoice Item",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_quantity",
+   "fieldtype": "Section Break",
+   "label": "Quantity"
+  },
+  {
+   "fieldname": "column_break_gorm",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_chqv",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_hofx",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_nbgt",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_wmlv",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_jval",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-15 02:02:23.297223",
+ "modified_by": "Administrator",
+ "module": "Moldova eFactura",
+ "name": "Purchase eFactura Item",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

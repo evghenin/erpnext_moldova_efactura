@@ -1,7 +1,7 @@
 // Copyright (c) 2025, Evgheni Nemerenco and contributors
 // For license information, please see license.txt
 
-frappe.ui.form.on('eFactura', {
+frappe.ui.form.on('Sales eFactura', {
     setup: function (frm) {
         frm.set_indicator_formatter("item_code", function (doc) {
             return doc.docstatus == 1 || doc.stock_qty <= doc.available_stock_qty ? "green" : "red";
@@ -89,7 +89,7 @@ frappe.ui.form.on('eFactura', {
 						});
 					}
 					erpnext.utils.map_current_doc({
-						method: "erpnext_moldova_efactura.moldova_efactura.doctype.efactura.efactura.make_efactura_from_delivery_note",
+						method: "erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.make_efactura_from_delivery_note",
 						// args: {
 						// 	for_reserved_stock: 1,
 						// },
@@ -118,7 +118,7 @@ frappe.ui.form.on('eFactura', {
             frm.add_custom_button(
                 __("Download XML"),
                 function () {
-                    const endpoint = `/api/method/erpnext_moldova_efactura.moldova_efactura.doctype.efactura.efactura.download_xml?efactura_name=${encodeURIComponent(frm.doc.name)}`;
+                    const endpoint = `/api/method/erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.download_xml?efactura_name=${encodeURIComponent(frm.doc.name)}`;
                     const url = frappe.urllib.get_full_url(endpoint);
                     window.open(url, "_blank");
                 },
@@ -135,18 +135,19 @@ frappe.ui.form.on('eFactura', {
             frm.add_custom_button(
                 __("Download PDF"), 
                 function () {
-                    const endpoint = `/api/method/erpnext_moldova_efactura.moldova_efactura.doctype.efactura.efactura.download_pdf?efactura_name=${encodeURIComponent(frm.doc.name)}`;
+                    const endpoint = `/api/method/erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.download_pdf?efactura_name=${encodeURIComponent(frm.doc.name)}`;
                     const url = frappe.urllib.get_full_url(endpoint);
                     window.open(url, "_blank");
                 },
                 __("eFactura Actions")
             );
 
+            if (frm.has_perm("write")) {
             frm.add_custom_button(
                 __("Update Status"),
                 function () {
                     frappe.call({
-                        method: "erpnext_moldova_efactura.moldova_efactura.doctype.efactura.efactura.update_ef_status",
+                        method: "erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.update_ef_status",
                         args: { efactura_name: frm.doc.name },
                         freeze: true,
                         freeze_message: __("Updating e-Factura status..."),
@@ -161,12 +162,14 @@ frappe.ui.form.on('eFactura', {
                 },
                 __("eFactura Actions")
             );
+            }
         }
 
         if (
             !frm.is_new() && 
             frm.doc.docstatus === 1 && 
-            frm.doc.ef_status == -1
+            frm.doc.ef_status == -1 &&
+            frm.has_perm("write")
         ) {
             frm.add_custom_button(
                 __("Update Dates"),
@@ -192,7 +195,7 @@ frappe.ui.form.on('eFactura', {
                         primary_action_label: __("Update"),
                         primary_action(values) {
                             frappe.call({
-                                method: "erpnext_moldova_efactura.moldova_efactura.doctype.efactura.efactura.update_dates",
+                                method: "erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.update_dates",
                                 args: {
                                     efactura_name: frm.doc.name,
                                     issue_date: values.issue_date,
@@ -238,7 +241,7 @@ frappe.ui.form.on('eFactura', {
 				__("Register Unsigned"),
                 function () {
                     frappe.call({
-                        method: "erpnext_moldova_efactura.moldova_efactura.doctype.efactura.efactura.send_unsigned",
+                        method: "erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.send_unsigned",
                         args: { efactura_name: frm.doc.name },
                         freeze: true,
                         freeze_message: __("Registering unsigned XML to e-Factura system..."),
@@ -288,6 +291,14 @@ frappe.ui.form.on('eFactura', {
                     <td>${frm.doc[`ef_${party_type}_address`] || __("Unknown")}</td>
                 </tr>`;
 
+                const taxpayer_type = frm.doc[`ef_${party_type}_taxpayer_type`];
+                if (taxpayer_type) {
+                    html_content += `<tr>
+                        <td><b>${__("Taxpayer Type")}:</b></td>
+                        <td>${__(taxpayer_type, null, "Sales eFactura")}</td>
+                    </tr>`;
+                }
+
                 if (frm.doc[`ef_${party_type}_bank_account`]) {
                     html_content += `<tr>
                         <td><b>${__("Bank account")}:</b></td>
@@ -328,9 +339,9 @@ frappe.ui.form.on('eFactura', {
 
     type: function(frm) {
         if (frm.doc.type == "Transfer") {
-            frm.set_value("naming_series", "EF-.YYYY.-");
+            frm.set_value("naming_series", "ACC-SEF-.YYYY.-");
         } else if (frm.doc.type == "Non-Transfer") {
-            frm.set_value("naming_series", "EF-NT-.YYYY.-");
+            frm.set_value("naming_series", "ACC-SEF-NT-.YYYY.-");
         }
     },
 
@@ -700,7 +711,7 @@ function update_transporter_party(frm) {
     });
 }
 
-frappe.ui.form.on('eFactura Item', {
+frappe.ui.form.on('Sales eFactura Item', {
     async item_code(frm, cdt, cdn) {
         const row = locals[cdt][cdn];
         await ef_item_apply_defaults_from_item(frm, row);
@@ -1231,7 +1242,7 @@ async function sign_xml_moldsign(frm) {
 
     // 1) Fetch XML from backend
     const r1 = await frappe.call({
-      method: "erpnext_moldova_efactura.moldova_efactura.doctype.efactura.efactura.get_for_sign",
+      method: "erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.get_for_sign",
       args: { efactura_name: frm.doc.name }
     });
 
@@ -1265,7 +1276,7 @@ async function sign_xml_moldsign(frm) {
 
     // 5) Save result on backend (new method you add below)
     const result2 = await frappe.call({
-      method: "erpnext_moldova_efactura.moldova_efactura.doctype.efactura.efactura.process_signed_xml",
+      method: "erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.process_signed_xml",
       args: {
         name: frm.doc.name,
         signature: result.data.base64File,

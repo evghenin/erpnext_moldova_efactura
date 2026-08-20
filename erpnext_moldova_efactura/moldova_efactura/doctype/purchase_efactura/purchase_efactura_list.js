@@ -1,11 +1,38 @@
-frappe.listview_settings["eFactura Buyer"] = {
+frappe.listview_settings["Purchase eFactura"] = {
 	hide_name_column: false,
+	add_fields: ["status", "efactura_status", "ef_status", "supplier", "total"],
+	filters: [["status", "not in", ["Canceled by Supplier"]]],
+	formatters: {
+		efactura_status(value) {
+			if (!value) {
+				return "";
+			}
+			const colors = {
+				"Sent to Buyer": "orange",
+				"Signed by Supplier": "orange",
+				Accepted: "yellow",
+				Rejected: "red",
+				"Signed by Buyer": "green",
+				Signing: "yellow",
+				Transportation: "yellow",
+				"Canceled by Supplier": "darkgrey",
+				"Cancellation Requested": "purple",
+			};
+			const status = String(value).includes(" · ") ? String(value).split(" · ")[0] : String(value);
+			const color = colors[status] || "gray";
+			return `<span class="indicator-pill no-indicator-dot ${color}">${frappe.utils.escape_html(__(status))}</span>`;
+		},
+	},
 	onload(listview) {
 		// Incoming invoices are created only via Fetch / sync
 		if (listview.page.btn_primary) {
 			listview.page.btn_primary.hide();
 		}
 		listview.page.clear_primary_action();
+
+		if (!frappe.model.can_write("Purchase eFactura")) {
+			return;
+		}
 
 		listview.page.add_inner_button(__("Fetch from e-Factura"), () => {
 			frappe.prompt(
@@ -49,21 +76,5 @@ frappe.listview_settings["eFactura Buyer"] = {
 				__("Fetch")
 			);
 		});
-	},
-	get_indicator(doc) {
-		const colors = {
-			"Sent to Buyer": "orange",
-			"Signed by Supplier": "orange",
-			Accepted: "green",
-			Rejected: "red",
-			"Signed by Buyer": "green",
-			Transportation: "yellow",
-			"Canceled by Supplier": "darkgrey",
-			"Cancellation Requested": "purple",
-		};
-		const status = doc.status || "";
-		const base = status.includes(" · ") ? status.split(" · ")[0] : status;
-		const color = doc.purchase_invoice ? "blue" : colors[base] || "gray";
-		return [__(status), color, "status,=," + status];
 	},
 };

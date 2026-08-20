@@ -1,4 +1,4 @@
-"""VAT on Purchase Order / Purchase Invoice created from eFactura Buyer."""
+"""VAT on Purchase Order / Purchase Invoice created from Purchase eFactura."""
 
 from __future__ import annotations
 
@@ -173,8 +173,8 @@ def _ensure_actual_vat_row(target, source, vat_account: str | None, vat_included
 					frappe.format_value(vat_total, {"fieldtype": "Currency", "options": source.currency}),
 					target.company,
 				),
+				title=_("Purchase taxes are empty"),
 				indicator="orange",
-				alert=True,
 			)
 		return
 

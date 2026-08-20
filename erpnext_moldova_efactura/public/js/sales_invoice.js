@@ -25,12 +25,14 @@ frappe.ui.form.on("Sales Invoice", {
         }
 
 
-        frm.add_custom_button(__("eFactura"), () => {
-            frappe.model.open_mapped_doc({
-                method: "erpnext_moldova_efactura.moldova_efactura.doctype.efactura.efactura.make_efactura_from_sales_invoice",
-                frm: frm
-            });
-        }, __("Create"));
+        if (frappe.model.can_create("Sales eFactura")) {
+            frm.add_custom_button(__("Sales eFactura"), () => {
+                frappe.model.open_mapped_doc({
+                    method: "erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.make_efactura_from_sales_invoice",
+                    frm: frm
+                });
+            }, __("Create"));
+        }
 
         frm.add_custom_button(__('Actualize Fiscal Status'), () => {
             frappe.call({

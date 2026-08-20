@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import frappe
 from frappe import _
+from frappe.utils import cint, flt
 
 
 def determine_fiscal_status(si):
@@ -135,7 +138,7 @@ def get_efacturas_for_invoice(si_name):
     Returns all non-cancelled eFactura linked to Sales Invoice
     """
     return frappe.get_all(
-        "eFactura",
+        "Sales eFactura",
         filters={
             "reference_doctype": "Sales Invoice",
             "reference_name": si_name,
@@ -143,3 +146,134 @@ def get_efacturas_for_invoice(si_name):
         },
         fields=["name", "status", "total"],
     )
+
+
+PI_FISCAL_COMPLETED = (8,)
+PI_FISCAL_IN_PROGRESS = (7, 9, 3, 10)
+
+
+def classify_pi_fiscal_status(
+	*,
+	individual: bool,
+	has_factura: bool,
+	total: float,
+	signed: float,
+	in_progress: float,
+	precision: int | None = None,
+) -> str:
+	"""Map PI coverage + supplier type onto a fiscalization label."""
+	if individual:
+		return "Not Required"
+	if not has_factura:
+		return "Pending"
+	if precision is None:
+		from erpnext_moldova_efactura.utils.pi_match import qty_precision
+
+		precision = qty_precision()
+	need = flt(total, precision)
+	if need <= 0:
+		return "Pending"
+	done = flt(signed, precision)
+	if done >= need:
+		return "Completed"
+	if done > 0:
+		return "Partial"
+	if flt(in_progress, precision) >= need:
+		return "In Progress"
+	return "Pending"
+
+
+def _pi_supplier_is_individual(pi) -> bool:
+	supplier = getattr(pi, "supplier", None)
+	if not supplier:
+		return False
+	supplier_type = frappe.db.get_value("Supplier", supplier, "supplier_type")
+	return (supplier_type or "") == "Individual"
+
+
+def _pi_fiscal_cover(pi) -> tuple[bool, float, float, float, bool]:
+	"""(has_factura, total_qty, signed_qty, in_progress_qty, has_draft_factura)."""
+	items = getattr(pi, "items", None) or []
+	total = sum(flt(row.qty) for row in items)
+	pi_name = getattr(pi, "name", None)
+	if not pi_name or not frappe.db.has_column("Purchase eFactura Item", "purchase_invoice"):
+		return False, total, 0.0, 0.0, False
+
+	rows = frappe.get_all(
+		"Purchase eFactura Item",
+		filters={"purchase_invoice": pi_name, "parenttype": "Purchase eFactura"},
+		fields=["parent", "qty", "ef_qty", "name"],
+	)
+	if not rows:
+		return False, total, 0.0, 0.0, False
+
+	parents = list({row.parent for row in rows if row.parent})
+	status_by_buyer: dict[str, int | None] = {}
+	has_draft = False
+	for name in parents:
+		buyer = frappe.db.get_value(
+			"Purchase eFactura",
+			name,
+			["ef_status", "docstatus"],
+			as_dict=True,
+		)
+		if not buyer or cint(buyer.docstatus) == 2:
+			status_by_buyer[name] = None
+			continue
+		if cint(buyer.docstatus) == 0:
+			has_draft = True
+		try:
+			status_by_buyer[name] = int(buyer.ef_status)
+		except (TypeError, ValueError):
+			status_by_buyer[name] = None
+
+	signed = 0.0
+	in_progress = 0.0
+	has_factura = False
+	for row in rows:
+		code = status_by_buyer.get(row.parent)
+		if code is None:
+			continue
+		has_factura = True
+		qty = flt(row.qty) if flt(row.qty) else flt(row.ef_qty)
+		if code in PI_FISCAL_COMPLETED:
+			signed += qty
+		elif code in PI_FISCAL_IN_PROGRESS:
+			in_progress += qty
+	return has_factura, total, signed, in_progress, has_draft
+
+
+def apply_draft_suffix(status: str, has_draft: bool) -> str:
+	if status and has_draft:
+		return f"{status} (Draft)"
+	return status
+
+
+def determine_pi_fiscal_status(pi) -> str | None:
+	"""Fiscalization label for a submitted Purchase Invoice. Drafts have no status."""
+	if cint(getattr(pi, "docstatus", 0)) != 1:
+		return None
+	has_factura, total, signed, in_progress, has_draft = _pi_fiscal_cover(pi)
+	status = classify_pi_fiscal_status(
+		individual=_pi_supplier_is_individual(pi),
+		has_factura=has_factura,
+		total=total,
+		signed=signed,
+		in_progress=in_progress,
+	)
+	return apply_draft_suffix(status, has_draft)
+
+
+def sync_pi_fiscal_status(pi_name, pi=None):
+    if not pi_name:
+        return None
+    if not frappe.db.exists("Purchase Invoice", pi_name):
+        return None
+    if not frappe.get_meta("Purchase Invoice").has_field("fiscal_status"):
+        return None
+    pi = pi or frappe.get_doc("Purchase Invoice", pi_name)
+    status = determine_pi_fiscal_status(pi) or ""
+    if (pi.get("fiscal_status") or "") != status:
+        frappe.db.set_value("Purchase Invoice", pi.name, "fiscal_status", status, update_modified=False)
+        pi.fiscal_status = status
+    return status or None

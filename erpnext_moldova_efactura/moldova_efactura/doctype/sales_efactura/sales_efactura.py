@@ -12,20 +12,38 @@ from frappe.model.mapper import get_mapped_doc
 from frappe.utils import cint, flt
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient
 from erpnext_moldova_efactura.utils.invoice_xml import unescape_sfs_text
+from erpnext_moldova_efactura.utils.taxpayer_type import taxpayer_type_from_sfs, taxpayer_type_to_sfs
+from erpnext_moldova_efactura.utils.timeline import log_event, log_status_change
 from lxml import etree
 from erpnext_moldova_efactura.tasks.status_sync import _extract_single_invoice_from_search_response, _extract_status_map
 
-class eFactura(Document):
+
+def _get_sales_efactura(name, ptype="write"):
+    if not name:
+        frappe.throw(_("Missing eFactura document name."))
+    doc = frappe.get_doc("Sales eFactura", name)
+    doc.check_permission(ptype)
+    return doc
+
+class SaleseFactura(Document):
     def onload(self):
         if self.docstatus == 0:
             self.update_items_available_qty()
 
     def validate(self):
+        self.set_naming_series()
         self.set_ef_currency_from_settings()
         self.apply_ef_conversion_rate_rules()
         self.update_items_available_qty()
-        self.set_status()
+        self.set_status(log=False)
         self.apply_vat()
+
+    def set_naming_series(self):
+        if not self.is_new():
+            return
+        self.naming_series = (
+            "ACC-SEF-NT-.YYYY.-" if self.type == "Non-Transfer" else "ACC-SEF-.YYYY.-"
+        )
 
     def before_save(self):
         from erpnext_moldova_efactura.utils.qty_guard import enforce_si_qty_on_draft_save
@@ -38,21 +56,26 @@ class eFactura(Document):
         enforce_si_qty_on_submit(self)
 
     def on_submit(self):
-        self.set_status()
+        self.set_status(log=False)
 
     def on_cancel(self):
         if self.ef_status != -1 and self.ef_status != 5:
             frappe.throw(
                 _("eFactura can be cancelled only in Pending Registration or Canceled by Supplier status.")
             )
-        self.set_status()
+        self.set_status(log=False)
 
     def on_update(self):
         # Auto-fill parties data after saving the document (draft included).
         # Use db_set(update_modified=False) to avoid recursive saves.
         self._autofill_parties_from_efactura_api_after_save()
 
-    def set_status(self):
+    def save_version(self):
+        from erpnext_moldova_efactura.utils.timeline import save_doc_version
+
+        save_doc_version(self)
+
+    def set_status(self, log=True):
         """
         Map to sync 'status' field:
 
@@ -75,6 +98,8 @@ class eFactura(Document):
 
         if self.is_new():
             return
+
+        old_status = frappe.db.get_value(self.doctype, self.name, "status")
 
         ef_status_labels = {
             -1: "Pending Registration",
@@ -101,6 +126,8 @@ class eFactura(Document):
             self.status = ef_status_labels.get(self.ef_status)
 
         self.db_set("status", self.status, update_modified=False)
+        if log:
+            log_status_change(self, old_status, self.status)
 
         # --- Update linked Sales Invoice fiscal status ---
         if self.reference_doctype == "Sales Invoice" and self.reference_name:
@@ -142,7 +169,7 @@ class eFactura(Document):
             if efactura_names:
                 used_stock_qty = (
                     frappe.db.get_value(
-                        "eFactura Item",
+                        "Sales eFactura Item",
                         {"item_code": item.item_code, "parent": ["in", efactura_names]},
                         "sum(stock_qty)",
                     )
@@ -207,17 +234,19 @@ class eFactura(Document):
             d.ef_vat_rate = vat_rate
 
             if not vat_rate:
+                d.net_rate = rate
+                d.net_amount = amount
+                d.vat_amount = 0
                 d.ef_net_rate = ef_rate
                 d.ef_net_amount = ef_amount
                 d.ef_vat_amount = 0
                 d.ef_rate = ef_rate
                 d.ef_amount = ef_amount
-                continue
-
-            if vat_included:
+            elif vat_included:
                 # rate includes VAT -> ef_amount is gross
                 divider = 1 + vat_rate / 100
                 net_amount = amount / divider if divider else amount
+                d.net_rate = rate / divider if divider else rate
                 d.net_amount = net_amount
                 d.vat_amount = amount - net_amount
 
@@ -230,6 +259,7 @@ class eFactura(Document):
             else:
                 # rate excludes VAT -> ef_amount must become gross (your rule)
                 vat_amount = amount * (vat_rate / 100)
+                d.net_rate = rate
                 d.vat_amount = vat_amount
                 d.net_amount = amount
 
@@ -353,7 +383,7 @@ class eFactura(Document):
             vat_id = taxpayer.get("CodTVA") or ""
             name = taxpayer.get("Name") or ""
             address = taxpayer.get("Address") or ""
-            taxpayer_type = taxpayer.get("TaxpayerType") or ""
+            taxpayer_type = taxpayer_type_from_sfs(taxpayer.get("TaxpayerType") or "")
             is_user = "Yes" if taxpayer.get("IsEFacturaActor") else "No"
 
             self.db_set(f"ef_{prefix}_idno", idno, update_modified=False)
@@ -398,7 +428,7 @@ class eFactura(Document):
 
 @frappe.whitelist()
 def download_xml(efactura_name):
-    efactura = frappe.get_doc("eFactura", efactura_name)
+    efactura = _get_sales_efactura(efactura_name, "read")
     ef_lang = frappe.db.get_single_value("eFactura Settings", "language")
 
     xml_content = _generate_invoice_xml(
@@ -415,7 +445,7 @@ def download_xml(efactura_name):
 @frappe.whitelist()
 def update_ef_status(efactura_name):
     client = EFacturaAPIClient.from_settings()
-    efactura = frappe.get_doc("eFactura", efactura_name)
+    efactura = _get_sales_efactura(efactura_name)
 
     if not efactura.ef_series or not efactura.ef_number:
         # List of statuses to check in sequence (eFactura API requires status filter)
@@ -441,10 +471,18 @@ def update_ef_status(efactura_name):
             remote_status = inv.get("InvoiceStatus")
         
             if remote_series and remote_number and remote_status is not None:
+                assigned = not (efactura.ef_series and efactura.ef_number)
                 efactura.db_set("ef_series", remote_series, update_modified=False)
                 efactura.db_set("ef_number", remote_number, update_modified=False)
                 efactura.db_set("ef_status", remote_status, update_modified=False)
-                efactura.set_status()      
+                efactura.set_status()
+                if assigned:
+                    log_event(
+                        efactura,
+                        _("Assigned series and number {0}{1} from e-Factura.").format(
+                            remote_series, remote_number
+                        ),
+                    ) 
 
     else:
         resp = client.check_invoices_status(seria_and_numbers=
@@ -468,7 +506,7 @@ def update_ef_status(efactura_name):
 
 @frappe.whitelist()
 def download_pdf(efactura_name):
-    efactura = frappe.get_doc("eFactura", efactura_name)
+    efactura = _get_sales_efactura(efactura_name, "read")
 
     client = EFacturaAPIClient.from_settings()
     resp = client.get_invoices_content_for_print(seria_and_numbers=
@@ -495,7 +533,7 @@ def download_pdf(efactura_name):
 
 @frappe.whitelist()
 def get_for_sign(efactura_name):
-    efactura = frappe.get_doc("eFactura", efactura_name)   
+    efactura = _get_sales_efactura(efactura_name) 
     ef_lang = frappe.db.get_single_value("eFactura Settings", "language")
 
     if not efactura.ef_series or not efactura.ef_number:
@@ -508,6 +546,13 @@ def get_for_sign(efactura_name):
 
         if not efactura.ef_series or not efactura.ef_number:
             frappe.throw(_("e-Factura API Error: Unable to obtain Series and Number"))
+
+        log_event(
+            efactura,
+            _("Assigned series and number {0}{1} for signing.").format(
+                efactura.ef_series, efactura.ef_number
+            ),
+        )
 
     xml_content = _generate_invoice_xml(
         efactura=efactura,
@@ -537,7 +582,7 @@ def get_for_sign(efactura_name):
 
 @frappe.whitelist()
 def send_unsigned(efactura_name):
-    efactura = frappe.get_doc("eFactura", efactura_name)
+    efactura = _get_sales_efactura(efactura_name)
     ef_lang = frappe.db.get_single_value("eFactura Settings", "language")
 
     client = EFacturaAPIClient.from_settings()
@@ -568,6 +613,7 @@ def send_unsigned(efactura_name):
         # so we need to clear them for unsigned invoices to avoid confusion
         efactura.db_set("ef_series", None, update_modified=False)
         efactura.db_set("ef_number", None, update_modified=False)
+        log_event(efactura, _("Sent unsigned invoice to e-Factura (draft)."))
         return {
             "message": _("Successfully sent {0} unsigned invoice(s) to e-Factura system.").format(
                 posted
@@ -577,10 +623,7 @@ def send_unsigned(efactura_name):
 @frappe.whitelist()
 def update_dates(efactura_name, issue_date, delivery_date):
     """Update issue_date and delivery_date for submitted eFactura in Pending status."""
-    if not efactura_name:
-        frappe.throw(_("Missing eFactura document name."))
-
-    ef = frappe.get_doc("eFactura", efactura_name)
+    ef = _get_sales_efactura(efactura_name)
 
     if ef.docstatus != 1:
         frappe.throw(_("Dates can be updated only for submitted documents."))
@@ -595,8 +638,16 @@ def update_dates(efactura_name, issue_date, delivery_date):
     issue_date = frappe.utils.getdate(issue_date)
     delivery_date = frappe.utils.getdate(delivery_date)
 
+    old_issue = ef.issue_date
+    old_delivery = ef.delivery_date
     ef.db_set("issue_date", issue_date, update_modified=False)
     ef.db_set("delivery_date", delivery_date, update_modified=False)
+    log_event(
+        ef,
+        _("Issue Date / Delivery Date updated: {0} / {1} → {2} / {3}").format(
+            old_issue or "—", old_delivery or "—", issue_date, delivery_date
+        ),
+    )
 
     return {
         "issue_date": str(issue_date),
@@ -661,7 +712,7 @@ def process_signed_xml(name, signature, content):
         '</Documents>\n'
     )
 
-    ef = frappe.get_doc("eFactura", name)
+    ef = _get_sales_efactura(name)
 
     # Send signed XML via PostInvoices
     client = EFacturaAPIClient.from_settings()
@@ -692,6 +743,7 @@ def process_signed_xml(name, signature, content):
     # Update status
     ef.db_set("ef_status", 1, update_modified=False)
     ef.set_status()
+    log_event(ef, _("Sent signed invoice to e-Factura."))
 
     return {
         "message": _("Successfully sent {0} signed invoice(s) to e-Factura system.").format(posted),
@@ -711,13 +763,13 @@ def make_efactura_from_delivery_note(source_name, target_doc=None, args=None):
         source_name,
         {
             "Delivery Note": {
-                "doctype": "eFactura",
+                "doctype": "Sales eFactura",
                 "validation": {
                     "docstatus": ["=", 1]
                 },
             },
             "Delivery Note Item": {
-                "doctype": "eFactura Item",
+                "doctype": "Sales eFactura Item",
                 "field_map": {
                     "item_code": "item_code",
                     "item_name": "item_name",
@@ -753,13 +805,13 @@ def make_efactura_from_sales_invoice(source_name, target_doc=None):
         source_name,
         {
             "Sales Invoice": {
-                "doctype": "eFactura",
+                "doctype": "Sales eFactura",
                 "validation": {
                     "docstatus": ["=", 1]
                 },
             },
             "Sales Invoice Item": {
-                "doctype": "eFactura Item",
+                "doctype": "Sales eFactura Item",
                 "field_map": {
                     "item_code": "item_code",
                     "item_name": "item_name",
@@ -926,7 +978,7 @@ def _generate_invoice_xml(
         {
             "IDNO": efactura.ef_supplier_idno or "",
             "CodTVA": efactura.ef_supplier_vat_id or "",
-            "TaxpayerType": efactura.ef_supplier_taxpayer_type or "",
+            "TaxpayerType": taxpayer_type_to_sfs(efactura.ef_supplier_taxpayer_type),
             "Title": efactura.ef_supplier_name or "",
             "Address": efactura.ef_supplier_address or "",
     },)
@@ -947,7 +999,7 @@ def _generate_invoice_xml(
         {
             "IDNO": efactura.ef_customer_idno or "",
             "CodTVA": efactura.ef_customer_vat_id or "",
-            "TaxpayerType": efactura.ef_customer_taxpayer_type or "",
+            "TaxpayerType": taxpayer_type_to_sfs(efactura.ef_customer_taxpayer_type),
             "Title": efactura.ef_customer_name or "",
             "Address": efactura.ef_customer_address or "",
     },)
@@ -969,7 +1021,7 @@ def _generate_invoice_xml(
             {
                 "IDNO": efactura.ef_transporter_idno or "",
                 "CodTVA": efactura.ef_transporter_vat_id or "",
-                "TaxpayerType": efactura.ef_transporter_taxpayer_type or "",
+                "TaxpayerType": taxpayer_type_to_sfs(efactura.ef_transporter_taxpayer_type),
                 "Title": efactura.ef_transporter_name or "",
                 "Address": efactura.ef_transporter_address or "",
         },)
@@ -995,7 +1047,7 @@ def _generate_invoice_xml(
         qty = item.ef_qty or 0
 
         if not qty:
-            label = item.meta.get_label("eFactura Item")
+            label = item.meta.get_label("Sales eFactura Item")
             frappe.throw(_("e-Factura XML Error: Item {0} {1} must not be 0").format(item.idx, label))
 
         ET.SubElement(

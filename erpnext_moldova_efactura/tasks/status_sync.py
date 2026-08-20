@@ -31,7 +31,7 @@ def sync_efactura_statuses():
             ef_number,
             ef_status,
             last_status_check
-        FROM `tabeFactura`
+        FROM `tabSales eFactura`
         WHERE
             docstatus = 1
             AND ef_status IN %(statuses)s
@@ -87,7 +87,7 @@ def sync_efactura_statuses():
                     missing_docs.append(f"{row.ef_series}{row.ef_number}")
                 continue
 
-            doc = frappe.get_doc("eFactura", row.name)
+            doc = frappe.get_doc("Sales eFactura", row.name)
 
             if doc.ef_status != new_status:
                 doc.db_set("ef_status", new_status, update_modified=False)
@@ -250,16 +250,16 @@ def _apply_cancelled_status_to_local_docs(keys: list[tuple[str, str, int]]) -> i
         if status != CANCELLED_BY_SUPPLIER:
             continue
 
-        # Example Doctype: "eFactura" (adjust if you store ef fields in Sales Invoice)
+        # Example Doctype: "Sales eFactura" (adjust if you store ef fields in Sales Invoice)
         name = frappe.db.get_value(
-            "eFactura",
+            "Sales eFactura",
             {"ef_series": seria, "ef_number": number, "docstatus": 1},
             "name",
         )
         if not name:
             continue
 
-        doc = frappe.get_doc("eFactura", name)
+        doc = frappe.get_doc("Sales eFactura", name)
 
         if int(doc.ef_status or 0) != status:
             doc.db_set("ef_status", status, update_modified=False)
@@ -287,7 +287,7 @@ def sync_efactura_draft_invoices_by_api_invoice_id():
     started_at = now_datetime()
 
     # IMPORTANT: Table/Doctype name here matches your current code.
-    # If you store e-Factura fields on Sales Invoice instead, change "eFactura".
+    # If you store e-Factura fields on Sales Invoice instead, change "Sales eFactura".
     docs = frappe.db.sql(
         """
         SELECT
@@ -296,7 +296,7 @@ def sync_efactura_draft_invoices_by_api_invoice_id():
             ef_number,
             ef_status,
             last_status_check
-        FROM `tabeFactura`
+        FROM `tabSales eFactura`
         WHERE
             docstatus = 1
             AND ef_status = %(draft)s
@@ -371,7 +371,7 @@ def sync_efactura_draft_invoices_by_api_invoice_id():
             except Exception:
                 remote_status_code = None
 
-            doc = frappe.get_doc("eFactura", row.name)
+            doc = frappe.get_doc("Sales eFactura", row.name)
 
             changed = False
 

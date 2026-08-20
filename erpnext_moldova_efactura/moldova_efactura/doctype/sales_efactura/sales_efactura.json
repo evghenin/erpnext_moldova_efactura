@@ -7,32 +7,32 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "section_break_fj2x",
+  "section_main",
   "column_break_qrzc",
   "naming_series",
-  "posting_date",
-  "posting_time",
   "status",
-  "last_status_check",
+  "ef_series",
+  "ef_number",
+  "ef_status",
   "si_qty_overage_confirmed",
   "column_break_grhc",
   "type",
-  "ef_status",
-  "ef_series",
-  "ef_number",
   "delivery_date",
   "issue_date",
+  "posting_date",
+  "posting_time",
+  "last_status_check",
   "column_break_muzu",
   "amended_from",
   "company",
   "reference_doctype",
   "reference_name",
-  "section_break_bfpw",
+  "section_currency",
   "currency",
   "column_break_hfwb",
   "ef_currency",
   "ef_conversion_rate",
-  "supplier_section",
+  "section_supplier",
   "supplier_party_type",
   "supplier_party",
   "supplier_bank_account",
@@ -47,7 +47,7 @@
   "ef_supplier_bank_account",
   "ef_supplier_bank_name",
   "ef_supplier_bank_code",
-  "customer_section",
+  "section_customer",
   "customer_party_type",
   "customer_party",
   "column_break_dxqc",
@@ -61,7 +61,7 @@
   "ef_customer_bank_account",
   "ef_customer_bank_name",
   "ef_customer_bank_code",
-  "section_break_gjtm",
+  "section_transporter",
   "transporter_party_type",
   "transporter_party",
   "column_break_oluj",
@@ -77,7 +77,7 @@
   "ef_transporter_bank_code",
   "section_break_sedp",
   "items",
-  "totals_section",
+  "section_totals",
   "column_break_dumd",
   "net_total",
   "ef_net_total",
@@ -91,15 +91,11 @@
  ],
  "fields": [
   {
-   "fieldname": "section_break_fj2x",
-   "fieldtype": "Section Break"
-  },
-  {
    "fieldname": "amended_from",
    "fieldtype": "Link",
    "label": "Amended From",
    "no_copy": 1,
-   "options": "eFactura",
+   "options": "Sales eFactura",
    "print_hide": 1,
    "read_only": 1,
    "search_index": 1
@@ -171,11 +167,6 @@
    "reqd": 1
   },
   {
-   "fieldname": "supplier_section",
-   "fieldtype": "Section Break",
-   "label": "Supplier"
-  },
-  {
    "fieldname": "supplier_party",
    "fieldtype": "Dynamic Link",
    "label": "Supplier Party",
@@ -187,11 +178,6 @@
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "customer_section",
-   "fieldtype": "Section Break",
-   "label": "Customer"
-  },
-  {
    "default": "Customer",
    "fieldname": "customer_party_type",
    "fieldtype": "Select",
@@ -201,6 +187,7 @@
   {
    "fieldname": "customer_party",
    "fieldtype": "Dynamic Link",
+   "in_list_view": 1,
    "label": "Customer Party",
    "options": "customer_party_type",
    "reqd": 1
@@ -208,12 +195,6 @@
   {
    "fieldname": "column_break_dxqc",
    "fieldtype": "Column Break"
-  },
-  {
-   "collapsible": 1,
-   "fieldname": "section_break_gjtm",
-   "fieldtype": "Section Break",
-   "label": "Transporter"
   },
   {
    "fieldname": "transporter_party_type",
@@ -383,12 +364,6 @@
    "reqd": 1
   },
   {
-   "fieldname": "totals_section",
-   "fieldtype": "Section Break",
-   "label": "Totals",
-   "options": "fa fa-money"
-  },
-  {
    "default": "0",
    "fieldname": "net_total",
    "fieldtype": "Currency",
@@ -418,6 +393,7 @@
    "default": "0",
    "fieldname": "total",
    "fieldtype": "Currency",
+   "in_list_view": 1,
    "label": "Total",
    "options": "currency",
    "precision": "2",
@@ -447,14 +423,8 @@
    "fieldname": "items",
    "fieldtype": "Table",
    "label": "Items",
-   "options": "eFactura Item",
+   "options": "Sales eFactura Item",
    "reqd": 1
-  },
-  {
-   "collapsible": 1,
-   "fieldname": "section_break_bfpw",
-   "fieldtype": "Section Break",
-   "label": "Currency"
   },
   {
    "fieldname": "currency",
@@ -518,11 +488,12 @@
    "reqd": 1
   },
   {
+   "default": "ACC-SEF-.YYYY.-",
    "fieldname": "naming_series",
    "fieldtype": "Select",
    "label": "Series",
    "no_copy": 1,
-   "options": "EF-.YYYY.-\nEF-NT-.YYYY.-",
+   "options": "ACC-SEF-.YYYY.-\nACC-SEF-NT-.YYYY.-\nEF-.YYYY.-\nEF-NT-.YYYY.-",
    "print_hide": 1,
    "read_only": 1,
    "reqd": 1,
@@ -597,23 +568,26 @@
   },
   {
    "fieldname": "ef_customer_taxpayer_type",
-   "fieldtype": "Data",
+   "fieldtype": "Select",
    "hidden": 1,
    "label": "eF Customer Taxpayer Type",
+   "options": "\nCompany\nIndividual\nNon-Resident",
    "read_only": 1
   },
   {
    "fieldname": "ef_transporter_taxpayer_type",
-   "fieldtype": "Data",
+   "fieldtype": "Select",
    "hidden": 1,
    "label": "eF Transporter Taxpayer Type",
+   "options": "\nCompany\nIndividual\nNon-Resident",
    "read_only": 1
   },
   {
    "fieldname": "ef_supplier_taxpayer_type",
-   "fieldtype": "Data",
+   "fieldtype": "Select",
    "hidden": 1,
    "label": "eF Supplier Taxpayer Type",
+   "options": "\nCompany\nIndividual\nNon-Resident",
    "read_only": 1
   },
   {
@@ -670,20 +644,54 @@
    "label": "SI Qty Overage Confirmed",
    "no_copy": 1,
    "print_hide": 1
+  },
+  {
+   "fieldname": "section_main",
+   "fieldtype": "Section Break"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_currency",
+   "fieldtype": "Section Break",
+   "label": "Currency"
+  },
+  {
+   "fieldname": "section_supplier",
+   "fieldtype": "Section Break",
+   "label": "Supplier"
+  },
+  {
+   "fieldname": "section_customer",
+   "fieldtype": "Section Break",
+   "label": "Customer"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_transporter",
+   "fieldtype": "Section Break",
+   "label": "Transporter"
+  },
+  {
+   "fieldname": "section_totals",
+   "fieldtype": "Section Break",
+   "label": "Totals",
+   "options": "fa fa-money"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-08-13 10:40:00.000000",
+ "modified": "2026-08-15 01:31:55.660596",
  "modified_by": "Administrator",
  "module": "Moldova eFactura",
- "name": "eFactura",
+ "name": "Sales eFactura",
  "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
  "permissions": [
   {
+   "amend": 1,
+   "cancel": 1,
    "create": 1,
    "delete": 1,
    "email": 1,
@@ -697,6 +705,8 @@
    "write": 1
   },
   {
+   "amend": 1,
+   "cancel": 1,
    "create": 1,
    "delete": 1,
    "email": 1,
@@ -710,10 +720,10 @@
    "write": 1
   },
   {
+   "amend": 1,
+   "cancel": 1,
    "create": 1,
-   "delete": 1,
    "email": 1,
-   "export": 1,
    "print": 1,
    "read": 1,
    "report": 1,
@@ -723,6 +733,8 @@
    "write": 1
   },
   {
+   "amend": 1,
+   "cancel": 1,
    "create": 1,
    "delete": 1,
    "email": 1,
@@ -736,26 +748,17 @@
    "write": 1
   },
   {
+   "amend": 1,
+   "cancel": 1,
    "create": 1,
-   "delete": 1,
    "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Sales Master Manager",
-   "share": 1,
-   "submit": 1,
-   "write": 1
-  },
-  {
-   "email": 1,
-   "export": 1,
    "print": 1,
    "read": 1,
    "report": 1,
    "role": "Sales User",
-   "share": 1
+   "share": 1,
+   "submit": 1,
+   "write": 1
   }
  ],
  "row_format": "Dynamic",
@@ -807,7 +810,7 @@
    "color": "Yellow",
    "title": "Transportation"
   },
-   {
+  {
    "color": "Red",
    "title": "Cancellation Requested"
   }

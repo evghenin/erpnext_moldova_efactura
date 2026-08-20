@@ -1,4 +1,4 @@
-"""Map e-Factura InvoiceStatus codes to eFactura Buyer status labels."""
+"""Map e-Factura InvoiceStatus codes to Purchase eFactura status labels."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ BUYER_STATUS_MAP = {
 	1: "Signed by Supplier",
 	2: "Rejected",
 	3: "Accepted",
+	4: "Signing",
 	5: "Canceled by Supplier",
 	7: "Sent to Buyer",
 	8: "Signed by Buyer",
@@ -22,6 +23,7 @@ BUYER_SEARCH_STATUSES = (7, 9, 1, 8, 3, 2, 10, 5, 11)
 BUYER_ACTIONABLE_STATUSES = (1, 7, 9)
 BUYER_SIGNABLE_STATUSES = (1, 7, 9, 3)
 
+# Legacy suffix stripped from stored status; no longer written.
 PI_LINKED_SUFFIX = " · Linked to PI"
 
 
@@ -36,15 +38,12 @@ def status_label(ef_status) -> str:
 
 
 def compose_buyer_status(ef_status, purchase_invoice: str | None = None) -> str:
-	"""SFS workflow state + optional PI linkage."""
-	label = status_label(ef_status)
-	if purchase_invoice:
-		return f"{label}{PI_LINKED_SUFFIX}" if label else "Linked to PI"
-	return label
+	"""SFS workflow state. `purchase_invoice` is ignored (kept for callers)."""
+	return status_label(ef_status)
 
 
 def base_status(status: str | None) -> str:
-	"""Strip PI linkage suffix for color/filter helpers."""
+	"""Normalize stored status, including leftover PI linkage suffix."""
 	value = status or ""
 	if value.endswith(PI_LINKED_SUFFIX):
 		return value[: -len(PI_LINKED_SUFFIX)]

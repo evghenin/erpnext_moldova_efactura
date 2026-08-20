@@ -1,6 +1,34 @@
 ### ERPNext Moldova Efactura
 
-ERPNext integration for generating and sending Moldovan electronic tax invoices (e-Factura) with automated API workflow.
+ERPNext integration for Moldovan electronic tax invoices (e-Factura / SFS): outgoing **Sales eFactura** and incoming **Purchase eFactura**.
+
+Version **2.0**. Requires ERPNext / Frappe v15.
+
+### Features
+
+#### Outgoing — Sales eFactura
+
+- Create e-Factura from a Sales Invoice (Transfer / Non-Transfer).
+- Sign, send, and track SFS status (`ef_status` + document status).
+- Multi-currency: document currency vs eFactura currency (`MDL`) with `ef_conversion_rate`.
+- Quantity guards against the linked Sales Invoice (block submit, exclude failed documents, warn on draft save).
+- 0% VAT lines are included in document totals (`net_total` / `total`); XML line amounts stay in sync.
+
+#### Incoming — Purchase eFactura
+
+- Fetch buyer invoices from SFS (cannot be created manually).
+- Accept, reject (with comment), PDF, and refresh status.
+- Map supplier items → Item, supplier UOM → eFactura UOM / purchase UOM.
+- **UOM conversion factors** are stored on the row at mapping time, so a later change of Item UOM does not rewrite qty.
+- Create Purchase Order and/or Purchase Invoice, or link an existing PI (qty allocation; submit requires full allocation).
+- Copy issue date **and time** from `IssuedDate` onto PI posting date/time (eFactura Settings: *Copy Date from Factura*).
+- Multi-currency like Sales eFactura: `ef_*` amounts in eFactura currency, document amounts converted.
+- Supplier IDNO must match the factura; taxpayer type is stored as Company / Individual / Non-Resident.
+- Supplier / buyer / transporter shown as HTML (same pattern as Sales eFactura).
+
+#### Settings
+
+Configure API credentials, IDNO fields, eFactura currency, VAT-in-rate, UOM map (optional auto-add), buying tax templates per company, and incoming/outgoing options under **eFactura Settings**.
 
 ### Installation
 
@@ -8,9 +36,12 @@ You can install this app using the [bench](https://github.com/frappe/bench) CLI:
 
 ```bash
 cd $PATH_TO_YOUR_BENCH
-bench get-app $URL_OF_THIS_REPO --branch develop
-bench install-app erpnext_moldova_efactura
+bench get-app $URL_OF_THIS_REPO --branch v2
+bench --site $SITE install-app erpnext_moldova_efactura
+bench --site $SITE migrate
 ```
+
+Upgrade from 1.x: install this version and run `bench migrate`. DocTypes are renamed (`eFactura` → `Sales eFactura`, `eFactura Buyer` → `Purchase eFactura`); patches convert existing data.
 
 ### Contributing
 
@@ -34,7 +65,6 @@ This app can use GitHub Actions for CI. The following workflows are configured:
 
 - CI: Installs this app and runs unit tests on every push to `develop` branch.
 - Linters: Runs [Frappe Semgrep Rules](https://github.com/frappe/semgrep-rules) and [pip-audit](https://pypi.org/project/pip-audit/) on every pull request.
-
 
 ### License
 

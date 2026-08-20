@@ -5,5 +5,5 @@
 from frappe.model.document import Document
 
 
-class eFacturaItem(Document):
+class SaleseFacturaItem(Document):
 	pass

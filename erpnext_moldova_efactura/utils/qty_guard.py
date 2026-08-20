@@ -63,7 +63,7 @@ def get_quota_efactura_rows(
 		filters["name"] = ["!=", exclude_name]
 
 	rows = frappe.get_all(
-		"eFactura",
+		"Sales eFactura",
 		filters=filters,
 		fields=["name", "ef_status", "status", "docstatus"],
 	)
@@ -147,7 +147,7 @@ def find_si_qty_overages(doc, include_drafts: bool = False) -> list[dict]:
 	other_by_item: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
 	if other_names:
 		for row in frappe.get_all(
-			"eFactura Item",
+			"Sales eFactura Item",
 			filters={
 				"parent": ["in", other_names],
 				"item_code": ["in", list(current_qty.keys())],
@@ -254,7 +254,7 @@ def format_overage_html(
 
 
 def _format_other_link(item: dict, uom: str, precision: int) -> str:
-	link = get_link_to_form("eFactura", item["name"])
+	link = get_link_to_form("Sales eFactura", item["name"])
 	suffix = f" ({escape_html(_('Draft'))})" if cint(item.get("docstatus")) == 0 else ""
 	return f"{link}{suffix} ({_fmt_qty(item['qty'], precision)} {uom})".strip()
 

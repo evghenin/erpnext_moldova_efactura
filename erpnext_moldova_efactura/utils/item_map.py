@@ -1,4 +1,4 @@
-"""Resolve Item Code for eFactura Buyer lines."""
+"""Resolve Item Code for Purchase eFactura lines."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ def resolve_item_code(
 	1) By supplier_item_code — only trusted if supplier_item_name also matches
 	   (code alone is unreliable / may be random)
 	2) By supplier_item_name (stable product title):
-	   - past eFactura Buyer of this supplier
+	   - past Purchase eFactura of this supplier
 	   - Supplier Item Map
 	   - direct Item.item_name match
 	"""
@@ -135,8 +135,8 @@ def _from_past_invoices(
 	rows = frappe.db.sql(
 		f"""
 		SELECT i.item_code, i.supplier_item_name
-		FROM `tabeFactura Buyer Item` i
-		INNER JOIN `tabeFactura Buyer` p ON p.name = i.parent
+		FROM `tabPurchase eFactura Item` i
+		INNER JOIN `tabPurchase eFactura` p ON p.name = i.parent
 		WHERE {" AND ".join(conditions)}
 		ORDER BY p.modified DESC
 		LIMIT 1

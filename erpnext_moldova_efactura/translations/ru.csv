@@ -19,6 +19,17 @@ Customer Party Type,Тип стороны клиента
 Dates can be updated only for submitted documents.,Даты можно изменять только у проведённых документов.
 Dates can be updated only in Pending Registration status.,Даты можно изменять только в статусе «Ожидает регистрации».
 Dates updated successfully.,Даты успешно обновлены.
+Sent unsigned invoice to e-Factura (draft).,Неподписанная фактура отправлена в e-Factura (черновик).
+Sent signed invoice to e-Factura.,Подписанная фактура отправлена в e-Factura.
+Issue Date / Delivery Date updated: {0} / {1} → {2} / {3},Дата выписки / дата поставки изменены: {0} / {1} → {2} / {3}
+Assigned series and number {0}{1} from e-Factura.,Присвоены серия и номер {0}{1} из e-Factura.
+Assigned series and number {0}{1} for signing.,Присвоены серия и номер {0}{1} для подписи.
+Status changed: {0} → {1},Статус изменён: {0} → {1}
+Accepted invoice in e-Factura.,Фактура принята в e-Factura.
+Rejected invoice in e-Factura: {0},Фактура отклонена в e-Factura: {0}
+Signed invoice in e-Factura (buyer).,Фактура подписана в e-Factura (покупатель).
+Fetched invoice details from e-Factura.,Реквизиты фактуры загружены из e-Factura.
+Linked Purchase Invoice {0}.,Связан счёт закупки {0}.
 Download XML,Скачать XML
 Failed to register unsigned XML in e-Factura system.,Не удалось зарегистрировать неподписанный XML в системе e-Factura.
 Fiscal Territory,Фискальная территория
@@ -28,6 +39,11 @@ Fiscal status updated to {0}.,Фискальный статус обновлён
 Fiscal status updated.,Фискальный статус обновлён.
 Fiscalization,Фискализация
 Fiscalization {0},Фискализация: {0}
+Partial,Частичная
+Not Required,Не требуется
+Completed,Завершена
+In Progress,В работе
+Pending,Ожидает
 Frappe School,Школа Frappe
 Frappe Support,Поддержка Frappe
 IDNO,IDNO
@@ -80,6 +96,9 @@ Successfully sent {0} signed invoice(s) to e-Factura system.,Успешно от
 Successfully sent {0} unsigned invoice(s) to e-Factura system.,Успешно отправлено неподписанных счетов: {0}.
 Supplier Bank Account,Банковский счёт поставщика
 Supplier IDNO field,Поле IDNO поставщика
+Supplier IDNO mismatch,IDNO поставщика не совпадает
+Supplier {0} IDNO ({1}) does not match e-Factura supplier IDNO {2},IDNO поставщика {0} ({1}) не совпадает с IDNO поставщика в e-Factura {2}
+not set,не задан
 Supplier Party,Сторона поставщика
 Supplier Party Type,Тип стороны поставщика
 Total (eFactura Currency),Итого (валюта eFactura)
@@ -131,11 +150,24 @@ eF Transporter Taxpayer Type,Тип налогоплательщика пере�
 eF Transporter VAT Id,НДС ID перевозчика eF
 eF Transporter e-Factura User,Перевозчик eF пользователь e-Factura
 eFactura,eFactura
+eFactura Sales,Исходящие
+eFactura Purchase,Входящие
+Sales eFactura,Исходящая eFactura
+Purchase eFactura,Входящая eFactura
+All Sales eFactura,Все исходящие eFactura
+All Purchase eFactura,Все входящие eFactura
+New Sales eFactura,Новая исходящая eFactura
+Awaiting Customer,Ожидают клиента
+Awaiting Action,Требуют действия
+No Supplier,Без поставщика
+Need Purchase Invoice,Нужен счёт закупки
+Linked to PI,Связаны со счётом
+Purchase eFactura Item,Позиция входящей eFactura
 eFactura Actions,Действия eFactura
 eFactura Configuration Required. Fiscal Territory must be set.,Требуется настройка eFactura. Необходимо указать фискальную территорию.
 eFactura Currency,Валюта eFactura
 eFactura Exchange Rate,Курс eFactura
-eFactura Item,Позиция eFactura
+Sales eFactura Item,Позиция исходящей eFactura
 eFactura Number,Номер eFactura
 eFactura Series,Серия eFactura
 eFactura Settings,Настройки eFactura
@@ -143,6 +175,7 @@ eFactura Settings: API username/password are not set.,Настройки eFactur
 eFactura Settings: api_wsdl_url is not set.,Настройки eFactura: api_wsdl_url не задан.
 eFactura Status,Статус eFactura
 eFactura UOM,ЕИ eFactura
+UOM Conversion Factor,Коэффициент конверсии ЕИ
 eFactura UOM Conversion Factor,Коэффициент конверсии ЕИ eFactura
 eFactura can be cancelled only in Pending Registration status.,eFactura может быть отменена только в статусе «Ожидает регистрации».
 Block Submit When Qty Exceeds Sales Invoice,Блокировать проведение при превышении количества по счёту
@@ -178,7 +211,6 @@ Create,Создать
 Create Purchase Order,Создать заказ поставщику
 Create Purchase Invoice,Создать счёт покупки
 Purchase Invoice,Счёт покупки
-Open Purchase Order,Открыть заказ поставщику
 Open Purchase Invoice,Открыть счёт покупки
 Matching Purchase Invoice...,Сверка со счётом покупки...
 Purchase Invoice linked. Items mapped from the invoice.,Счёт покупки связан. Позиции замаплены из счёта.
@@ -197,7 +229,7 @@ Purchase Invoice {0} is already linked,Счёт покупки {0} уже свя
 Purchase Order {0} is already linked,Заказ поставщику {0} уже связан
 Cannot link Purchase Invoice to a cancelled e-Factura,Нельзя связать счёт покупки с отменённой e-Factura
 Fetch invoice details from e-Factura before linking a Purchase Invoice,Сначала загрузите детали фактуры из e-Factura
-Map all items before creating {0} (rows: {1}),Замапьте все позиции перед созданием {0} (строки: {1})
+Map all items before creating {0},Замапьте все позиции перед созданием {0}
 Supplier is required to create {0},Для создания {0} нужен поставщик
 Purchase Order,Заказ поставщику
 Purchase Taxes,Налоги закупки
@@ -219,4 +251,87 @@ VAT Account {0} does not belong to company {1},Счёт НДС {0} не отно
 Company {0} is listed more than once,Компания {0} указана более одного раза
 VAT {0}%,НДС {0}%
 VAT,НДС
+Purchase taxes are empty,Налоги закупки не заполнены
 "e-Factura VAT is {0} but Purchase taxes are empty. Set VAT Account for company {1} in eFactura Settings (Incoming → Company Settings), or enable Item-wise tax (Accounts Settings → Add taxes from Item Tax Template) and assign Item Tax Templates.","В e-Factura НДС {0}, а в закупке налоги пустые. Укажите счёт НДС для компании {1} в eFactura Settings (Incoming → Company Settings) либо включите Item-wise налог (Accounts Settings → Add taxes from Item Tax Template) и назначьте Item Tax Template."
+Copy Date from Factura,Копировать дату из фактуры
+"If enabled, Purchase Invoice posting date and time and Purchase Order transaction date are copied from the e-Factura issue date.","Если включено, дата и время проведения счёта покупки и дата заказа поставщику берутся из даты выписки e-Factura."
+Issue Time,Время выписки
+Link Purchase Order,Связать заказ поставщику
+Unlink Purchase Order,Отвязать заказ поставщику
+Unlink,Отвязать
+Purchase Orders,Заказы поставщику
+Linking Purchase Order...,Связывание заказа поставщику...
+Purchase Order linked.,Заказ поставщику связан.
+Purchase Order unlinked.,Заказ поставщику отвязан.
+Cannot link Purchase Order to a cancelled e-Factura,Нельзя связать заказ поставщику с отменённой e-Factura
+Cannot link Purchase Order after Purchase Invoice is linked,Нельзя связать заказ поставщику после связи со счётом покупки
+Cannot unlink Purchase Order after Purchase Invoice is linked,Нельзя отвязать заказ поставщику после связи со счётом покупки
+Purchase Order {0} not found,Заказ поставщику {0} не найден
+Submit Purchase Order {0} before linking,Проведите заказ поставщику {0} перед связыванием
+"Supplier mismatch: e-Factura {0}, Purchase Order {1}","Не совпадает поставщик: e-Factura {0}, заказ поставщику {1}"
+"Company mismatch: e-Factura {0}, Purchase Order {1}","Не совпадает компания: e-Factura {0}, заказ поставщику {1}"
+Cannot create Purchase Invoice from e-Factura:,Нельзя создать счёт покупки из e-Factura:
+Purchase Order qty is not enough,Количества в заказе поставщику недостаточно
+"e-Factura row {0} «{1}»: qty {2} exceeds remaining Purchase Order qty ({3}). Increase qty on a linked Purchase Order or Link another Purchase Order, then create the invoice again.","Строка e-Factura {0} «{1}»: количество {2} больше остатка в заказе поставщику ({3}). Увеличьте количество в связанном заказе или свяжите ещё один заказ, затем создайте счёт снова."
+{0}: no remaining qty for {1},{0}: нет остатка по {1}
+Cannot submit Purchase Invoice {0}:,Нельзя провести счёт покупки {0}:
+Cannot submit Purchase Invoice {0},Нельзя провести счёт покупки {0}
+Signing,Подписание
+Received,Получена
+Received (Draft),Получена (черновик)
+Pending (Draft),Ожидает (черновик)
+In Progress (Draft),В работе (черновик)
+Completed (Draft),Завершена (черновик)
+Partial (Draft),Частичная (черновик)
+Not Required (Draft),Не требуется (черновик)
+Unknown (Draft),Неизвестно (черновик)
+Please select at least one Purchase Invoice.,Выберите хотя бы один счёт покупки.
+Link Invoice,Связать счёт
+Select a Supplier,Выберите поставщика
+Select a Supplier on the e-Factura first,Сначала выберите поставщика на e-Factura
+Allocate,Распределить
+Allocate Purchase Invoice,Распределить счёт покупки
+Purchase Invoice Allocations,Распределение счетов покупки
+Purchase Invoice linked.,Счёт покупки связан.
+e-Factura already has Purchase Invoice allocations,У e-Factura уже есть распределения по счетам покупки
+Map all items,Замапьте все позиции
+Map all items before submit,Замапьте все позиции перед проведением
+Map all items before creating {0},Замапьте все позиции перед созданием {0}
+Map all items before linking a Purchase Invoice,Замапьте все позиции перед связыванием счёта покупки
+"Row {0}: {1} — qty {2}, rate {3} {4}","Строка {0}: {1} — кол-во {2}, цена {3} {4}"
+No matching rows to allocate,Нет подходящих строк для распределения
+Allocation quantity must be greater than zero,Количество распределения должно быть больше нуля
+Purchase Invoice Item {0} is allocated more than once,Строка счёта покупки {0} распределена более одного раза
+e-Factura row can only be linked to one Purchase Invoice Item,Строку e-Factura можно связать только с одной строкой счёта покупки
+"e-Factura row {0} «{1}» is linked to Purchase Invoice {2} without a Purchase Invoice Item","Строка e-Factura {0} «{1}» связана со счётом {2} без строки счёта покупки"
+Allocation refers to missing e-Factura row {0},Распределение ссылается на отсутствующую строку e-Factura {0}
+"e-Factura row {0} «{1}»: linked qty {2} must equal factura qty {3}","Строка e-Factura {0} «{1}»: связанное количество {2} должно равняться количеству фактуры {3}"
+"e-Factura row {0} «{1}»: linked qty {2} must equal factura qty {3} and Purchase Invoice qty {4}","Строка e-Factura {0} «{1}»: связанное количество {2} должно равняться количеству фактуры {3} и счёта покупки {4}"
+"e-Factura row {0} «{1}»: allocated qty {2} exceeds factura qty {3}","Строка e-Factura {0} «{1}»: распределено {2}, это больше количества фактуры {3}"
+Purchase Invoice row {0} «{1}» is already linked to an e-Factura,Строка счёта покупки {0} «{1}» уже связана с e-Factura
+"Purchase Invoice row {0} «{1}»: qty {2} exceeds remaining e-Factura qty","Строка счёта покупки {0} «{1}»: количество {2} больше остатка по e-Factura"
+Cannot allocate Purchase Invoice on a cancelled e-Factura,Нельзя распределять счёт покупки на отменённой e-Factura
+e-Factura row not found,Строка e-Factura не найдена
+Purchase Invoice Item {0} is missing on {1},Строка счёта покупки {0} отсутствует в {1}
+"e-Factura row {0} «{1}»: allocated qty {2} exceeds Purchase Invoice qty {3}","Строка e-Factura {0} «{1}»: распределено {2}, это больше количества в счёте покупки {3}"
+ · Linked to PI, · связана со счётом
+Linked to PI,Связана со счётом
+Allocate all rows to a Purchase Invoice before submit,Перед проведением распределите все строки на счёт покупки
+Rows not allocated,Нераспределённые строки
+Cannot create documents from a cancelled Purchase eFactura,Нельзя создавать документы из отменённой входящей eFactura
+Return to Purchase eFactura,Вернуться во входящую eFactura
+Open e-Factura,Открыть eFactura
+Stay here,Остаться здесь
+"Purchase Invoice {0} is submitted. Open Purchase eFactura {1} to submit it?","Счёт покупки {0} проведён. Открыть входящую eFactura {1}, чтобы провести её?"
+Taxpayer Type,Тип налогоплательщика
+Supplier Taxpayer Type,Тип налогоплательщика поставщика
+Buyer Taxpayer Type,Тип налогоплательщика покупателя
+Individual,Физическое лицо
+Non-Resident,Нерезидент
+Company,Юридическое лицо,Purchase eFactura
+Company,Юридическое лицо,Sales eFactura
+Supplier Details,Реквизиты поставщика
+Buyer Details,Реквизиты покупателя
+Customer Details,Реквизиты клиента
+Transporter Details,Реквизиты перевозчика
+Rate (with VAT) (eFactura Currency),Ставка с НДС (валюта eFactura)

@@ -6,7 +6,9 @@ import html
 from typing import Any
 from xml.etree import ElementTree as ET
 
-from frappe.utils import flt, getdate
+from frappe.utils import flt, get_datetime, get_time, getdate
+
+from erpnext_moldova_efactura.utils.taxpayer_type import taxpayer_type_from_sfs
 
 
 def unescape_sfs_text(value: str | None) -> str:
@@ -65,7 +67,7 @@ def _party_block(supplier_info: ET.Element, party_tag: str) -> dict[str, str]:
 	return {
 		"idno": _attr(party, "IDNO"),
 		"vat_id": _attr(party, "CodTVA"),
-		"taxpayer_type": _attr(party, "TaxpayerType"),
+		"taxpayer_type": taxpayer_type_from_sfs(_attr(party, "TaxpayerType")),
 		"name": _attr(party, "Title"),
 		"address": _attr(party, "Address"),
 		"bank_account": _attr(bank, "Account"),
@@ -79,6 +81,32 @@ def _safe_date(value: str):
 		return None
 	try:
 		return getdate(value[:10])
+	except Exception:
+		return None
+
+
+def _safe_time(value: str):
+	"""Time from SFS ISO timestamps, including fractional seconds and Z."""
+	if not value:
+		return None
+	raw = str(value).strip()
+	try:
+		normalized = raw[:-1] + "+00:00" if raw.endswith("Z") else raw
+		dt = get_datetime(normalized)
+		if dt:
+			return get_time(dt).replace(microsecond=0)
+	except Exception:
+		pass
+	try:
+		if "T" in raw:
+			part = raw.split("T", 1)[1]
+		elif " " in raw:
+			part = raw.split(" ", 1)[1]
+		else:
+			part = raw
+		part = part.replace("Z", "").split("+", 1)[0]
+		hhmmss = part.split(".", 1)[0]
+		return get_time(hhmmss[:8]).replace(microsecond=0)
 	except Exception:
 		return None
 
@@ -137,6 +165,7 @@ def parse_invoice_xml(xml_content: str | bytes) -> dict[str, Any]:
 		"ef_series": _text(supplier_info, "Seria"),
 		"ef_number": _text(supplier_info, "Number"),
 		"issue_date": _safe_date(_text(supplier_info, "IssuedDate")),
+		"issue_time": _safe_time(_text(supplier_info, "IssuedDate")),
 		"delivery_date": _safe_date(_text(supplier_info, "DeliveryDate")),
 		"total": total,
 		"vat_total": vat_total,

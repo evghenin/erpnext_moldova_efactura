@@ -1,10 +1,11 @@
-"""Party / IDNO helpers for eFactura Buyer."""
+"""Party / IDNO helpers for Purchase eFactura."""
 
 from __future__ import annotations
 
 import re
 
 import frappe
+from frappe import _
 
 _QUOTE_CHARS = '"\'«»„“”‘’`'
 _LEADING_SC = re.compile(r"^\s*(?:S\s*\.\s*C\s*\.?|SC\b)\s*", flags=re.IGNORECASE)
@@ -37,6 +38,52 @@ def normalize_supplier_title(name: str | None) -> str:
 	return text
 
 
+def normalize_idno(idno: str | None) -> str:
+	"""Digits only, for comparing Moldova IDNO values with spaces or punctuation."""
+	if not idno:
+		return ""
+	return re.sub(r"\D+", "", str(idno))
+
+
+def get_supplier_idno_field() -> str | None:
+	fieldname = frappe.db.get_single_value("eFactura Settings", "supplier_idno_field")
+	if not fieldname or not frappe.get_meta("Supplier").has_field(fieldname):
+		return None
+	return fieldname
+
+
+def get_supplier_idno(supplier: str | None) -> str | None:
+	fieldname = get_supplier_idno_field()
+	if not supplier or not fieldname:
+		return None
+	return frappe.db.get_value("Supplier", supplier, fieldname)
+
+
+def throw_if_supplier_idno_mismatch(supplier: str | None, factura_idno: str | None) -> None:
+	"""Selected Supplier must carry the same IDNO as the e-Factura XML supplier."""
+	if not supplier:
+		return
+	expected = normalize_idno(factura_idno)
+	if not expected:
+		return
+	fieldname = get_supplier_idno_field()
+	if not fieldname:
+		return
+	actual_raw = get_supplier_idno(supplier)
+	if normalize_idno(actual_raw) == expected:
+		return
+	from frappe.utils import cstr, get_link_to_form
+
+	frappe.throw(
+		_("Supplier {0} IDNO ({1}) does not match e-Factura supplier IDNO {2}").format(
+			get_link_to_form("Supplier", supplier),
+			cstr(actual_raw).strip() or _("not set"),
+			cstr(factura_idno).strip(),
+		),
+		title=_("Supplier IDNO mismatch"),
+	)
+
+
 def new_supplier_defaults(title: str | None = None, idno: str | None = None) -> dict:
 	"""Values for a new Supplier created from an incoming e-Factura."""
 	defaults: dict = {}
@@ -53,16 +100,12 @@ def new_supplier_defaults(title: str | None = None, idno: str | None = None) -> 
 
 def find_supplier_by_idno(idno: str) -> str | None:
 	"""Return Supplier name matching IDNO field from eFactura Settings, or None."""
+	idno = str(idno or "").strip()
 	if not idno:
 		return None
 
-	idno = str(idno).strip()
-	fieldname = frappe.db.get_single_value("eFactura Settings", "supplier_idno_field")
+	fieldname = get_supplier_idno_field()
 	if not fieldname:
-		return None
-
-	meta = frappe.get_meta("Supplier")
-	if not meta.has_field(fieldname):
 		return None
 
 	return frappe.db.get_value("Supplier", {fieldname: idno}, "name")

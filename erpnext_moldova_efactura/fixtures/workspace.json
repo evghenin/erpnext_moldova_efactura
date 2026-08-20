@@ -1,65 +1,197 @@
 [
  {
-  "charts": [
-   {
-    "chart_name": "eFactura",
-    "label": "Statuses Overview",
-    "parent": "Moldova eFactura",
-    "parentfield": "charts",
-    "parenttype": "Workspace"
-   }
-  ],
-  "content": "[{\"id\":\"4S9yGuwkQ-\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Moldova eFactura</span>\",\"col\":12}},{\"id\":\"bkAUWN6AL9\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Statuses Overview\",\"col\":12}},{\"id\":\"wdbjAIShpQ\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Finished\",\"col\":3}},{\"id\":\"3RFpphiyte\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Pending Customer Signature\",\"col\":3}},{\"id\":\"pr9BUMU7Wh\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Pending Registration\",\"col\":3}},{\"id\":\"QjxGlDdz5E\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Rejected by Customer\",\"col\":3}},{\"id\":\"zC5xTlpUFV\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Waiting Customer\",\"col\":6}},{\"id\":\"cyrhGJOjYR\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"New eFactura\",\"col\":6}},{\"id\":\"88WjqoX2kc\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Pending\",\"col\":6}},{\"id\":\"Xiuz5OTHzP\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"eFactura Settings\",\"col\":6}},{\"id\":\"X7gNqIxwfy\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Rejected\",\"col\":12}}]",
+  "charts": [],
+  "content": "[{\"id\":\"ef-h1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">eFactura</span>\",\"col\":12}},{\"id\":\"ef-nc1\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Pending\",\"col\":6}},{\"id\":\"ef-nc2\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Awaiting Action\",\"col\":6}},{\"id\":\"ef-sp1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"ef-h2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Shortcuts</b></span>\",\"col\":12}},{\"id\":\"ef-sc1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Sales\",\"col\":4}},{\"id\":\"ef-sc2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Purchase\",\"col\":4}},{\"id\":\"ef-sc3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"eFactura Settings\",\"col\":4}},{\"id\":\"ef-sp2\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"ef-h3\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports &amp; Masters</b></span>\",\"col\":12}},{\"id\":\"ef-cd1\",\"type\":\"card\",\"data\":{\"card_name\":\"Documents\",\"col\":4}},{\"id\":\"ef-cd2\",\"type\":\"card\",\"data\":{\"card_name\":\"Setup\",\"col\":4}}]",
   "custom_blocks": [],
   "docstatus": 0,
   "doctype": "Workspace",
   "for_user": "",
   "hide_custom": 0,
-  "icon": "accounting",
+  "icon": "file",
   "indicator_color": "",
   "is_hidden": 0,
-  "label": "Moldova eFactura",
-  "links": [],
-  "modified": "2025-12-27 19:46:34.439485",
+  "label": "eFactura",
+  "links": [
+   {
+    "hidden": 0,
+    "is_query_report": 0,
+    "label": "Documents",
+    "link_count": 2,
+    "link_type": "DocType",
+    "onboard": 0,
+    "parent": "eFactura",
+    "parentfield": "links",
+    "parenttype": "Workspace",
+    "type": "Card Break"
+   },
+   {
+    "hidden": 0,
+    "is_query_report": 0,
+    "label": "Sales eFactura",
+    "link_count": 0,
+    "link_to": "Sales eFactura",
+    "link_type": "DocType",
+    "onboard": 0,
+    "parent": "eFactura",
+    "parentfield": "links",
+    "parenttype": "Workspace",
+    "type": "Link"
+   },
+   {
+    "hidden": 0,
+    "is_query_report": 0,
+    "label": "Purchase eFactura",
+    "link_count": 0,
+    "link_to": "Purchase eFactura",
+    "link_type": "DocType",
+    "onboard": 0,
+    "parent": "eFactura",
+    "parentfield": "links",
+    "parenttype": "Workspace",
+    "type": "Link"
+   },
+   {
+    "hidden": 0,
+    "is_query_report": 0,
+    "label": "Setup",
+    "link_count": 2,
+    "link_type": "DocType",
+    "onboard": 0,
+    "parent": "eFactura",
+    "parentfield": "links",
+    "parenttype": "Workspace",
+    "type": "Card Break"
+   },
+   {
+    "hidden": 0,
+    "is_query_report": 0,
+    "label": "eFactura Settings",
+    "link_count": 0,
+    "link_to": "eFactura Settings",
+    "link_type": "DocType",
+    "onboard": 0,
+    "parent": "eFactura",
+    "parentfield": "links",
+    "parenttype": "Workspace",
+    "type": "Link"
+   },
+   {
+    "hidden": 0,
+    "is_query_report": 0,
+    "label": "eFactura Supplier Item Map",
+    "link_count": 0,
+    "link_to": "eFactura Supplier Item Map",
+    "link_type": "DocType",
+    "onboard": 0,
+    "parent": "eFactura",
+    "parentfield": "links",
+    "parenttype": "Workspace",
+    "type": "Link"
+   }
+  ],
+  "modified": "2026-08-14 19:30:00.000000",
   "module": "Moldova eFactura",
-  "name": "Moldova eFactura",
+  "name": "eFactura",
   "number_cards": [
    {
-    "label": "Finished",
-    "number_card_name": "Finished",
-    "parent": "Moldova eFactura",
+    "label": "Pending",
+    "number_card_name": "Sales eFactura Pending",
+    "parent": "eFactura",
     "parentfield": "number_cards",
     "parenttype": "Workspace"
    },
    {
-    "label": "Pending Registration",
-    "number_card_name": "Pending Registration",
-    "parent": "Moldova eFactura",
-    "parentfield": "number_cards",
-    "parenttype": "Workspace"
-   },
-   {
-    "label": "Pending Customer Signature",
-    "number_card_name": "Pending Customer Signature",
-    "parent": "Moldova eFactura",
-    "parentfield": "number_cards",
-    "parenttype": "Workspace"
-   },
-   {
-    "label": "Rejected by Customer",
-    "number_card_name": "Rejected by Customer",
-    "parent": "Moldova eFactura",
+    "label": "Awaiting Action",
+    "number_card_name": "Purchase eFactura Awaiting Action",
+    "parent": "eFactura",
     "parentfield": "number_cards",
     "parenttype": "Workspace"
    }
   ],
-  "parent_page": "Accounting",
+  "parent_page": "",
   "public": 1,
   "quick_lists": [],
   "restrict_to_domain": null,
-  "roles": [],
-  "sequence_id": 28.0,
+  "roles": [
+   {
+    "role": "System Manager",
+    "parent": "eFactura",
+    "parentfield": "roles",
+    "parenttype": "Workspace"
+   },
+   {
+    "role": "Accounts Manager",
+    "parent": "eFactura",
+    "parentfield": "roles",
+    "parenttype": "Workspace"
+   },
+   {
+    "role": "Accounts User",
+    "parent": "eFactura",
+    "parentfield": "roles",
+    "parenttype": "Workspace"
+   },
+   {
+    "role": "Sales Manager",
+    "parent": "eFactura",
+    "parentfield": "roles",
+    "parenttype": "Workspace"
+   },
+   {
+    "role": "Sales User",
+    "parent": "eFactura",
+    "parentfield": "roles",
+    "parenttype": "Workspace"
+   },
+   {
+    "role": "Purchase Manager",
+    "parent": "eFactura",
+    "parentfield": "roles",
+    "parenttype": "Workspace"
+   },
+   {
+    "role": "Purchase User",
+    "parent": "eFactura",
+    "parentfield": "roles",
+    "parenttype": "Workspace"
+   }
+  ],
+  "sequence_id": 3.0,
   "shortcuts": [
+   {
+    "color": "Blue",
+    "doc_view": null,
+    "format": null,
+    "icon": null,
+    "kanban_board": null,
+    "label": "Sales",
+    "link_to": null,
+    "parent": "eFactura",
+    "parentfield": "shortcuts",
+    "parenttype": "Workspace",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": null,
+    "type": "URL",
+    "url": "/app/efactura-sales"
+   },
+   {
+    "color": "Blue",
+    "doc_view": null,
+    "format": null,
+    "icon": null,
+    "kanban_board": null,
+    "label": "Purchase",
+    "link_to": null,
+    "parent": "eFactura",
+    "parentfield": "shortcuts",
+    "parenttype": "Workspace",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": null,
+    "type": "URL",
+    "url": "/app/efactura-purchase"
+   },
    {
     "color": "Grey",
     "doc_view": "List",
@@ -68,12 +200,201 @@
     "kanban_board": null,
     "label": "eFactura Settings",
     "link_to": "eFactura Settings",
-    "parent": "Moldova eFactura",
+    "parent": "eFactura",
     "parentfield": "shortcuts",
     "parenttype": "Workspace",
     "report_ref_doctype": null,
     "restrict_to_domain": null,
     "stats_filter": null,
+    "type": "DocType",
+    "url": null
+   }
+  ],
+  "title": "eFactura"
+ },
+ {
+  "charts": [
+   {
+    "chart_name": "Sales eFactura Statuses",
+    "label": "Statuses Overview",
+    "parent": "eFactura Sales",
+    "parentfield": "charts",
+    "parenttype": "Workspace"
+   }
+  ],
+  "content": "[{\"id\":\"sef-h1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Sales eFactura</span>\",\"col\":12}},{\"id\":\"sef-ch\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Statuses Overview\",\"col\":12}},{\"id\":\"sef-nc1\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Pending\",\"col\":3}},{\"id\":\"sef-nc2\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Awaiting Customer\",\"col\":3}},{\"id\":\"sef-nc3\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Rejected by Customer\",\"col\":3}},{\"id\":\"sef-nc4\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Cancellation Requested\",\"col\":3}},{\"id\":\"sef-sp1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"sef-h2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Shortcuts</b></span>\",\"col\":12}},{\"id\":\"sef-sc1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"All Sales eFactura\",\"col\":4}},{\"id\":\"sef-sc2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"New Sales eFactura\",\"col\":4}},{\"id\":\"sef-sc3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Pending\",\"col\":4}},{\"id\":\"sef-sc4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Awaiting Customer\",\"col\":4}},{\"id\":\"sef-sc5\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Rejected by Customer\",\"col\":4}},{\"id\":\"sef-sc6\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cancellation Requested\",\"col\":4}},{\"id\":\"sef-sp2\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"sef-h3\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports &amp; Masters</b></span>\",\"col\":12}},{\"id\":\"sef-cd1\",\"type\":\"card\",\"data\":{\"card_name\":\"Documents\",\"col\":4}},{\"id\":\"sef-cd2\",\"type\":\"card\",\"data\":{\"card_name\":\"Setup\",\"col\":4}}]",
+  "custom_blocks": [],
+  "docstatus": 0,
+  "doctype": "Workspace",
+  "for_user": "",
+  "hide_custom": 0,
+  "icon": "arrow-right",
+  "indicator_color": "",
+  "is_hidden": 0,
+  "label": "eFactura Sales",
+  "links": [
+   {
+    "hidden": 0,
+    "is_query_report": 0,
+    "label": "Documents",
+    "link_count": 3,
+    "link_type": "DocType",
+    "onboard": 0,
+    "parent": "eFactura Sales",
+    "parentfield": "links",
+    "parenttype": "Workspace",
+    "type": "Card Break"
+   },
+   {
+    "hidden": 0,
+    "is_query_report": 0,
+    "label": "Sales eFactura",
+    "link_count": 0,
+    "link_to": "Sales eFactura",
+    "link_type": "DocType",
+    "onboard": 0,
+    "parent": "eFactura Sales",
+    "parentfield": "links",
+    "parenttype": "Workspace",
+    "type": "Link"
+   },
+   {
+    "hidden": 0,
+    "is_query_report": 0,
+    "label": "Sales Invoice",
+    "link_count": 0,
+    "link_to": "Sales Invoice",
+    "link_type": "DocType",
+    "onboard": 0,
+    "parent": "eFactura Sales",
+    "parentfield": "links",
+    "parenttype": "Workspace",
+    "type": "Link"
+   },
+   {
+    "hidden": 0,
+    "is_query_report": 0,
+    "label": "Delivery Note",
+    "link_count": 0,
+    "link_to": "Delivery Note",
+    "link_type": "DocType",
+    "onboard": 0,
+    "parent": "eFactura Sales",
+    "parentfield": "links",
+    "parenttype": "Workspace",
+    "type": "Link"
+   },
+   {
+    "hidden": 0,
+    "is_query_report": 0,
+    "label": "Setup",
+    "link_count": 1,
+    "link_type": "DocType",
+    "onboard": 0,
+    "parent": "eFactura Sales",
+    "parentfield": "links",
+    "parenttype": "Workspace",
+    "type": "Card Break"
+   },
+   {
+    "hidden": 0,
+    "is_query_report": 0,
+    "label": "eFactura Settings",
+    "link_count": 0,
+    "link_to": "eFactura Settings",
+    "link_type": "DocType",
+    "onboard": 0,
+    "parent": "eFactura Sales",
+    "parentfield": "links",
+    "parenttype": "Workspace",
+    "type": "Link"
+   }
+  ],
+  "modified": "2026-08-14 19:30:00.000000",
+  "module": "Moldova eFactura",
+  "name": "eFactura Sales",
+  "number_cards": [
+   {
+    "label": "Pending",
+    "number_card_name": "Sales eFactura Pending",
+    "parent": "eFactura Sales",
+    "parentfield": "number_cards",
+    "parenttype": "Workspace"
+   },
+   {
+    "label": "Awaiting Customer",
+    "number_card_name": "Sales eFactura Awaiting Customer",
+    "parent": "eFactura Sales",
+    "parentfield": "number_cards",
+    "parenttype": "Workspace"
+   },
+   {
+    "label": "Rejected by Customer",
+    "number_card_name": "Sales eFactura Rejected",
+    "parent": "eFactura Sales",
+    "parentfield": "number_cards",
+    "parenttype": "Workspace"
+   },
+   {
+    "label": "Cancellation Requested",
+    "number_card_name": "Sales eFactura Cancellation Requested",
+    "parent": "eFactura Sales",
+    "parentfield": "number_cards",
+    "parenttype": "Workspace"
+   }
+  ],
+  "parent_page": "eFactura",
+  "public": 1,
+  "quick_lists": [],
+  "restrict_to_domain": null,
+  "roles": [
+   {
+    "role": "System Manager",
+    "parent": "eFactura Sales",
+    "parentfield": "roles",
+    "parenttype": "Workspace"
+   },
+   {
+    "role": "Accounts Manager",
+    "parent": "eFactura Sales",
+    "parentfield": "roles",
+    "parenttype": "Workspace"
+   },
+   {
+    "role": "Accounts User",
+    "parent": "eFactura Sales",
+    "parentfield": "roles",
+    "parenttype": "Workspace"
+   },
+   {
+    "role": "Sales Manager",
+    "parent": "eFactura Sales",
+    "parentfield": "roles",
+    "parenttype": "Workspace"
+   },
+   {
+    "role": "Sales User",
+    "parent": "eFactura Sales",
+    "parentfield": "roles",
+    "parenttype": "Workspace"
+   }
+  ],
+  "sequence_id": 3.1,
+  "shortcuts": [
+   {
+    "color": "Grey",
+    "doc_view": "List",
+    "format": "{}",
+    "icon": null,
+    "kanban_board": null,
+    "label": "All Sales eFactura",
+    "link_to": "Sales eFactura",
+    "parent": "eFactura Sales",
+    "parentfield": "shortcuts",
+    "parenttype": "Workspace",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": "[[\"Sales eFactura\", \"status\", \"not in\", [\"Cancelled\", \"Canceled by Supplier\"]]]",
     "type": "DocType",
     "url": null
    },
@@ -83,9 +404,9 @@
     "format": null,
     "icon": null,
     "kanban_board": null,
-    "label": "New eFactura",
-    "link_to": "eFactura",
-    "parent": "Moldova eFactura",
+    "label": "New Sales eFactura",
+    "link_to": "Sales eFactura",
+    "parent": "eFactura Sales",
     "parentfield": "shortcuts",
     "parenttype": "Workspace",
     "report_ref_doctype": null,
@@ -97,89 +418,359 @@
    {
     "color": "Red",
     "doc_view": "List",
-    "format": null,
+    "format": "{}",
     "icon": null,
     "kanban_board": null,
     "label": "Pending",
-    "link_to": "eFactura",
-    "parent": "Moldova eFactura",
+    "link_to": "Sales eFactura",
+    "parent": "eFactura Sales",
     "parentfield": "shortcuts",
     "parenttype": "Workspace",
     "report_ref_doctype": null,
     "restrict_to_domain": null,
-    "stats_filter": "[[\"eFactura\",\"status\",\"in\",[\"Draft\",\"Pending Registration\",\"Registered as Draft\",null],false]]",
-    "type": "DocType",
-    "url": null
-   },
-   {
-    "color": "Red",
-    "doc_view": "List",
-    "format": null,
-    "icon": null,
-    "kanban_board": null,
-    "label": "Rejected",
-    "link_to": "eFactura",
-    "parent": "Moldova eFactura",
-    "parentfield": "shortcuts",
-    "parenttype": "Workspace",
-    "report_ref_doctype": null,
-    "restrict_to_domain": null,
-    "stats_filter": "[[\"eFactura\",\"status\",\"=\",\"Rejected by Customer\",false]]",
+    "stats_filter": "[[\"Sales eFactura\", \"status\", \"in\", [\"Draft\", \"Pending Registration\", \"Registered as Draft\"]]]",
     "type": "DocType",
     "url": null
    },
    {
     "color": "Yellow",
     "doc_view": "List",
-    "format": null,
+    "format": "{}",
     "icon": null,
     "kanban_board": null,
-    "label": "Waiting Customer",
-    "link_to": "eFactura",
-    "parent": "Moldova eFactura",
+    "label": "Awaiting Customer",
+    "link_to": "Sales eFactura",
+    "parent": "eFactura Sales",
     "parentfield": "shortcuts",
     "parenttype": "Workspace",
     "report_ref_doctype": null,
     "restrict_to_domain": null,
-    "stats_filter": "[[\"eFactura\",\"status\",\"in\",[\"Accepted by Customer\",\"Sent to Customer\"],false]]",
+    "stats_filter": "[[\"Sales eFactura\", \"status\", \"in\", [\"Signed by Supplier\", \"Sent to Customer\", \"Accepted by Customer\"]]]",
     "type": "DocType",
     "url": null
    },
    {
-    "color": "Blue",
+    "color": "Red",
     "doc_view": "List",
-    "format": null,
+    "format": "{}",
     "icon": null,
     "kanban_board": null,
-    "label": "Incoming",
-    "link_to": "eFactura Buyer",
-    "parent": "Moldova eFactura",
+    "label": "Rejected by Customer",
+    "link_to": "Sales eFactura",
+    "parent": "eFactura Sales",
     "parentfield": "shortcuts",
     "parenttype": "Workspace",
     "report_ref_doctype": null,
     "restrict_to_domain": null,
-    "stats_filter": null,
+    "stats_filter": "[[\"Sales eFactura\", \"status\", \"=\", \"Rejected by Customer\"]]",
     "type": "DocType",
     "url": null
    },
    {
     "color": "Orange",
     "doc_view": "List",
-    "format": null,
+    "format": "{}",
     "icon": null,
     "kanban_board": null,
-    "label": "Incoming Awaiting",
-    "link_to": "eFactura Buyer",
-    "parent": "Moldova eFactura",
+    "label": "Cancellation Requested",
+    "link_to": "Sales eFactura",
+    "parent": "eFactura Sales",
     "parentfield": "shortcuts",
     "parenttype": "Workspace",
     "report_ref_doctype": null,
     "restrict_to_domain": null,
-    "stats_filter": "[[\"eFactura Buyer\",\"ef_status\",\"in\",[1,7,9],false]]",
+    "stats_filter": "[[\"Sales eFactura\", \"status\", \"=\", \"Cancellation Requested\"]]",
     "type": "DocType",
     "url": null
    }
   ],
-  "title": "Moldova eFactura"
+  "title": "eFactura Sales"
+ },
+ {
+  "charts": [
+   {
+    "chart_name": "Purchase eFactura Statuses",
+    "label": "Statuses Overview",
+    "parent": "eFactura Purchase",
+    "parentfield": "charts",
+    "parenttype": "Workspace"
+   }
+  ],
+  "content": "[{\"id\":\"pef-h1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Purchase eFactura</span>\",\"col\":12}},{\"id\":\"pef-ch\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Statuses Overview\",\"col\":12}},{\"id\":\"pef-nc1\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Awaiting Action\",\"col\":3}},{\"id\":\"pef-nc2\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"No Supplier\",\"col\":3}},{\"id\":\"pef-nc3\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Need Purchase Invoice\",\"col\":3}},{\"id\":\"pef-nc4\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Rejected\",\"col\":3}},{\"id\":\"pef-sp1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"pef-h2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Shortcuts</b></span>\",\"col\":12}},{\"id\":\"pef-sc1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"All Purchase eFactura\",\"col\":4}},{\"id\":\"pef-sc2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Awaiting Action\",\"col\":4}},{\"id\":\"pef-sc3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"No Supplier\",\"col\":4}},{\"id\":\"pef-sc4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Need Purchase Invoice\",\"col\":4}},{\"id\":\"pef-sc5\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Linked to PI\",\"col\":4}},{\"id\":\"pef-sc6\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Rejected\",\"col\":4}},{\"id\":\"pef-sp2\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"pef-h3\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports &amp; Masters</b></span>\",\"col\":12}},{\"id\":\"pef-cd1\",\"type\":\"card\",\"data\":{\"card_name\":\"Documents\",\"col\":4}},{\"id\":\"pef-cd2\",\"type\":\"card\",\"data\":{\"card_name\":\"Setup\",\"col\":4}}]",
+  "custom_blocks": [],
+  "docstatus": 0,
+  "doctype": "Workspace",
+  "for_user": "",
+  "hide_custom": 0,
+  "icon": "arrow-left",
+  "indicator_color": "",
+  "is_hidden": 0,
+  "label": "eFactura Purchase",
+  "links": [
+   {
+    "hidden": 0,
+    "is_query_report": 0,
+    "label": "Documents",
+    "link_count": 3,
+    "link_type": "DocType",
+    "onboard": 0,
+    "parent": "eFactura Purchase",
+    "parentfield": "links",
+    "parenttype": "Workspace",
+    "type": "Card Break"
+   },
+   {
+    "hidden": 0,
+    "is_query_report": 0,
+    "label": "Purchase eFactura",
+    "link_count": 0,
+    "link_to": "Purchase eFactura",
+    "link_type": "DocType",
+    "onboard": 0,
+    "parent": "eFactura Purchase",
+    "parentfield": "links",
+    "parenttype": "Workspace",
+    "type": "Link"
+   },
+   {
+    "hidden": 0,
+    "is_query_report": 0,
+    "label": "Purchase Invoice",
+    "link_count": 0,
+    "link_to": "Purchase Invoice",
+    "link_type": "DocType",
+    "onboard": 0,
+    "parent": "eFactura Purchase",
+    "parentfield": "links",
+    "parenttype": "Workspace",
+    "type": "Link"
+   },
+   {
+    "hidden": 0,
+    "is_query_report": 0,
+    "label": "Purchase Order",
+    "link_count": 0,
+    "link_to": "Purchase Order",
+    "link_type": "DocType",
+    "onboard": 0,
+    "parent": "eFactura Purchase",
+    "parentfield": "links",
+    "parenttype": "Workspace",
+    "type": "Link"
+   },
+   {
+    "hidden": 0,
+    "is_query_report": 0,
+    "label": "Setup",
+    "link_count": 2,
+    "link_type": "DocType",
+    "onboard": 0,
+    "parent": "eFactura Purchase",
+    "parentfield": "links",
+    "parenttype": "Workspace",
+    "type": "Card Break"
+   },
+   {
+    "hidden": 0,
+    "is_query_report": 0,
+    "label": "eFactura Settings",
+    "link_count": 0,
+    "link_to": "eFactura Settings",
+    "link_type": "DocType",
+    "onboard": 0,
+    "parent": "eFactura Purchase",
+    "parentfield": "links",
+    "parenttype": "Workspace",
+    "type": "Link"
+   },
+   {
+    "hidden": 0,
+    "is_query_report": 0,
+    "label": "eFactura Supplier Item Map",
+    "link_count": 0,
+    "link_to": "eFactura Supplier Item Map",
+    "link_type": "DocType",
+    "onboard": 0,
+    "parent": "eFactura Purchase",
+    "parentfield": "links",
+    "parenttype": "Workspace",
+    "type": "Link"
+   }
+  ],
+  "modified": "2026-08-14 19:30:00.000000",
+  "module": "Moldova eFactura",
+  "name": "eFactura Purchase",
+  "number_cards": [
+   {
+    "label": "Awaiting Action",
+    "number_card_name": "Purchase eFactura Awaiting Action",
+    "parent": "eFactura Purchase",
+    "parentfield": "number_cards",
+    "parenttype": "Workspace"
+   },
+   {
+    "label": "No Supplier",
+    "number_card_name": "Purchase eFactura No Supplier",
+    "parent": "eFactura Purchase",
+    "parentfield": "number_cards",
+    "parenttype": "Workspace"
+   },
+   {
+    "label": "Need Purchase Invoice",
+    "number_card_name": "Purchase eFactura Need PI",
+    "parent": "eFactura Purchase",
+    "parentfield": "number_cards",
+    "parenttype": "Workspace"
+   },
+   {
+    "label": "Rejected",
+    "number_card_name": "Purchase eFactura Rejected",
+    "parent": "eFactura Purchase",
+    "parentfield": "number_cards",
+    "parenttype": "Workspace"
+   }
+  ],
+  "parent_page": "eFactura",
+  "public": 1,
+  "quick_lists": [],
+  "restrict_to_domain": null,
+  "roles": [
+   {
+    "role": "System Manager",
+    "parent": "eFactura Purchase",
+    "parentfield": "roles",
+    "parenttype": "Workspace"
+   },
+   {
+    "role": "Accounts Manager",
+    "parent": "eFactura Purchase",
+    "parentfield": "roles",
+    "parenttype": "Workspace"
+   },
+   {
+    "role": "Accounts User",
+    "parent": "eFactura Purchase",
+    "parentfield": "roles",
+    "parenttype": "Workspace"
+   },
+   {
+    "role": "Purchase Manager",
+    "parent": "eFactura Purchase",
+    "parentfield": "roles",
+    "parenttype": "Workspace"
+   },
+   {
+    "role": "Purchase User",
+    "parent": "eFactura Purchase",
+    "parentfield": "roles",
+    "parenttype": "Workspace"
+   }
+  ],
+  "sequence_id": 3.2,
+  "shortcuts": [
+   {
+    "color": "Grey",
+    "doc_view": "List",
+    "format": "{}",
+    "icon": null,
+    "kanban_board": null,
+    "label": "All Purchase eFactura",
+    "link_to": "Purchase eFactura",
+    "parent": "eFactura Purchase",
+    "parentfield": "shortcuts",
+    "parenttype": "Workspace",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": "[[\"Purchase eFactura\", \"status\", \"not in\", [\"Canceled by Supplier\"]]]",
+    "type": "DocType",
+    "url": null
+   },
+   {
+    "color": "Orange",
+    "doc_view": "List",
+    "format": "{}",
+    "icon": null,
+    "kanban_board": null,
+    "label": "Awaiting Action",
+    "link_to": "Purchase eFactura",
+    "parent": "eFactura Purchase",
+    "parentfield": "shortcuts",
+    "parenttype": "Workspace",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": "[[\"Purchase eFactura\", \"ef_status\", \"in\", [1, 7, 9]]]",
+    "type": "DocType",
+    "url": null
+   },
+   {
+    "color": "Red",
+    "doc_view": "List",
+    "format": "{}",
+    "icon": null,
+    "kanban_board": null,
+    "label": "No Supplier",
+    "link_to": "Purchase eFactura",
+    "parent": "eFactura Purchase",
+    "parentfield": "shortcuts",
+    "parenttype": "Workspace",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": "[[\"Purchase eFactura\", \"supplier\", \"is\", \"not set\"]]",
+    "type": "DocType",
+    "url": null
+   },
+   {
+    "color": "Yellow",
+    "doc_view": "List",
+    "format": "{}",
+    "icon": null,
+    "kanban_board": null,
+    "label": "Need Purchase Invoice",
+    "link_to": "Purchase eFactura",
+    "parent": "eFactura Purchase",
+    "parentfield": "shortcuts",
+    "parenttype": "Workspace",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": "[[\"Purchase eFactura\", \"status\", \"in\", [\"Accepted\", \"Signed by Buyer\"]], [\"Purchase eFactura Item\", \"purchase_invoice\", \"is\", \"not set\"]]",
+    "type": "DocType",
+    "url": null
+   },
+   {
+    "color": "Blue",
+    "doc_view": "List",
+    "format": "{}",
+    "icon": null,
+    "kanban_board": null,
+    "label": "Linked to PI",
+    "link_to": "Purchase eFactura",
+    "parent": "eFactura Purchase",
+    "parentfield": "shortcuts",
+    "parenttype": "Workspace",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": "[[\"Purchase eFactura Item\", \"purchase_invoice\", \"is\", \"set\"]]",
+    "type": "DocType",
+    "url": null
+   },
+   {
+    "color": "Red",
+    "doc_view": "List",
+    "format": "{}",
+    "icon": null,
+    "kanban_board": null,
+    "label": "Rejected",
+    "link_to": "Purchase eFactura",
+    "parent": "eFactura Purchase",
+    "parentfield": "shortcuts",
+    "parenttype": "Workspace",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": "[[\"Purchase eFactura\", \"status\", \"=\", \"Rejected\"]]",
+    "type": "DocType",
+    "url": null
+   }
+  ],
+  "title": "eFactura Purchase"
  }
 ]

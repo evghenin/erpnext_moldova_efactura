@@ -7,16 +7,20 @@ def execute():
 	Also covers rows previously rewritten to American 'Canceled' by an earlier patch.
 	Does not touch 'Canceled by Supplier' (API status label).
 	"""
-	if not frappe.db.exists("DocType", "eFactura"):
+	if frappe.db.exists("DocType", "eFactura"):
+		doctype, table = "eFactura", "`tabeFactura`"
+	elif frappe.db.exists("DocType", "Sales eFactura"):
+		doctype, table = "Sales eFactura", "`tabSales eFactura`"
+	else:
 		return
 
-	count = frappe.db.count("eFactura", {"status": "Canceled"})
+	count = frappe.db.count(doctype, {"status": "Canceled"})
 	if not count:
 		return
 
 	frappe.db.sql(
-		"""
-		UPDATE `tabeFactura`
+		f"""
+		UPDATE {table}
 		SET `status` = 'Cancelled'
 		WHERE `status` = 'Canceled'
 		"""

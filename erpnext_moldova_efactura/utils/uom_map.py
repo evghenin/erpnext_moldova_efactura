@@ -178,17 +178,29 @@ def get_item_uom_conversion(item_code: str, uom: str) -> float:
 		return flt(conv) or 1.0
 
 
+def _effective_conversion(item_code: str | None, uom: str | None, stored=None) -> float:
+	"""Use a stored factor when set; otherwise look up Item UOM conversion."""
+	if stored is not None and flt(stored):
+		return flt(stored)
+	return get_item_uom_conversion(item_code, uom) or 1.0
+
+
 def compute_buyer_item_qtys(
 	item_code: str | None = None,
 	ef_uom: str | None = None,
 	ef_qty: float | None = None,
 	uom: str | None = None,
+	conversion_factor=None,
+	ef_conversion_factor=None,
 ) -> dict:
 	"""
-	Compute stock_uom / stock_qty / qty from eFactura qty and Item UOM conversions.
+	Compute stock_uom / stock_qty / qty from eFactura qty and UOM conversions.
 
 	stock_qty = ef_qty * (ef_uom → stock_uom)
 	qty       = stock_qty / (uom → stock_uom)
+
+	Stored conversion_factor / ef_conversion_factor freeze the Item lookup
+	from mapping time so a later Item UOM change does not rewrite qty.
 	"""
 	ef_qty = flt(ef_qty)
 	result = {
@@ -208,12 +220,12 @@ def compute_buyer_item_qtys(
 	if not ef_uom:
 		return result
 
-	ef_cf = get_item_uom_conversion(item_code, ef_uom) or 1.0
+	ef_cf = _effective_conversion(item_code, ef_uom, ef_conversion_factor)
 	stock_qty = ef_qty * flt(ef_cf)
 	result["stock_qty"] = stock_qty
 
 	if uom:
-		uom_cf = get_item_uom_conversion(item_code, uom) or 1.0
+		uom_cf = _effective_conversion(item_code, uom, conversion_factor)
 		result["qty"] = stock_qty / flt(uom_cf) if uom_cf else stock_qty
 	else:
 		result["qty"] = ef_qty
@@ -257,9 +269,39 @@ def apply_billing_uom(row) -> None:
 		row.ef_uom = None
 
 
+def _row_previous(row):
+	get_prev = getattr(row, "get_doc_before_save", None)
+	if not callable(get_prev):
+		return None
+	return get_prev()
+
+
+def _should_refresh_conversion(row, factor_field: str, uom_field: str, force: bool) -> bool:
+	"""Recapture from Item on first mapping, UOM/item change, or explicit force."""
+	if force or not flt(getattr(row, factor_field, None)):
+		return True
+	previous = _row_previous(row)
+	if not previous:
+		return False
+	has_changed = getattr(row, "has_value_changed", None)
+	if not callable(has_changed):
+		return False
+	return bool(has_changed("item_code") or has_changed(uom_field))
+
+
+def _capture_conversion(row, uom_field: str, factor_field: str) -> float:
+	uom = getattr(row, uom_field, None)
+	factor = get_item_uom_conversion(row.item_code, uom) or 1.0 if row.item_code and uom else 1.0
+	setattr(row, factor_field, factor)
+	return factor
+
+
 def apply_qty_defaults(row, force: bool = False) -> None:
 	"""
-	Derive stock_uom/stock_qty and PI qty from eFactura qty + Item UOM conversions.
+	Derive stock_uom/stock_qty and PI qty from eFactura qty + UOM conversions.
+
+	Conversion factors are captured from Item at mapping time (item/UOM set or
+	changed) and then frozen on the row. Later Item UOM edits do not rewrite qty.
 
 	If supplier UOM (e.g. buc) is unknown, once item_code is mapped fall back to
 	the Item Stock UOM so the mapper does not leave eFactura UOM empty.
@@ -274,11 +316,23 @@ def apply_qty_defaults(row, force: bool = False) -> None:
 		purchase_uom, stock_uom = _item_purchase_and_stock_uom(row.item_code)
 		row.uom = row.ef_uom or purchase_uom or stock_uom
 
+	if _should_refresh_conversion(row, "conversion_factor", "uom", force):
+		_capture_conversion(row, "uom", "conversion_factor")
+	if _should_refresh_conversion(row, "ef_conversion_factor", "ef_uom", force):
+		_capture_conversion(row, "ef_uom", "ef_conversion_factor")
+
+	if not flt(getattr(row, "conversion_factor", None)):
+		row.conversion_factor = 1.0
+	if not flt(getattr(row, "ef_conversion_factor", None)):
+		row.ef_conversion_factor = 1.0
+
 	computed = compute_buyer_item_qtys(
 		item_code=row.item_code,
 		ef_uom=row.ef_uom,
 		ef_qty=row.ef_qty,
 		uom=row.uom,
+		conversion_factor=row.conversion_factor,
+		ef_conversion_factor=row.ef_conversion_factor,
 	)
 	row.stock_uom = computed["stock_uom"]
 	row.stock_qty = computed["stock_qty"]

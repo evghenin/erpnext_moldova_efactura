@@ -26,7 +26,9 @@ app_license = "mit"
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/erpnext_moldova_efactura/css/erpnext_moldova_efactura.css"
-# app_include_js = "/assets/erpnext_moldova_efactura/js/erpnext_moldova_efactura.js"
+app_include_js = [
+    "/assets/erpnext_moldova_efactura/js/skip_price_list_after_mapping.js",
+]
 
 # include js, css files in header of web template
 # web_include_css = "/assets/erpnext_moldova_efactura/css/erpnext_moldova_efactura.css"
@@ -51,9 +53,12 @@ app_license = "mit"
 doctype_js = {
     "Company": "public/js/company.js",
     "Sales Invoice": "public/js/sales_invoice.js",
+    "Purchase Invoice": "public/js/purchase_invoice.js",
+    "Purchase Order": "public/js/purchase_order.js",
 }
 doctype_list_js = {
     "Sales Invoice": "public/js/sales_invoice_list.js",
+    "Purchase Invoice": "public/js/purchase_invoice_list.js",
 }
 
 # Svg Icons
@@ -158,10 +163,11 @@ doc_events = {
         "on_submit": "erpnext_moldova_efactura.overrides.sales_invoice.on_submit",
     },
     "Purchase Invoice": {
+        "before_insert": "erpnext_moldova_efactura.overrides.purchase_invoice.before_insert",
+        "before_submit": "erpnext_moldova_efactura.overrides.purchase_invoice.before_submit",
         "on_update": "erpnext_moldova_efactura.overrides.purchase_invoice.on_update",
-    },
-    "Purchase Order": {
-        "on_update": "erpnext_moldova_efactura.overrides.purchase_order.on_update",
+        "on_cancel": "erpnext_moldova_efactura.overrides.purchase_invoice.on_cancel",
+        "on_trash": "erpnext_moldova_efactura.overrides.purchase_invoice.on_trash",
     },
 }
 
@@ -217,9 +223,16 @@ scheduler_events = {
 # 	"Task": "erpnext_moldova_efactura.task.get_dashboard_data"
 # }
 
+override_whitelisted_methods = {
+    "erpnext.buying.doctype.purchase_order.purchase_order.make_purchase_invoice":
+        "erpnext_moldova_efactura.overrides.purchase_order.make_purchase_invoice",
+}
+
 override_doctype_dashboards = {
     "Sales Invoice": "erpnext_moldova_efactura.overrides.dashboard.get_sales_invoice_dashboard",
-    "Delivery Note": "erpnext_moldova_efactura.overrides.dashboard.get_delivery_note_dashboard"
+    "Delivery Note": "erpnext_moldova_efactura.overrides.dashboard.get_delivery_note_dashboard",
+    "Purchase Invoice": "erpnext_moldova_efactura.overrides.dashboard.get_purchase_invoice_dashboard",
+    "Purchase Order": "erpnext_moldova_efactura.overrides.dashboard.get_purchase_order_dashboard",
 }
 
 # exempt linked doctypes from being automatically cancelled
@@ -289,33 +302,21 @@ fixtures = [
 	{
 		"doctype": "List View Settings",
 		"filters": [
-			["name", "in", ["eFactura"]]
+			["name", "in", ["Sales eFactura", "Purchase eFactura"]]
 		]
 	},
-    {
-        "doctype": "Number Card",
-        "filters": [
-            ["document_type", "=", "eFactura"]
-        ]
-    },
-    {
-        "doctype": "Number Card",
-        "filters": [
-            ["document_type", "=", "eFactura"]
-        ]
-    },
-    {
-        "doctype": "Dashboard Chart",
-        "filters": [
-            ["document_type", "=", "eFactura"]
-        ]
-    },
-    {
-        "doctype": "Dashboard Chart",
-        "filters": [
-            ["document_type", "=", "eFactura"]
-        ]
-    },
+	{
+		"doctype": "Number Card",
+		"filters": [
+			["module", "=", "Moldova eFactura"]
+		]
+	},
+	{
+		"doctype": "Dashboard Chart",
+		"filters": [
+			["module", "=", "Moldova eFactura"]
+		]
+	},
     {
         "doctype": "Workspace",
         "filters": [

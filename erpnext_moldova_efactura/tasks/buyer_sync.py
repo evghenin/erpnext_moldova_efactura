@@ -1,9 +1,10 @@
-"""Sync incoming e-Factura invoices (ActorRole=2) into eFactura Buyer."""
+"""Sync incoming e-Factura invoices (ActorRole=2) into Purchase eFactura."""
 
 from __future__ import annotations
 
 import frappe
-from frappe.utils import add_days, now_datetime
+from frappe import _
+from frappe.utils import add_days, cint, now_datetime
 
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient
 from erpnext_moldova_efactura.utils.api_response import extract_invoices, invoice_status_map, invoice_xml
@@ -15,12 +16,12 @@ BATCH_DETAIL = 100
 
 
 def sync_buyer_invoices(lookback_days: int | None = None, company: str | None = None) -> dict:
-	"""Search buyer invoices and upsert eFactura Buyer docs. Read + local write only."""
+	"""Search buyer invoices and upsert Purchase eFactura docs. Read + local write only."""
 	client = EFacturaAPIClient.from_settings()
 	lookback_days = int(lookback_days or DEFAULT_LOOKBACK_DAYS)
 	company = company or get_default_company()
 	if not company:
-		frappe.throw("No Company found for eFactura Buyer sync")
+		frappe.throw("No Company found for Purchase eFactura sync")
 
 	date_from = add_days(now_datetime(), -lookback_days)
 	date_to = now_datetime()
@@ -35,7 +36,7 @@ def sync_buyer_invoices(lookback_days: int | None = None, company: str | None = 
 			resp = client.search_invoices(actor_role=2, parameters=params)
 		except Exception:
 			frappe.log_error(
-				title=f"eFactura Buyer SearchInvoices failed status={st}",
+				title=f"Purchase eFactura SearchInvoices failed status={st}",
 				message=frappe.get_traceback(),
 			)
 			continue
@@ -58,11 +59,15 @@ def sync_buyer_invoices(lookback_days: int | None = None, company: str | None = 
 	for (seria, number), ef_status in seen.items():
 		try:
 			name = frappe.db.exists(
-				"eFactura Buyer",
+				"Purchase eFactura",
 				{"company": company, "ef_series": seria, "ef_number": number},
 			)
 			if name:
-				doc = frappe.get_doc("eFactura Buyer", name)
+				doc = frappe.get_doc("Purchase eFactura", name)
+				if cint(doc.docstatus) != 0:
+					doc.persist_sfs_status(ef_status)
+					updated += 1
+					continue
 				doc.ef_status = ef_status
 				doc.last_status_check = now_datetime()
 				doc.set_status(update=False)
@@ -74,16 +79,14 @@ def sync_buyer_invoices(lookback_days: int | None = None, company: str | None = 
 			else:
 				doc = frappe.get_doc(
 					{
-						"doctype": "eFactura Buyer",
-						"naming_series": "EFB-.YYYY.-",
+						"doctype": "Purchase eFactura",
+						"naming_series": "ACC-PEF-.YYYY.-",
 						"company": company,
 						"ef_series": seria,
 						"ef_number": number,
 						"ef_status": ef_status,
 						"status": status_label(ef_status),
 						"last_status_check": now_datetime(),
-						"currency": frappe.db.get_single_value("eFactura Settings", "currency")
-						or "MDL",
 					}
 				)
 				doc.flags.from_efactura_sync = True
@@ -93,7 +96,7 @@ def sync_buyer_invoices(lookback_days: int | None = None, company: str | None = 
 		except Exception:
 			errors += 1
 			frappe.log_error(
-				title=f"eFactura Buyer upsert failed {seria}{number}",
+				title=f"Purchase eFactura upsert failed {seria}{number}",
 				message=frappe.get_traceback(),
 			)
 
@@ -104,7 +107,7 @@ def sync_buyer_invoices(lookback_days: int | None = None, company: str | None = 
 		except Exception:
 			errors += 1
 			frappe.log_error(
-				title=f"eFactura Buyer detail fetch failed {name}",
+				title=f"Purchase eFactura detail fetch failed {name}",
 				message=frappe.get_traceback(),
 			)
 
@@ -119,7 +122,7 @@ def sync_buyer_invoices(lookback_days: int | None = None, company: str | None = 
 
 
 def _fill_details(client: EFacturaAPIClient, name: str) -> bool:
-	doc = frappe.get_doc("eFactura Buyer", name)
+	doc = frappe.get_doc("Purchase eFactura", name)
 	# Never rewrite lines on submitted docs
 	if doc.docstatus != 0:
 		return False
@@ -159,7 +162,7 @@ def _fill_details(client: EFacturaAPIClient, name: str) -> bool:
 def sync_buyer_statuses(batch_size: int = 50) -> dict:
 	"""Refresh ef_status for existing buyer docs via CheckInvoicesStatus."""
 	rows = frappe.get_all(
-		"eFactura Buyer",
+		"Purchase eFactura",
 		fields=["name", "ef_series", "ef_number", "ef_status"],
 		filters={"ef_series": ["is", "set"], "ef_number": ["is", "set"]},
 		order_by="modified asc",
@@ -173,22 +176,18 @@ def sync_buyer_statuses(batch_size: int = 50) -> dict:
 	try:
 		resp = client.check_invoices_status(seria_and_numbers=payload)
 	except Exception:
-		frappe.log_error(title="eFactura Buyer status sync failed", message=frappe.get_traceback())
+		frappe.log_error(title="Purchase eFactura status sync failed", message=frappe.get_traceback())
 		return {"checked": 0, "updated": 0, "error": 1}
 
 	statuses = invoice_status_map(resp)
 	updated = 0
-	now_ts = now_datetime()
 	for row in rows:
 		key = (str(row.ef_series), str(row.ef_number))
 		new_status = statuses.get(key)
-		doc = frappe.get_doc("eFactura Buyer", row.name)
+		doc = frappe.get_doc("Purchase eFactura", row.name)
 		if new_status is not None and doc.ef_status != new_status:
-			doc.ef_status = new_status
 			updated += 1
-		doc.last_status_check = now_ts
-		doc.set_status(update=False)
-		doc.save(ignore_permissions=True)
+		doc.persist_sfs_status(new_status)
 
 	frappe.db.commit()
 	return {"checked": len(rows), "updated": updated}
@@ -196,5 +195,6 @@ def sync_buyer_statuses(batch_size: int = 50) -> dict:
 
 @frappe.whitelist()
 def fetch_buyer_invoices(lookback_days: int = 180):
-	frappe.only_for(("System Manager", "Accounts Manager"))
+	if not frappe.has_permission("Purchase eFactura", "write"):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
 	return sync_buyer_invoices(lookback_days=int(lookback_days))
