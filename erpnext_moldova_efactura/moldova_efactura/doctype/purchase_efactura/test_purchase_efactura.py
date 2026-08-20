@@ -7,7 +7,11 @@ from frappe.utils import cint, flt, get_time, getdate, now_datetime
 
 from erpnext_moldova_efactura.utils.api_response import extract_invoices, invoice_xml
 from erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura import _sfs_action_error
-from erpnext_moldova_efactura.utils.buyer_status import compose_buyer_status, status_label
+from erpnext_moldova_efactura.utils.buyer_status import (
+	compose_buyer_status,
+	should_create_incoming,
+	status_label,
+)
 from erpnext_moldova_efactura.utils.invoice_xml import parse_invoice_xml, unescape_sfs_text
 from erpnext_moldova_efactura.utils.item_map import resolve_item_code
 from erpnext_moldova_efactura.utils.party import (
@@ -63,6 +67,19 @@ class TestEFacturaBuyerUtils(FrappeTestCase):
 		self.assertEqual(compose_buyer_status(8), "Signed by Buyer")
 		self.assertEqual(compose_buyer_status(8, "PINV-001"), "Signed by Buyer")
 		self.assertEqual(compose_buyer_status(7, "PINV-001"), "Sent to Buyer")
+
+	def test_should_create_incoming_respects_cancelled_setting(self):
+		prev = frappe.db.get_single_value("eFactura Settings", "do_not_create_cancelled_invoices")
+		try:
+			frappe.db.set_single_value("eFactura Settings", "do_not_create_cancelled_invoices", 1)
+			self.assertFalse(should_create_incoming(5))
+			self.assertTrue(should_create_incoming(8))
+			self.assertTrue(should_create_incoming(7))
+			self.assertTrue(should_create_incoming(11))
+			frappe.db.set_single_value("eFactura Settings", "do_not_create_cancelled_invoices", 0)
+			self.assertTrue(should_create_incoming(5))
+		finally:
+			frappe.db.set_single_value("eFactura Settings", "do_not_create_cancelled_invoices", prev)
 
 	def test_normalize_idno(self):
 		self.assertEqual(normalize_idno("1015 608 001 255"), "1015608001255")

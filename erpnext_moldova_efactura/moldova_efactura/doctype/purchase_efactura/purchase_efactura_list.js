@@ -56,11 +56,12 @@ frappe.listview_settings["Purchase eFactura"] = {
 								frappe.msgprint({
 									title: __("Fetch complete"),
 									message: __(
-										"Found {0}, created {1}, updated {2}, details {3}, errors {4}",
+										"Found {0}, created {1}, updated {2}, skipped {3}, details {4}, errors {5}",
 										[
 											r.message.found,
 											r.message.created,
 											r.message.updated,
+											r.message.skipped || 0,
 											r.message.details_loaded,
 											r.message.errors,
 										]

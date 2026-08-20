@@ -255,6 +255,9 @@ Purchase taxes are empty,Налоги закупки не заполнены
 "e-Factura VAT is {0} but Purchase taxes are empty. Set VAT Account for company {1} in eFactura Settings (Incoming → Company Settings), or enable Item-wise tax (Accounts Settings → Add taxes from Item Tax Template) and assign Item Tax Templates.","В e-Factura НДС {0}, а в закупке налоги пустые. Укажите счёт НДС для компании {1} в eFactura Settings (Incoming → Company Settings) либо включите Item-wise налог (Accounts Settings → Add taxes from Item Tax Template) и назначьте Item Tax Template."
 Copy Date from Factura,Копировать дату из фактуры
 "If enabled, Purchase Invoice posting date and time and Purchase Order transaction date are copied from the e-Factura issue date.","Если включено, дата и время проведения счёта покупки и дата заказа поставщику берутся из даты выписки e-Factura."
+Do Not Create Cancelled Invoices,Не создавать аннулированные фактуры
+"If enabled, incoming invoices already cancelled by the supplier in e-Factura are not created. Existing documents still receive the cancelled status.","Если включено, входящие фактуры, уже аннулированные поставщиком в e-Factura, не создаются. У уже загруженных документов статус отмены всё равно обновляется."
+"Found {0}, created {1}, updated {2}, skipped {3}, details {4}, errors {5}","Найдено {0}, создано {1}, обновлено {2}, пропущено {3}, детали {4}, ошибок {5}"
 Issue Time,Время выписки
 Link Purchase Order,Связать заказ поставщику
 Unlink Purchase Order,Отвязать заказ поставщику

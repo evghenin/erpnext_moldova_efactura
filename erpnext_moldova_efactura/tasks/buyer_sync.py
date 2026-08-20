@@ -8,7 +8,12 @@ from frappe.utils import add_days, cint, now_datetime
 
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient
 from erpnext_moldova_efactura.utils.api_response import extract_invoices, invoice_status_map, invoice_xml
-from erpnext_moldova_efactura.utils.buyer_status import BUYER_SEARCH_STATUSES, status_label
+from erpnext_moldova_efactura.utils.buyer_status import (
+	BUYER_SEARCH_STATUSES,
+	do_not_create_cancelled_invoices,
+	is_canceled_by_supplier,
+	status_label,
+)
 from erpnext_moldova_efactura.utils.party import find_supplier_by_idno, get_default_company
 
 DEFAULT_LOOKBACK_DAYS = 180
@@ -52,7 +57,8 @@ def sync_buyer_invoices(lookback_days: int | None = None, company: str | None = 
 				code = st
 			seen[(seria, number)] = code
 
-	created = updated = details = errors = 0
+	created = updated = skipped = details = errors = 0
+	skip_cancelled = do_not_create_cancelled_invoices()
 	# Fetch XML details for a limited batch (prefer docs missing items/xml)
 	detail_candidates = []
 
@@ -77,6 +83,9 @@ def sync_buyer_invoices(lookback_days: int | None = None, company: str | None = 
 				if not doc.items or not doc.ef_supplier_idno:
 					detail_candidates.append(doc.name)
 			else:
+				if skip_cancelled and is_canceled_by_supplier(ef_status):
+					skipped += 1
+					continue
 				doc = frappe.get_doc(
 					{
 						"doctype": "Purchase eFactura",
@@ -116,6 +125,7 @@ def sync_buyer_invoices(lookback_days: int | None = None, company: str | None = 
 		"found": len(seen),
 		"created": created,
 		"updated": updated,
+		"skipped": skipped,
 		"details_loaded": details,
 		"errors": errors,
 	}

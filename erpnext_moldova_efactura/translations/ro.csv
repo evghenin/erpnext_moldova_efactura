@@ -263,6 +263,9 @@ Purchase taxes are empty,Taxele de achiziție sunt goale
 "e-Factura VAT is {0} but Purchase taxes are empty. Set VAT Account for company {1} in eFactura Settings (Incoming → Company Settings), or enable Item-wise tax (Accounts Settings → Add taxes from Item Tax Template) and assign Item Tax Templates.","TVA e-Factura este {0}, dar taxele de achiziție sunt goale. Setați contul TVA pentru compania {1} în eFactura Settings (Incoming → Company Settings) sau activați taxa Item-wise (Accounts Settings → Add taxes from Item Tax Template) și atribuiți Item Tax Template."
 Copy Date from Factura,Copiază data din factură
 "If enabled, Purchase Invoice posting date and time and Purchase Order transaction date are copied from the e-Factura issue date.","Dacă este activat, data și ora de înregistrare a facturii de achiziție și data comenzii de achiziție se copiază din data emiterii e-Factura."
+Do Not Create Cancelled Invoices,Nu crea facturi anulate
+"If enabled, incoming invoices already cancelled by the supplier in e-Factura are not created. Existing documents still receive the cancelled status.","Dacă este activat, facturile de intrare deja anulate de furnizor în e-Factura nu se creează. Documentele existente primesc totuși statutul de anulare."
+"Found {0}, created {1}, updated {2}, skipped {3}, details {4}, errors {5}","Găsite {0}, create {1}, actualizate {2}, omise {3}, detalii {4}, erori {5}"
 Issue Time,Ora emiterii
 Link Purchase Order,Leagă comanda de achiziție
 Unlink Purchase Order,Deleagă comanda de achiziție

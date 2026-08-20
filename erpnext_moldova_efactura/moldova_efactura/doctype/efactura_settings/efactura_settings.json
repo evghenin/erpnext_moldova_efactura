@@ -27,6 +27,7 @@
   "warn_si_qty_overage_on_draft_save",
   "tab_incoming",
   "copy_date_from_factura",
+  "do_not_create_cancelled_invoices",
   "buying_tax_section",
   "company_settings",
   "uom_section",
@@ -174,6 +175,13 @@
    "label": "Copy Date from Factura"
   },
   {
+   "default": "1",
+   "description": "If enabled, incoming invoices already cancelled by the supplier in e-Factura are not created. Existing documents still receive the cancelled status.",
+   "fieldname": "do_not_create_cancelled_invoices",
+   "fieldtype": "Check",
+   "label": "Do Not Create Cancelled Invoices"
+  },
+  {
    "fieldname": "buying_tax_section",
    "fieldtype": "Section Break",
    "label": "Company Settings"
@@ -207,7 +215,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-08-14 10:40:00.000000",
+ "modified": "2026-08-20 23:20:00.000000",
  "modified_by": "Administrator",
  "module": "Moldova eFactura",
  "name": "eFactura Settings",

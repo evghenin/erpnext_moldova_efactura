@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import frappe
+from frappe.utils import cint
+
 # SFS InvoiceStatus → UI label (buyer). Status 0 (Draft) does not apply to incoming.
 BUYER_STATUS_MAP = {
 	1: "Signed by Supplier",
@@ -15,6 +18,8 @@ BUYER_STATUS_MAP = {
 	10: "Transportation",
 	11: "Cancellation Requested",
 }
+
+SFS_CANCELED_BY_SUPPLIER = 5
 
 # Statuses that typically appear in buyer inbox and should be fetched
 BUYER_SEARCH_STATUSES = (7, 9, 1, 8, 3, 2, 10, 5, 11)
@@ -52,3 +57,26 @@ def base_status(status: str | None) -> str:
 	if value in ("Awaiting Action", "New"):
 		return "Sent to Buyer"
 	return value
+
+
+def is_canceled_by_supplier(ef_status) -> bool:
+	try:
+		return int(ef_status) == SFS_CANCELED_BY_SUPPLIER
+	except (TypeError, ValueError):
+		return False
+
+
+def do_not_create_cancelled_invoices() -> bool:
+	"""Default on: skip inserting new PEF for invoices already cancelled in SFS."""
+	if not frappe.get_meta("eFactura Settings").has_field("do_not_create_cancelled_invoices"):
+		return True
+	val = frappe.db.get_single_value("eFactura Settings", "do_not_create_cancelled_invoices")
+	if val is None:
+		return True
+	return bool(cint(val))
+
+
+def should_create_incoming(ef_status) -> bool:
+	if not do_not_create_cancelled_invoices():
+		return True
+	return not is_canceled_by_supplier(ef_status)

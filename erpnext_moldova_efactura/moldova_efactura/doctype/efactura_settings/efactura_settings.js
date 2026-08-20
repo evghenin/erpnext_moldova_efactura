@@ -39,10 +39,11 @@ frappe.ui.form.on('eFactura Settings', {
                         callback(r) {
                             if (r.message) {
                                 frappe.msgprint(
-                                    __('Found {0}, created {1}, updated {2}, details {3}, errors {4}', [
+                                    __('Found {0}, created {1}, updated {2}, skipped {3}, details {4}, errors {5}', [
                                         r.message.found,
                                         r.message.created,
                                         r.message.updated,
+                                        r.message.skipped || 0,
                                         r.message.details_loaded,
                                         r.message.errors,
                                     ])
