@@ -590,8 +590,8 @@ function link_purchase_invoice_dialog(frm) {
 				label: __("Purchase Invoice"),
 				reqd: 1,
 				get_query: () => ({
+					query: "erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura.linkable_purchase_invoices",
 					filters: {
-						docstatus: ["<", 2],
 						company: frm.doc.company,
 						supplier: frm.doc.supplier,
 					},

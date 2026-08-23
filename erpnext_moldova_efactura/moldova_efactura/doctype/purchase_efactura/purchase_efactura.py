@@ -1082,6 +1082,62 @@ def make_purchase_order(source_name: str, target_doc=None):
 
 
 @frappe.whitelist()
+@frappe.validate_and_sanitize_search_inputs
+def linkable_purchase_invoices(doctype, txt, searchfield, start, page_len, filters):
+	"""Purchase Invoices that still have a line not linked to a live e-Factura."""
+	from frappe.desk.reportview import get_match_cond
+
+	filters = filters or {}
+	conditions = ["`tabPurchase Invoice`.docstatus < 2"]
+	values = {"txt": f"%{txt or ''}%", "start": start, "page_len": page_len}
+	if filters.get("company"):
+		conditions.append("`tabPurchase Invoice`.company = %(company)s")
+		values["company"] = filters["company"]
+	if filters.get("supplier"):
+		conditions.append("`tabPurchase Invoice`.supplier = %(supplier)s")
+		values["supplier"] = filters["supplier"]
+
+	uncovered = ""
+	if frappe.db.has_column("Purchase eFactura Item", "pi_detail"):
+		uncovered = """
+			AND EXISTS (
+				SELECT 1
+				FROM `tabPurchase Invoice Item` pii
+				WHERE pii.parent = `tabPurchase Invoice`.name
+					AND pii.parenttype = 'Purchase Invoice'
+					AND ABS(IFNULL(pii.qty, 0)) > 0
+					AND NOT EXISTS (
+						SELECT 1
+						FROM `tabPurchase eFactura Item` ei
+						INNER JOIN `tabPurchase eFactura` pe ON pe.name = ei.parent
+						WHERE ei.pi_detail = pii.name
+							AND IFNULL(ei.pi_detail, '') != ''
+							AND pe.docstatus < 2
+					)
+			)
+		"""
+
+	return frappe.db.sql(
+		f"""
+		SELECT `tabPurchase Invoice`.name, `tabPurchase Invoice`.supplier,
+			`tabPurchase Invoice`.posting_date, `tabPurchase Invoice`.grand_total
+		FROM `tabPurchase Invoice`
+		WHERE {" AND ".join(conditions)}
+			AND (
+				`tabPurchase Invoice`.name LIKE %(txt)s
+				OR IFNULL(`tabPurchase Invoice`.bill_no, '') LIKE %(txt)s
+				OR IFNULL(`tabPurchase Invoice`.`{searchfield}`, '') LIKE %(txt)s
+			)
+			{uncovered}
+			{get_match_cond("Purchase Invoice")}
+		ORDER BY `tabPurchase Invoice`.modified DESC
+		LIMIT %(page_len)s OFFSET %(start)s
+		""",
+		values,
+	)
+
+
+@frappe.whitelist()
 def link_purchase_invoice(name: str, purchase_invoice: str):
 	doc = _get_purchase_efactura(name)
 	if doc.docstatus == 2:

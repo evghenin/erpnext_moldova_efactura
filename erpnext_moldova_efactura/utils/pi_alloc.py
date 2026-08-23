@@ -81,6 +81,37 @@ def get_buyer_name_for_pi(pi) -> str | None:
 	return names[0] if names else None
 
 
+def purchase_invoice_is_fully_covered(pi_name: str) -> bool:
+	"""True when every billed PI line is already linked to a live e-Factura."""
+	if not pi_name or not frappe.db.has_column("Purchase eFactura Item", "pi_detail"):
+		return False
+	rows = frappe.get_all(
+		"Purchase Invoice Item",
+		filters={"parent": pi_name, "parenttype": "Purchase Invoice"},
+		fields=["name", "qty"],
+	)
+	billable = [row.name for row in rows if flt(row.qty)]
+	if not billable:
+		return False
+	linked = frappe.get_all(
+		"Purchase eFactura Item",
+		filters={"pi_detail": ["in", billable], "parenttype": "Purchase eFactura"},
+		fields=["pi_detail", "parent"],
+	)
+	parents = {row.parent for row in linked if row.parent}
+	live = set()
+	if parents:
+		live = set(
+			frappe.get_all(
+				"Purchase eFactura",
+				filters={"name": ["in", list(parents)], "docstatus": ["<", 2]},
+				pluck="name",
+			)
+		)
+	taken = {row.pi_detail for row in linked if row.parent in live}
+	return all(name in taken for name in billable)
+
+
 def get_buyer_names_for_pi(pi_name: str) -> list[str]:
 	if not pi_name:
 		return []
