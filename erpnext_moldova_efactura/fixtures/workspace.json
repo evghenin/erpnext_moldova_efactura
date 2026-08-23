@@ -120,6 +120,12 @@
     "parenttype": "Workspace"
    },
    {
+    "role": "eFactura Manager",
+    "parent": "eFactura",
+    "parentfield": "roles",
+    "parenttype": "Workspace"
+   },
+   {
     "role": "Accounts Manager",
     "parent": "eFactura",
     "parentfield": "roles",
@@ -139,6 +145,12 @@
    },
    {
     "role": "Sales User",
+    "parent": "eFactura",
+    "parentfield": "roles",
+    "parenttype": "Workspace"
+   },
+   {
+    "role": "eFactura Sales User",
     "parent": "eFactura",
     "parentfield": "roles",
     "parenttype": "Workspace"
@@ -355,6 +367,12 @@
     "parenttype": "Workspace"
    },
    {
+    "role": "eFactura Manager",
+    "parent": "eFactura Sales",
+    "parentfield": "roles",
+    "parenttype": "Workspace"
+   },
+   {
     "role": "Accounts Manager",
     "parent": "eFactura Sales",
     "parentfield": "roles",
@@ -374,6 +392,12 @@
    },
    {
     "role": "Sales User",
+    "parent": "eFactura Sales",
+    "parentfield": "roles",
+    "parenttype": "Workspace"
+   },
+   {
+    "role": "eFactura Sales User",
     "parent": "eFactura Sales",
     "parentfield": "roles",
     "parenttype": "Workspace"
@@ -637,6 +661,12 @@
   "roles": [
    {
     "role": "System Manager",
+    "parent": "eFactura Purchase",
+    "parentfield": "roles",
+    "parenttype": "Workspace"
+   },
+   {
+    "role": "eFactura Manager",
     "parent": "eFactura Purchase",
     "parentfield": "roles",
     "parenttype": "Workspace"

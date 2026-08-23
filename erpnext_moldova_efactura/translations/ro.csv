@@ -219,6 +219,8 @@ eFactura Exchange Rate,Curs eFactura
 Sales eFactura Item,Articol eFactura de vânzare
 eFactura Number,Număr eFactura
 eFactura Series,Serie eFactura
+eFactura Manager,Manager eFactura
+eFactura Sales User,Utilizator eFactura (vânzări)
 eFactura Settings,Setări eFactura
 eFactura Settings: API username/password are not set.,Setări eFactura: utilizator/parolă API necompletate.
 eFactura Settings: api_wsdl_url is not set.,Setări eFactura: api_wsdl_url nu este setat.

@@ -211,6 +211,8 @@ eFactura Exchange Rate,Курс eFactura
 Sales eFactura Item,Позиция исходящей eFactura
 eFactura Number,Номер eFactura
 eFactura Series,Серия eFactura
+eFactura Manager,Менеджер eFactura
+eFactura Sales User,Пользователь eFactura (продажи)
 eFactura Settings,Настройки eFactura
 eFactura Settings: API username/password are not set.,Настройки eFactura: не заданы API логин/пароль.
 eFactura Settings: api_wsdl_url is not set.,Настройки eFactura: api_wsdl_url не задан.

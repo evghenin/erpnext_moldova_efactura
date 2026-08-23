@@ -301,6 +301,12 @@ override_doctype_dashboards = {
 
 fixtures = [
     {
+        "doctype": "Role",
+        "filters": [
+            ["name", "in", ["eFactura Manager", "eFactura Sales User"]]
+        ]
+    },
+    {
         "doctype": "Custom Field", 
         "filters": [
             ["module", "in", ["Moldova eFactura"]]

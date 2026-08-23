@@ -34,6 +34,19 @@ Version **2.0**. Requires ERPNext / Frappe v15.
 
 Configure API credentials, IDNO fields, eFactura currency, VAT-in-rate, UOM map (optional auto-add), buying tax templates per company, and incoming/outgoing options under **eFactura Settings**.
 
+#### Roles
+
+Assign Desk roles to match the workflow. Fetch / Register / Sign / Accept / Reject / Create PI are shown only when the user can write the corresponding document.
+
+- **eFactura Manager** — outgoing and incoming documents, Settings (including API credentials), supplier item map.
+- **eFactura Sales User** / **Sales User** / **Sales Manager** — outgoing Sales eFactura only (create, submit, register). No Purchase eFactura.
+- **Accounts User** / **Purchase User** / **Purchase Manager** — incoming Purchase eFactura (write, submit, accept, sign, reject, create PI). Accounts User can view Sales eFactura but cannot create or register it.
+- **System Manager** / **Accounts Manager** — full module access. API fields on Settings are permlevel 1 (these roles and eFactura Manager only).
+
+Purchase eFactura cannot be created manually (`create` is off for every role); Fetch / sync still inserts documents server-side.
+
+Upgrade: run `bench migrate` so Role fixtures and DocType permissions sync. Then assign **eFactura Manager** or **eFactura Sales User** to users as needed; existing Sales / Accounts / Purchase roles keep the mapping above.
+
 ### Installation
 
 You can install this app using the [bench](https://github.com/frappe/bench) CLI:

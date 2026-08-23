@@ -265,7 +265,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-08-23 18:10:00.000000",
+ "modified": "2026-08-23 18:55:00.000000",
  "modified_by": "Administrator",
  "module": "Moldova eFactura",
  "name": "eFactura Settings",
@@ -282,6 +282,15 @@
    "share": 1
   },
   {
+   "role": "eFactura Manager",
+   "create": 1,
+   "read": 1,
+   "write": 1,
+   "email": 1,
+   "print": 1,
+   "share": 1
+  },
+  {
    "role": "Accounts Manager",
    "read": 1,
    "write": 1,
@@ -290,20 +299,10 @@
    "share": 1
   },
   {
-   "role": "Sales Manager",
+   "role": "eFactura Sales User",
    "read": 1,
-   "write": 1,
    "email": 1,
-   "print": 1,
-   "share": 1
-  },
-  {
-   "role": "Purchase Manager",
-   "read": 1,
-   "write": 1,
-   "email": 1,
-   "print": 1,
-   "share": 1
+   "print": 1
   },
   {
    "role": "Accounts User",
@@ -312,7 +311,19 @@
    "print": 1
   },
   {
+   "role": "Sales Manager",
+   "read": 1,
+   "email": 1,
+   "print": 1
+  },
+  {
    "role": "Sales User",
+   "read": 1,
+   "email": 1,
+   "print": 1
+  },
+  {
+   "role": "Purchase Manager",
    "read": 1,
    "email": 1,
    "print": 1
@@ -325,6 +336,12 @@
   },
   {
    "role": "System Manager",
+   "permlevel": 1,
+   "read": 1,
+   "write": 1
+  },
+  {
+   "role": "eFactura Manager",
    "permlevel": 1,
    "read": 1,
    "write": 1
