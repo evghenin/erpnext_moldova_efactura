@@ -111,6 +111,19 @@ def _safe_time(value: str):
 		return None
 
 
+def _row_vat_rate(row: ET.Element, net_amount: float, vat_amount: float) -> float:
+	"""TVA percent from the row attribute, or inferred from TotalTVA / net."""
+	for name in ("TVA", "Vat", "VAT", "ProcTVA"):
+		raw = _attr(row, name)
+		if raw:
+			rate = flt(raw)
+			if rate:
+				return rate
+	if net_amount and vat_amount:
+		return flt(round((vat_amount / net_amount) * 100.0))
+	return 0.0
+
+
 def parse_invoice_xml(xml_content: str | bytes) -> dict[str, Any]:
 	"""Return structured invoice data from e-Factura XML."""
 	if isinstance(xml_content, bytes):
@@ -136,7 +149,9 @@ def parse_invoice_xml(xml_content: str | bytes) -> dict[str, Any]:
 			qty = flt(_attr(row, "Quantity") or 0)
 			rate = flt(_attr(row, "UnitPriceWithoutTVA") or 0)
 			amount = flt(_attr(row, "TotalPrice") or 0)
-			vat_rate = flt(_attr(row, "TVA") or 0)
+			net_amount = flt(_attr(row, "TotalPriceWithoutTVA") or 0)
+			vat_amount = flt(_attr(row, "TotalTVA") or 0)
+			vat_rate = _row_vat_rate(row, net_amount, vat_amount)
 			if qty:
 				rate_with_vat = flt(amount / qty)
 			elif vat_rate:
@@ -154,9 +169,9 @@ def parse_invoice_xml(xml_content: str | bytes) -> dict[str, Any]:
 					"stock_qty": qty,
 					"rate": rate,
 					"rate_with_vat": rate_with_vat,
-					"net_amount": flt(_attr(row, "TotalPriceWithoutTVA") or 0),
+					"net_amount": net_amount,
 					"ef_vat_rate": vat_rate,
-					"vat_amount": flt(_attr(row, "TotalTVA") or 0),
+					"vat_amount": vat_amount,
 					"amount": amount,
 				}
 			)
@@ -167,6 +182,7 @@ def parse_invoice_xml(xml_content: str | bytes) -> dict[str, Any]:
 		"issue_date": _safe_date(_text(supplier_info, "IssuedDate")),
 		"issue_time": _safe_time(_text(supplier_info, "IssuedDate")),
 		"delivery_date": _safe_date(_text(supplier_info, "DeliveryDate")),
+		"creation_motiv": _text(supplier_info, "CreationMotiv"),
 		"total": total,
 		"vat_total": vat_total,
 		"net_total": flt(total - vat_total),

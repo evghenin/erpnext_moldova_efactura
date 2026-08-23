@@ -84,6 +84,38 @@ def throw_if_supplier_idno_mismatch(supplier: str | None, factura_idno: str | No
 	)
 
 
+def get_customer_idno(customer: str | None) -> str | None:
+	fieldname = get_customer_idno_field()
+	if not customer or not fieldname:
+		return None
+	return frappe.db.get_value("Customer", customer, fieldname)
+
+
+def throw_if_customer_idno_mismatch(customer: str | None, factura_idno: str | None) -> None:
+	"""Selected Customer must carry the same IDNO as the e-Factura XML buyer."""
+	if not customer:
+		return
+	expected = normalize_idno(factura_idno)
+	if not expected:
+		return
+	fieldname = get_customer_idno_field()
+	if not fieldname:
+		return
+	actual_raw = get_customer_idno(customer)
+	if normalize_idno(actual_raw) == expected:
+		return
+	from frappe.utils import cstr, get_link_to_form
+
+	frappe.throw(
+		_("Customer {0} IDNO ({1}) does not match e-Factura buyer IDNO {2}").format(
+			get_link_to_form("Customer", customer),
+			cstr(actual_raw).strip() or _("not set"),
+			cstr(factura_idno).strip(),
+		),
+		title=_("Customer IDNO mismatch"),
+	)
+
+
 def new_supplier_defaults(title: str | None = None, idno: str | None = None) -> dict:
 	"""Values for a new Supplier created from an incoming e-Factura."""
 	defaults: dict = {}
@@ -96,6 +128,53 @@ def new_supplier_defaults(title: str | None = None, idno: str | None = None) -> 
 	if fieldname and idno and frappe.get_meta("Supplier").has_field(fieldname):
 		defaults[fieldname] = idno
 	return defaults
+
+
+def new_customer_defaults(
+	title: str | None = None, idno: str | None = None, taxpayer_type: str | None = None
+) -> dict:
+	"""Values for a new Customer created from an outgoing e-Factura loaded from SFS."""
+	defaults: dict = {}
+	customer_name = normalize_supplier_title(title)
+	if customer_name:
+		defaults["customer_name"] = customer_name
+
+	fieldname = frappe.db.get_single_value("eFactura Settings", "customer_idno_field")
+	idno = str(idno or "").strip()
+	if fieldname and idno and frappe.get_meta("Customer").has_field(fieldname):
+		defaults[fieldname] = idno
+
+	if taxpayer_type == "Individual":
+		defaults["customer_type"] = "Individual"
+	elif taxpayer_type in ("Company", "Non-Resident"):
+		defaults["customer_type"] = "Company"
+	return defaults
+
+
+def get_customer_idno_field() -> str | None:
+	fieldname = frappe.db.get_single_value("eFactura Settings", "customer_idno_field")
+	if not fieldname or not frappe.get_meta("Customer").has_field(fieldname):
+		return None
+	return fieldname
+
+
+def find_customer_by_idno(idno: str) -> str | None:
+	"""Return Customer name matching IDNO field from eFactura Settings, or None."""
+	idno = str(idno or "").strip()
+	if not idno:
+		return None
+
+	fieldname = get_customer_idno_field()
+	if not fieldname:
+		return None
+
+	name = frappe.db.get_value("Customer", {fieldname: idno}, "name")
+	if name:
+		return name
+	compact = normalize_idno(idno)
+	if compact and compact != idno:
+		return frappe.db.get_value("Customer", {fieldname: compact}, "name")
+	return None
 
 
 def find_supplier_by_idno(idno: str) -> str | None:

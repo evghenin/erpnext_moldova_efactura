@@ -19,23 +19,21 @@
   "type",
   "delivery_date",
   "issue_date",
+  "column_break_dypc",
   "posting_date",
   "posting_time",
   "last_status_check",
   "column_break_muzu",
   "amended_from",
-  "company",
-  "reference_doctype",
-  "reference_name",
+  "sales_invoice",
   "section_currency",
   "currency",
   "column_break_hfwb",
   "ef_currency",
   "ef_conversion_rate",
   "section_supplier",
-  "supplier_party_type",
-  "supplier_party",
-  "supplier_bank_account",
+  "company",
+  "company_bank_account",
   "column_break_jkzb",
   "ef_supplier_details",
   "ef_supplier_is_user",
@@ -48,8 +46,7 @@
   "ef_supplier_bank_name",
   "ef_supplier_bank_code",
   "section_customer",
-  "customer_party_type",
-  "customer_party",
+  "customer",
   "column_break_dxqc",
   "ef_customer_details",
   "ef_customer_is_user",
@@ -159,37 +156,15 @@
    "set_only_once": 1
   },
   {
-   "default": "Company",
-   "fieldname": "supplier_party_type",
-   "fieldtype": "Select",
-   "label": "Supplier Party Type",
-   "options": "Company",
-   "reqd": 1
-  },
-  {
-   "fieldname": "supplier_party",
-   "fieldtype": "Dynamic Link",
-   "label": "Supplier Party",
-   "options": "supplier_party_type",
-   "reqd": 1
-  },
-  {
    "fieldname": "column_break_jkzb",
    "fieldtype": "Column Break"
   },
   {
-   "default": "Customer",
-   "fieldname": "customer_party_type",
-   "fieldtype": "Select",
-   "label": "Customer Party Type",
-   "options": "Customer"
-  },
-  {
-   "fieldname": "customer_party",
-   "fieldtype": "Dynamic Link",
+   "fieldname": "customer",
+   "fieldtype": "Link",
    "in_list_view": 1,
-   "label": "Customer Party",
-   "options": "customer_party_type",
+   "label": "Customer",
+   "options": "Customer",
    "reqd": 1
   },
   {
@@ -214,11 +189,9 @@
    "fieldtype": "Column Break"
   },
   {
-   "depends_on": "eval:doc.supplier_party_type==\"Company\"",
-   "fieldname": "supplier_bank_account",
+   "fieldname": "company_bank_account",
    "fieldtype": "Link",
-   "label": "Supplier Bank Account",
-   "mandatory_depends_on": "eval:doc.supplier_party_type==\"Company\"",
+   "label": "Company Bank Account",
    "options": "Bank Account",
    "reqd": 1
   },
@@ -349,19 +322,13 @@
    "read_only": 1
   },
   {
-   "default": "Sales Invoice",
-   "fieldname": "reference_doctype",
-   "fieldtype": "Select",
-   "label": "Reference Type",
-   "options": "Sales Invoice",
-   "reqd": 1
-  },
-  {
-   "fieldname": "reference_name",
-   "fieldtype": "Dynamic Link",
-   "label": "Reference Name",
-   "options": "reference_doctype",
-   "reqd": 1
+   "allow_on_submit": 1,
+   "fieldname": "sales_invoice",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Sales Invoice",
+   "options": "Sales Invoice"
   },
   {
    "default": "0",
@@ -676,13 +643,17 @@
    "fieldtype": "Section Break",
    "label": "Totals",
    "options": "fa fa-money"
+  },
+  {
+   "fieldname": "column_break_dypc",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-08-15 01:31:55.660596",
+ "modified": "2026-08-23 02:45:00.757218",
  "modified_by": "Administrator",
  "module": "Moldova eFactura",
  "name": "Sales eFactura",

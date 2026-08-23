@@ -6,7 +6,9 @@ from collections import defaultdict
 
 import frappe
 from frappe import _
-from frappe.utils import cint, escape_html, flt, get_link_to_form
+from frappe.utils import cint, flt
+
+from erpnext_moldova_efactura.utils.si_link import sales_invoice_of
 
 
 def _qty_precision() -> int:
@@ -56,8 +58,7 @@ def get_quota_efactura_rows(
 	"""eFactura rows that occupy SI qty."""
 	filters = {
 		"docstatus": ["in", [0, 1]] if include_drafts else 1,
-		"reference_doctype": "Sales Invoice",
-		"reference_name": sales_invoice,
+		"sales_invoice": sales_invoice,
 	}
 	if exclude_name:
 		filters["name"] = ["!=", exclude_name]
@@ -99,9 +100,10 @@ def find_si_qty_overages(doc, include_drafts: bool = False) -> list[dict]:
 	Each item: this document + other quota eFactura on the same SI
 	must not exceed SI stock_qty. Items absent from the SI are treated as SI qty 0.
 	"""
-	if getattr(doc, "reference_doctype", None) != "Sales Invoice" or not doc.reference_name:
+	si_name = sales_invoice_of(doc)
+	if not si_name:
 		return []
-	if not frappe.db.exists("Sales Invoice", doc.reference_name):
+	if not frappe.db.exists("Sales Invoice", si_name):
 		return []
 
 	precision = _qty_precision()
@@ -125,7 +127,7 @@ def find_si_qty_overages(doc, include_drafts: bool = False) -> list[dict]:
 	si_qty: dict[str, float] = {}
 	for row in frappe.get_all(
 		"Sales Invoice Item",
-		filters={"parent": doc.reference_name},
+		filters={"parent": si_name},
 		fields=["item_code", "item_name", "stock_qty", "stock_uom"],
 	):
 		code = (row.item_code or "").strip()
@@ -138,7 +140,7 @@ def find_si_qty_overages(doc, include_drafts: bool = False) -> list[dict]:
 
 	exclude_name = doc.name if doc.name and not doc.is_new() else None
 	other_rows = get_quota_efactura_rows(
-		doc.reference_name, exclude_name=exclude_name, include_drafts=include_drafts
+		si_name, exclude_name=exclude_name, include_drafts=include_drafts
 	)
 	other_meta = {row.name: row for row in other_rows}
 	other_names = list(other_meta)
@@ -270,7 +272,7 @@ def enforce_si_qty_on_submit(doc) -> None:
 		_reset_overage_flag(doc)
 		return
 
-	message = format_overage_html(overages, doc.reference_name, include_drafts=False)
+	message = format_overage_html(overages, sales_invoice_of(doc), include_drafts=False)
 	block = is_block_enabled()
 	confirmed = cint(doc.get("si_qty_overage_confirmed"))
 
@@ -299,7 +301,7 @@ def enforce_si_qty_on_draft_save(doc) -> None:
 
 	if not cint(doc.get("si_qty_overage_confirmed")):
 		frappe.throw(
-			format_overage_html(overages, doc.reference_name, include_drafts=True),
+			format_overage_html(overages, sales_invoice_of(doc), include_drafts=True),
 			title=_("Quantity exceeds Sales Invoice — confirmation required"),
 		)
 
@@ -326,7 +328,7 @@ def check_si_qty_overage(doc, include_drafts=None):
 		"block": 0 if include_drafts else int(is_block_enabled()),
 		"overages": overages,
 		"message": format_overage_html(
-			overages, efactura.reference_name, include_drafts=include_drafts
+			overages, sales_invoice_of(efactura), include_drafts=include_drafts
 		),
 		"mode": "save" if include_drafts else "submit",
 	}

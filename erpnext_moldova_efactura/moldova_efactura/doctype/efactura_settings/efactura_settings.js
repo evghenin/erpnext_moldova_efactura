@@ -4,22 +4,29 @@
 frappe.ui.form.on('eFactura Settings', {
     refresh(frm) {
         set_options_for_idno_selects(frm);
-        frm.set_query("buying_vat_account", "company_settings", (doc, cdt, cdn) => {
+        const company_account_query = (doc, cdt, cdn) => {
             const row = locals[cdt][cdn];
             const filters = { is_group: 0 };
             if (row.company) {
                 filters.company = row.company;
             }
             return { filters };
-        });
-        frm.set_query("taxes_and_charges", "company_settings", (doc, cdt, cdn) => {
+        };
+        frm.set_query("buying_vat_account", "company_settings", company_account_query);
+        frm.set_query("selling_vat_account", "sales_tax_settings", company_account_query);
+        const company_template_query = (doc, cdt, cdn) => {
             const row = locals[cdt][cdn];
             const filters = {};
             if (row.company) {
                 filters.company = row.company;
             }
             return { filters };
-        });
+        };
+        frm.set_query("taxes_and_charges", "company_settings", company_template_query);
+        frm.set_query("sales_taxes_and_charges", "sales_tax_settings", company_template_query);
+        frm.set_query("item_tax_template", "outgoing_item_tax_templates", () => ({
+            filters: { disabled: 0 },
+        }));
         frm.add_custom_button(__('Fetch Buyer Invoices'), () => {
             frappe.prompt(
                 [
@@ -53,6 +60,42 @@ frappe.ui.form.on('eFactura Settings', {
                     });
                 },
                 __('Fetch Buyer Invoices'),
+                __('Fetch')
+            );
+        });
+        frm.add_custom_button(__('Fetch Supplier Invoices'), () => {
+            frappe.prompt(
+                [
+                    {
+                        fieldname: 'lookback_days',
+                        fieldtype: 'Int',
+                        label: __('Lookback days'),
+                        default: 180,
+                        reqd: 1,
+                    },
+                ],
+                (values) => {
+                    frappe.call({
+                        method: 'erpnext_moldova_efactura.tasks.supplier_sync.fetch_supplier_invoices',
+                        args: { lookback_days: values.lookback_days },
+                        freeze: true,
+                        callback(r) {
+                            if (r.message) {
+                                frappe.msgprint(
+                                    __('Found {0}, created {1}, updated {2}, skipped {3}, details {4}, errors {5}', [
+                                        r.message.found,
+                                        r.message.created,
+                                        r.message.updated,
+                                        r.message.skipped || 0,
+                                        r.message.details_loaded,
+                                        r.message.errors,
+                                    ])
+                                );
+                            }
+                        },
+                    });
+                },
+                __('Fetch Supplier Invoices'),
                 __('Fetch')
             );
         });
@@ -109,6 +152,31 @@ frappe.ui.form.on("eFactura Company Setting", {
                 (r) => {
                     if (r && r.company && r.company !== row.company) {
                         frappe.model.set_value(cdt, cdn, "taxes_and_charges", "");
+                    }
+                }
+            );
+        }
+    },
+});
+
+frappe.ui.form.on("eFactura Sales Tax Setting", {
+    company(frm, cdt, cdn) {
+        const row = locals[cdt][cdn];
+        if (row.selling_vat_account) {
+            frappe.db.get_value("Account", row.selling_vat_account, "company", (r) => {
+                if (r && r.company && r.company !== row.company) {
+                    frappe.model.set_value(cdt, cdn, "selling_vat_account", "");
+                }
+            });
+        }
+        if (row.sales_taxes_and_charges) {
+            frappe.db.get_value(
+                "Sales Taxes and Charges Template",
+                row.sales_taxes_and_charges,
+                "company",
+                (r) => {
+                    if (r && r.company && r.company !== row.company) {
+                        frappe.model.set_value(cdt, cdn, "sales_taxes_and_charges", "");
                     }
                 }
             );

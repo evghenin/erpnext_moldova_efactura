@@ -1,15 +1,15 @@
 {
  "actions": [],
  "autoname": "hash",
- "creation": "2026-08-13 15:20:00.000000",
+ "creation": "2026-08-23 15:45:00.000000",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
   "company",
   "tax_category",
-  "taxes_and_charges",
-  "buying_vat_account"
+  "sales_taxes_and_charges",
+  "selling_vat_account"
  ],
  "fields": [
   {
@@ -21,7 +21,7 @@
    "reqd": 1
   },
   {
-   "description": "Set on Purchase Order / Purchase Invoice. Used to pick Item Tax Template.",
+   "description": "Set on Sales Order / Sales Invoice. Used to pick Item Tax Template.",
    "fieldname": "tax_category",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -29,19 +29,19 @@
    "options": "Tax Category"
   },
   {
-   "description": "Default Purchase Taxes and Charges Template for this company. Applied when Item-wise tax is not used.",
-   "fieldname": "taxes_and_charges",
+   "description": "Default Sales Taxes and Charges Template for this company. Applied when Item-wise tax is not used.",
+   "fieldname": "sales_taxes_and_charges",
    "fieldtype": "Link",
    "in_list_view": 1,
-   "label": "Purchase Taxes and Charges Template",
-   "options": "Purchase Taxes and Charges Template"
+   "label": "Sales Taxes and Charges Template",
+   "options": "Sales Taxes and Charges Template"
   },
   {
-   "description": "Which tax account is e-Factura VAT. If the Purchase Taxes template does not include this account, it is added as Actual with the VAT amount from the factura.",
-   "fieldname": "buying_vat_account",
+   "description": "Which tax account is e-Factura VAT on Sales Order / Sales Invoice. If the Sales Taxes template does not include this account, it is added as Actual with the VAT amount from the factura.",
+   "fieldname": "selling_vat_account",
    "fieldtype": "Link",
    "in_list_view": 1,
-   "label": "VAT Account (Purchase)",
+   "label": "VAT Account (Sales)",
    "options": "Account"
   }
  ],
@@ -51,7 +51,7 @@
  "modified": "2026-08-23 15:45:00.000000",
  "modified_by": "Administrator",
  "module": "Moldova eFactura",
- "name": "eFactura Company Setting",
+ "name": "eFactura Sales Tax Setting",
  "naming_rule": "Random",
  "owner": "Administrator",
  "permissions": [],

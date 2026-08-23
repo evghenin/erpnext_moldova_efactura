@@ -20,17 +20,74 @@ def get_company_buying_tax(company: str | None) -> dict:
 	return row or empty
 
 
-def apply_buying_taxes(target, source) -> None:
-	"""Fill taxes on a new PO/PI.
+def get_company_selling_tax(company: str | None) -> dict:
+	empty = {"tax_category": None, "sales_taxes_and_charges": None, "selling_vat_account": None}
+	if not company:
+		return empty
+	if frappe.db.table_exists("eFactura Sales Tax Setting"):
+		row = frappe.db.get_value(
+			"eFactura Sales Tax Setting",
+			{"parent": "eFactura Settings", "parenttype": "eFactura Settings", "company": company},
+			["tax_category", "sales_taxes_and_charges", "selling_vat_account"],
+			as_dict=True,
+		)
+		if row:
+			return row
+	return empty
 
-	1) Tax Category from Company Settings (helps Item Tax Template).
-	2) Item-wise tax if Accounts Settings adds taxes from Item Tax Template
-	   and every VAT line resolves a template.
-	3) Else Purchase Taxes and Charges Template from Company Settings.
-	4) If VAT Account is set and not already in taxes, add it with the
-	   e-Factura VAT amount (Actual) or rate (On Net Total if VAT is included).
-	5) Set included_in_print_rate on the VAT row from eFactura Settings.
-	"""
+
+def apply_buying_taxes(target, source) -> None:
+	"""Fill taxes on a new PO/PI."""
+	cfg = get_company_buying_tax(target.company)
+	_apply_transaction_taxes(
+		target,
+		source,
+		tax_category=cfg.get("tax_category"),
+		template=cfg.get("taxes_and_charges"),
+		template_dt="Purchase Taxes and Charges Template",
+		vat_account=cfg.get("buying_vat_account"),
+		empty_title=_("Purchase taxes are empty"),
+		empty_msg=_(
+			"e-Factura VAT is {0} but Purchase taxes are empty. "
+			"For company {1} set VAT Account (Purchase) or Purchase Taxes and Charges Template "
+			"in eFactura Settings (Incoming → Purchase Tax Settings)."
+		),
+	)
+
+
+def apply_selling_taxes(target, source) -> None:
+	"""Fill taxes on a new SO/SI created from Sales eFactura."""
+	cfg = get_company_selling_tax(target.company)
+	vat_account = cfg.get("selling_vat_account")
+	if not vat_account and target.company and frappe.get_meta("Company").has_field("vat_account"):
+		vat_account = frappe.get_cached_value("Company", target.company, "vat_account")
+	_apply_transaction_taxes(
+		target,
+		source,
+		tax_category=cfg.get("tax_category"),
+		template=cfg.get("sales_taxes_and_charges"),
+		template_dt="Sales Taxes and Charges Template",
+		vat_account=vat_account,
+		empty_title=_("Sales taxes are empty"),
+		empty_msg=_(
+			"e-Factura VAT is {0} but Sales taxes are empty. "
+			"For company {1} set VAT Account (Sales) or Sales Taxes and Charges Template "
+			"in eFactura Settings (Outgoing → Sales Tax Settings)."
+		),
+	)
+
+
+def _apply_transaction_taxes(
+	target,
+	source,
+	*,
+	tax_category: str | None,
+	template: str | None,
+	template_dt: str,
+	vat_account: str | None,
+	empty_title: str,
+	empty_msg: str,
+) -> None:
 	if not target.meta.get_field("taxes"):
 		return
 
@@ -41,19 +98,15 @@ def apply_buying_taxes(target, source) -> None:
 	if target.meta.has_field("conversion_rate") and not flt(target.get("conversion_rate")):
 		target.conversion_rate = 1
 
-	cfg = get_company_buying_tax(target.company)
-	if cfg.get("tax_category") and target.meta.has_field("tax_category"):
-		target.tax_category = cfg["tax_category"]
+	if tax_category and target.meta.has_field("tax_category"):
+		target.tax_category = tax_category
 
 	vat_included = bool(frappe.db.get_single_value("eFactura Settings", "vat_included_in_rate"))
-	vat_account = cfg.get("buying_vat_account")
 	if not _apply_itemwise_taxes(target, source, vat_included, vat_account):
 		_clear_item_tax_fields(target)
-		_apply_purchase_tax_template(
-			target, source, cfg.get("taxes_and_charges"), vat_included, vat_account
-		)
+		_apply_tax_template(target, source, template, template_dt, vat_included, vat_account)
 
-	_ensure_actual_vat_row(target, source, vat_account, vat_included)
+	_ensure_actual_vat_row(target, source, vat_account, vat_included, empty_title, empty_msg)
 
 
 def _apply_itemwise_taxes(target, source, vat_included: bool, vat_account: str | None) -> bool:
@@ -91,8 +144,13 @@ def _apply_itemwise_taxes(target, source, vat_included: bool, vat_account: str |
 	return True
 
 
-def _apply_purchase_tax_template(
-	target, source, template: str | None, vat_included: bool, vat_account: str | None
+def _apply_tax_template(
+	target,
+	source,
+	template: str | None,
+	template_dt: str,
+	vat_included: bool,
+	vat_account: str | None,
 ) -> bool:
 	if not template:
 		return False
@@ -101,7 +159,7 @@ def _apply_purchase_tax_template(
 
 	if target.meta.has_field("taxes_and_charges"):
 		target.taxes_and_charges = template
-	rows = get_taxes_and_charges("Purchase Taxes and Charges Template", template) or []
+	rows = get_taxes_and_charges(template_dt, template) or []
 	if not rows:
 		return False
 	for tax in rows:
@@ -153,7 +211,14 @@ def _resolve_item_tax_template(target, item) -> str | None:
 	return get_item_tax_template(args, item=item_doc, out=out) or None
 
 
-def _ensure_actual_vat_row(target, source, vat_account: str | None, vat_included: bool) -> None:
+def _ensure_actual_vat_row(
+	target,
+	source,
+	vat_account: str | None,
+	vat_included: bool,
+	empty_title: str | None = None,
+	empty_msg: str | None = None,
+) -> None:
 	"""Add VAT Account as Actual when template/item-wise did not already include it."""
 	vat_total = flt(source.vat_total)
 	if vat_total <= 0:
@@ -164,16 +229,17 @@ def _ensure_actual_vat_row(target, source, vat_account: str | None, vat_included
 
 	if not vat_account:
 		if not target.get("taxes"):
+			msg = empty_msg or _(
+				"e-Factura VAT is {0} but Purchase taxes are empty. "
+				"For company {1} set VAT Account (Purchase) or Purchase Taxes and Charges Template "
+				"in eFactura Settings (Incoming → Purchase Tax Settings)."
+			)
 			frappe.msgprint(
-				_(
-					"e-Factura VAT is {0} but Purchase taxes are empty. "
-					"For company {1} set VAT Account (Purchase) or Purchase Taxes and Charges Template "
-					"in eFactura Settings (Incoming → Company Settings)."
-				).format(
+				msg.format(
 					frappe.format_value(vat_total, {"fieldtype": "Currency", "options": source.currency}),
 					target.company,
 				),
-				title=_("Purchase taxes are empty"),
+				title=empty_title or _("Purchase taxes are empty"),
 				indicator="orange",
 			)
 		return

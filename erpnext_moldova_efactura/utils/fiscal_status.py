@@ -140,8 +140,7 @@ def get_efacturas_for_invoice(si_name):
     return frappe.get_all(
         "Sales eFactura",
         filters={
-            "reference_doctype": "Sales Invoice",
-            "reference_name": si_name,
+            "sales_invoice": si_name,
             "docstatus": ["!=", 2],
         },
         fields=["name", "status", "total"],

@@ -25,6 +25,10 @@
   "block_submit_on_si_qty_overage",
   "exclude_failed_efactura_from_qty_quota",
   "warn_si_qty_overage_on_draft_save",
+  "outgoing_tax_section",
+  "outgoing_item_tax_templates",
+  "outgoing_sales_tax_section",
+  "sales_tax_settings",
   "tab_incoming",
   "copy_date_from_factura",
   "do_not_create_cancelled_invoices",
@@ -110,6 +114,30 @@
    "label": "Confirm Draft Save When Qty Exceeds Sales Invoice"
   },
   {
+   "fieldname": "outgoing_tax_section",
+   "fieldtype": "Section Break",
+   "label": "Item Tax Templates"
+  },
+  {
+   "description": "Allowed Item Tax Templates for Sales eFactura loaded from e-Factura. A line with a VAT % gets the first template from this list with the same rate.",
+   "fieldname": "outgoing_item_tax_templates",
+   "fieldtype": "Table",
+   "label": "Item Tax Templates",
+   "options": "eFactura Item Tax Template"
+  },
+  {
+   "fieldname": "outgoing_sales_tax_section",
+   "fieldtype": "Section Break",
+   "label": "Sales Tax Settings"
+  },
+  {
+   "description": "Per-company Tax Category, Sales Taxes template, and VAT account for Sales Order / Sales Invoice created from e-Factura.",
+   "fieldname": "sales_tax_settings",
+   "fieldtype": "Table",
+   "label": "Sales Tax Settings",
+   "options": "eFactura Sales Tax Setting"
+  },
+  {
    "fieldname": "idno_column",
    "fieldtype": "Column Break",
    "label": "IDNO"
@@ -184,13 +212,13 @@
   {
    "fieldname": "buying_tax_section",
    "fieldtype": "Section Break",
-   "label": "Company Settings"
+   "label": "Purchase Tax Settings"
   },
   {
-   "description": "Per-company Tax Category, Purchase Taxes template, and VAT account (which template row is e-Factura VAT).",
+   "description": "Per-company Tax Category, Purchase Taxes template, and VAT account for Purchase Order / Purchase Invoice created from e-Factura.",
    "fieldname": "company_settings",
    "fieldtype": "Table",
-   "label": "Company Settings",
+   "label": "Purchase Tax Settings",
    "options": "eFactura Company Setting"
   },
   {
@@ -215,7 +243,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-08-20 23:20:00.000000",
+ "modified": "2026-08-23 15:45:00.000000",
  "modified_by": "Administrator",
  "module": "Moldova eFactura",
  "name": "eFactura Settings",

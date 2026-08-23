@@ -55,6 +55,7 @@ doctype_js = {
     "Sales Invoice": "public/js/sales_invoice.js",
     "Purchase Invoice": "public/js/purchase_invoice.js",
     "Purchase Order": "public/js/purchase_order.js",
+    "Sales Order": "public/js/sales_order.js",
 }
 doctype_list_js = {
     "Sales Invoice": "public/js/sales_invoice_list.js",
@@ -160,7 +161,10 @@ doctype_list_js = {
 
 doc_events = {
     "Sales Invoice": {
+        "before_insert": "erpnext_moldova_efactura.overrides.sales_invoice.before_insert",
+        "after_insert": "erpnext_moldova_efactura.overrides.sales_invoice.after_insert",
         "on_submit": "erpnext_moldova_efactura.overrides.sales_invoice.on_submit",
+        "on_cancel": "erpnext_moldova_efactura.overrides.sales_invoice.on_cancel",
     },
     "Purchase Invoice": {
         "before_insert": "erpnext_moldova_efactura.overrides.purchase_invoice.before_insert",
@@ -201,6 +205,7 @@ scheduler_events = {
     "daily": [
         "erpnext_moldova_efactura.tasks.status_sync.sync_efactura_cancelled_from_search_invoices",
         "erpnext_moldova_efactura.tasks.buyer_sync.sync_buyer_invoices",
+        "erpnext_moldova_efactura.tasks.supplier_sync.sync_supplier_invoices",
     ]
 }
 
@@ -233,6 +238,7 @@ override_doctype_dashboards = {
     "Delivery Note": "erpnext_moldova_efactura.overrides.dashboard.get_delivery_note_dashboard",
     "Purchase Invoice": "erpnext_moldova_efactura.overrides.dashboard.get_purchase_invoice_dashboard",
     "Purchase Order": "erpnext_moldova_efactura.overrides.dashboard.get_purchase_order_dashboard",
+    "Sales Order": "erpnext_moldova_efactura.overrides.dashboard.get_sales_order_dashboard",
 }
 
 # exempt linked doctypes from being automatically cancelled

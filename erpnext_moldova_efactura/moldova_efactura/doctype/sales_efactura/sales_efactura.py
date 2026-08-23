@@ -4,6 +4,7 @@
 import json, base64, re, frappe, hashlib, uuid
 import xml.etree.ElementTree as ET
 from erpnext_moldova_efactura.utils.fiscal_status import determine_fiscal_status
+from erpnext_moldova_efactura.utils.si_link import sales_invoice_of, sync_sales_invoice_links
 
 from datetime import datetime
 from frappe import _
@@ -34,9 +35,28 @@ class SaleseFactura(Document):
         self.set_naming_series()
         self.set_ef_currency_from_settings()
         self.apply_ef_conversion_rate_rules()
+        sync_sales_invoice_links(self)
+        self._validate_unique_series_number()
+        from erpnext_moldova_efactura.utils.party import throw_if_customer_idno_mismatch
+
+        throw_if_customer_idno_mismatch(self.customer, self.ef_customer_idno)
+        self._validate_sales_invoice_customer()
         self.update_items_available_qty()
         self.set_status(log=False)
         self.apply_vat()
+
+    def _validate_sales_invoice_customer(self):
+        if not self.sales_invoice:
+            return
+        if not self.customer:
+            frappe.throw(_("Select Customer first"))
+        si_customer = frappe.db.get_value("Sales Invoice", self.sales_invoice, "customer")
+        if si_customer and si_customer != self.customer:
+            frappe.throw(
+                _("Sales Invoice {0} does not belong to Customer {1}").format(
+                    self.sales_invoice, self.customer
+                )
+            )
 
     def set_naming_series(self):
         if not self.is_new():
@@ -48,12 +68,44 @@ class SaleseFactura(Document):
     def before_save(self):
         from erpnext_moldova_efactura.utils.qty_guard import enforce_si_qty_on_draft_save
 
+        if self.flags.get("from_efactura_sync") or self.flags.get("ignore_si_qty_guard"):
+            return
         enforce_si_qty_on_draft_save(self)
 
     def before_submit(self):
+        self._validate_ready_to_submit()
         from erpnext_moldova_efactura.utils.qty_guard import enforce_si_qty_on_submit
 
+        if self.flags.get("from_efactura_sync") or self.flags.get("ignore_si_qty_guard"):
+            return
         enforce_si_qty_on_submit(self)
+
+    def _validate_ready_to_submit(self):
+        if not self.customer:
+            frappe.throw(_("Customer is required before submit"))
+        if not self.company_bank_account:
+            frappe.throw(_("Company Bank Account is required before submit"))
+        if not self.issue_date:
+            frappe.throw(_("Issue Date is required before submit"))
+        if not self.delivery_date:
+            frappe.throw(_("Delivery Date is required before submit"))
+        if not self.items:
+            frappe.throw(_("Add or fetch invoice items before submit"))
+
+        from erpnext_moldova_efactura.utils.party import throw_if_customer_idno_mismatch
+        from erpnext_moldova_efactura.utils.pi_match import throw_unmapped_items
+
+        throw_if_customer_idno_mismatch(self.customer, self.ef_customer_idno)
+        throw_unmapped_items(self.items, _("Map all items before submit"), self.currency)
+        for row in self.items:
+            if not row.uom:
+                frappe.throw(_("UOM is required for row {0}").format(row.idx))
+            if not row.stock_uom:
+                frappe.throw(_("Stock UOM is required for row {0}").format(row.idx))
+            if not row.ef_uom:
+                frappe.throw(_("eFactura UOM is required for row {0}").format(row.idx))
+            if not flt(row.qty):
+                frappe.throw(_("Quantity is required for row {0}").format(row.idx))
 
     def on_submit(self):
         self.set_status(log=False)
@@ -96,8 +148,10 @@ class SaleseFactura(Document):
 
         """
 
-        if self.is_new():
-            return
+        if self.docstatus == 0:
+            self.status = "Draft"
+            if self.is_new():
+                return
 
         old_status = frappe.db.get_value(self.doctype, self.name, "status")
 
@@ -130,17 +184,38 @@ class SaleseFactura(Document):
             log_status_change(self, old_status, self.status)
 
         # --- Update linked Sales Invoice fiscal status ---
-        if self.reference_doctype == "Sales Invoice" and self.reference_name:
+        si_name = sales_invoice_of(self)
+        if si_name:
             try:
-                si = frappe.get_doc("Sales Invoice", self.reference_name)
+                si = frappe.get_doc("Sales Invoice", si_name)
                 new_status = determine_fiscal_status(si)
                 si.db_set("fiscal_status", new_status, update_modified=False)
             except frappe.ValidationError:
                 # configuration error or blocked state – do not break eFactura flow
                 pass
 
+    def _validate_unique_series_number(self):
+        if not (self.company and self.ef_series and self.ef_number):
+            return
+        existing = frappe.db.exists(
+            "Sales eFactura",
+            {
+                "company": self.company,
+                "ef_series": self.ef_series,
+                "ef_number": self.ef_number,
+                "name": ["!=", self.name],
+            },
+        )
+        if existing:
+            frappe.throw(
+                _("Sales eFactura {0} already exists for {1}{2}").format(
+                    existing, self.ef_series, self.ef_number
+                )
+            )
+
     def update_items_available_qty(self):
-        if self.reference_doctype != "Sales Invoice" or not self.reference_name:
+        si_name = sales_invoice_of(self)
+        if not si_name:
             return
 
         current_qty = {}
@@ -152,7 +227,7 @@ class SaleseFactura(Document):
         from erpnext_moldova_efactura.utils.qty_guard import get_quota_efactura_names
 
         exclude_name = self.name if self.name and not self.is_new() else None
-        efactura_names = get_quota_efactura_names(self.reference_name, exclude_name=exclude_name)
+        efactura_names = get_quota_efactura_names(si_name, exclude_name=exclude_name)
 
         for item in self.items:
             if not item.item_code:
@@ -160,7 +235,7 @@ class SaleseFactura(Document):
             total_si_stock_qty = (
                 frappe.db.get_value(
                     "Sales Invoice Item",
-                    {"parent": self.reference_name, "item_code": item.item_code},
+                    {"parent": si_name, "item_code": item.item_code},
                     "sum(stock_qty)",
                 )
                 or 0
@@ -203,7 +278,43 @@ class SaleseFactura(Document):
             if rate:
                 self.ef_conversion_rate = rate
 
+    def _keep_sfs_xml_amounts(self):
+        """Invoices already issued in SFS keep XML money; do not recalc from tax templates."""
+        if self.flags.get("keep_xml_amounts") or self.flags.get("from_efactura_sync"):
+            return True
+        try:
+            status = int(self.ef_status)
+        except (TypeError, ValueError):
+            return False
+        return status != -1 and bool(self.ef_series and self.ef_number)
+
+    def _apply_sfs_xml_amounts(self):
+        """Document amounts = eFactura XML amounts / (doc → ef rate)."""
+        self.apply_ef_conversion_rate_rules()
+        conv = flt(self.ef_conversion_rate) or 1
+        vat_included = cint(
+            frappe.db.get_single_value("eFactura Settings", "vat_included_in_rate") or 0
+        )
+        self.net_total = flt(self.ef_net_total) / conv
+        self.vat_total = flt(self.ef_vat_total) / conv
+        self.total = flt(self.ef_total) / conv
+        for d in self.items or []:
+            d.net_amount = flt(d.ef_net_amount) / conv
+            d.vat_amount = flt(d.ef_vat_amount) / conv
+            d.net_rate = flt(d.ef_net_rate) / conv
+            if vat_included:
+                qty = flt(d.qty) or 1
+                d.amount = d.net_amount + d.vat_amount
+                d.rate = flt(d.ef_rate) / conv or (d.amount / qty)
+            else:
+                d.amount = d.net_amount
+                d.rate = d.net_rate
+
     def apply_vat(self):
+        if self._keep_sfs_xml_amounts():
+            self._apply_sfs_xml_amounts()
+            return
+
         vat_included = cint(
             frappe.db.get_single_value("eFactura Settings", "vat_included_in_rate") or 0
         )
@@ -231,6 +342,8 @@ class SaleseFactura(Document):
             ef_amount = amount * ef_conv
 
             vat_rate = _get_vat_rate_from_item_tax_template(d.item_tax_template, tpl_cache)
+            if not vat_rate:
+                vat_rate = flt(d.ef_vat_rate)
             d.ef_vat_rate = vat_rate
 
             if not vat_rate:
@@ -278,9 +391,128 @@ class SaleseFactura(Document):
             self.net_total += d.net_amount
             self.total += d.amount
 
+    def fill_from_xml(self, xml_content: str, preserve_mapped_items: bool = True):
+        """Load parties and items from an SFS invoice XML (outgoing invoices issued outside ERP)."""
+        from erpnext_moldova_efactura.utils.invoice_xml import parse_invoice_xml
+        from erpnext_moldova_efactura.utils.item_tax_template import item_tax_template_for_vat_rate
+        from erpnext_moldova_efactura.utils.party import find_customer_by_idno
+        from erpnext_moldova_efactura.utils.uom_map import resolve_uom
+
+        parsed = parse_invoice_xml(xml_content)
+        if parsed.get("issue_date"):
+            self.issue_date = parsed["issue_date"]
+        if parsed.get("delivery_date"):
+            self.delivery_date = parsed["delivery_date"]
+        if parsed.get("ef_series"):
+            self.ef_series = parsed["ef_series"]
+        if parsed.get("ef_number"):
+            self.ef_number = parsed["ef_number"]
+        if cint(self.docstatus) == 0 and str(parsed.get("creation_motiv") or "") == "5":
+            self.type = "Non-Transfer"
+
+        sup = parsed.get("supplier") or {}
+        self.ef_supplier_idno = sup.get("idno") or self.ef_supplier_idno
+        self.ef_supplier_name = sup.get("name") or self.ef_supplier_name
+        self.ef_supplier_vat_id = sup.get("vat_id") or self.ef_supplier_vat_id
+        self.ef_supplier_taxpayer_type = (
+            sup.get("taxpayer_type") or self.ef_supplier_taxpayer_type
+        )
+        self.ef_supplier_address = sup.get("address") or self.ef_supplier_address
+        self.ef_supplier_bank_account = sup.get("bank_account") or self.ef_supplier_bank_account
+        self.ef_supplier_bank_name = sup.get("bank_name") or self.ef_supplier_bank_name
+        self.ef_supplier_bank_code = sup.get("bank_code") or self.ef_supplier_bank_code
+
+        buy = parsed.get("buyer") or {}
+        self.ef_customer_idno = buy.get("idno") or self.ef_customer_idno
+        self.ef_customer_name = buy.get("name") or self.ef_customer_name
+        self.ef_customer_vat_id = buy.get("vat_id") or self.ef_customer_vat_id
+        self.ef_customer_taxpayer_type = (
+            buy.get("taxpayer_type") or self.ef_customer_taxpayer_type
+        )
+        self.ef_customer_address = buy.get("address") or self.ef_customer_address
+        if not self.customer and buy.get("idno"):
+            self.customer = find_customer_by_idno(buy.get("idno"))
+
+        tr = parsed.get("transporter") or {}
+        self.ef_transporter_idno = tr.get("idno") or self.ef_transporter_idno
+        self.ef_transporter_name = tr.get("name") or self.ef_transporter_name
+        self.ef_transporter_address = tr.get("address") or self.ef_transporter_address
+
+        existing_maps = {}
+        if preserve_mapped_items:
+            for row in self.items or []:
+                key = (row.ef_item_code or "").strip()
+                if key and row.item_code:
+                    existing_maps[key] = {
+                        "item_code": row.item_code,
+                        "uom": row.uom,
+                        "ef_uom": row.ef_uom,
+                        "conversion_factor": row.conversion_factor,
+                        "ef_conversion_factor": row.ef_conversion_factor,
+                        "item_tax_template": row.item_tax_template,
+                    }
+
+        fallback_uom = _fallback_uom()
+        self.set("items", [])
+        for item in parsed.get("items") or []:
+            code = (item.get("supplier_item_code") or "").strip()
+            prev = existing_maps.get(code) or {}
+            item_code = prev.get("item_code") or (
+                code if code and frappe.db.exists("Item", code) else None
+            )
+            uom = prev.get("uom") or resolve_uom(item.get("supplier_uom")) or fallback_uom
+            ef_uom = prev.get("ef_uom") or uom
+            qty = flt(item.get("qty"))
+            net_rate = flt(item.get("rate"))
+            net_amount = flt(item.get("net_amount"))
+            vat_amount = flt(item.get("vat_amount"))
+            gross_amount = flt(item.get("amount"))
+            vat_rate = flt(item.get("ef_vat_rate"))
+            item_tax_template = prev.get("item_tax_template") or item_tax_template_for_vat_rate(
+                vat_rate, self.company
+            )
+            self.append(
+                "items",
+                {
+                    "item_code": item_code,
+                    "ef_item_code": code,
+                    "item_name": (item.get("supplier_item_name") or code or "Item")[:140],
+                    "qty": qty,
+                    "uom": uom,
+                    "ef_uom": ef_uom,
+                    "ef_qty": flt(item.get("ef_qty") or qty),
+                    "stock_uom": uom,
+                    "stock_qty": qty,
+                    "conversion_factor": flt(prev.get("conversion_factor") or 1),
+                    "ef_conversion_factor": flt(prev.get("ef_conversion_factor") or 1),
+                    "item_tax_template": item_tax_template,
+                    "rate": net_rate,
+                    "amount": net_amount,
+                    "net_rate": net_rate,
+                    "net_amount": net_amount,
+                    "vat_amount": vat_amount,
+                    "ef_rate": flt(item.get("rate_with_vat") or net_rate),
+                    "ef_amount": gross_amount,
+                    "ef_net_rate": net_rate,
+                    "ef_net_amount": net_amount,
+                    "ef_vat_amount": vat_amount,
+                    "ef_vat_rate": vat_rate,
+                },
+            )
+
+        self.ef_total = flt(parsed.get("total"))
+        self.ef_vat_total = flt(parsed.get("vat_total"))
+        self.ef_net_total = flt(parsed.get("net_total"))
+        self.flags.keep_xml_amounts = True
+        self.set_ef_currency_from_settings()
+        self.apply_ef_conversion_rate_rules()
+        self._apply_sfs_xml_amounts()
+
     def _autofill_parties_from_efactura_api_after_save(self):
         # Prevent recursion
         if getattr(self.flags, "ef_autofill_running", False):
+            return
+        if self.flags.get("from_efactura_sync"):
             return
 
         # Do not run on cancel
@@ -316,16 +548,16 @@ class SaleseFactura(Document):
             self._autofill_party_block(
                 client,
                 "supplier",
-                self.supplier_party_type,
-                self.supplier_party,
-                idno_fields[self.supplier_party_type],
+                "Company",
+                self.company,
+                idno_fields["Company"],
             )
             self._autofill_party_block(
                 client,
                 "customer",
-                self.customer_party_type,
-                self.customer_party,
-                idno_fields[self.customer_party_type],
+                "Customer",
+                self.customer,
+                idno_fields["Customer"],
             )
 
             if self.transporter_party_type and self.transporter_party:
@@ -751,6 +983,259 @@ def process_signed_xml(name, signature, content):
         "posted": posted,
     }
 
+
+@frappe.whitelist()
+def get_new_customer_defaults(name=None, title=None, idno=None, taxpayer_type=None):
+    """Prefill values when creating a Customer from a Sales eFactura loaded from SFS."""
+    if name:
+        doc = _get_sales_efactura(name, "read")
+        title = title or doc.ef_customer_name
+        idno = idno or doc.ef_customer_idno
+        taxpayer_type = taxpayer_type or doc.ef_customer_taxpayer_type
+    from erpnext_moldova_efactura.utils.party import new_customer_defaults
+
+    return new_customer_defaults(title, idno, taxpayer_type)
+
+
+def _require_not_cancelled(doc):
+    if cint(doc.docstatus) == 2:
+        frappe.throw(_("Cannot create documents from a cancelled Sales eFactura"))
+
+
+def _require_mapped(doc, action_label=None):
+    if not doc.customer:
+        frappe.throw(_("Customer is required to create {0}").format(action_label or _("Sales Invoice")))
+    if not doc.items:
+        frappe.throw(_("No items on Sales eFactura — fetch details first"))
+    from erpnext_moldova_efactura.utils.party import throw_if_customer_idno_mismatch
+    from erpnext_moldova_efactura.utils.pi_match import throw_unmapped_items
+
+    throw_if_customer_idno_mismatch(doc.customer, doc.ef_customer_idno)
+    throw_unmapped_items(
+        doc.items,
+        _("Map all items before creating {0}").format(action_label or _("Sales Invoice")),
+        doc.currency,
+    )
+    for row in doc.items:
+        if not row.uom:
+            frappe.throw(_("UOM is required for row {0}").format(row.idx))
+        if not flt(row.qty):
+            frappe.throw(_("Quantity is required for row {0}").format(row.idx))
+
+
+def _selling_line_from_sef(row, vat_included: bool) -> dict:
+    from erpnext_moldova_efactura.utils.uom_map import get_item_uom_conversion
+
+    uom_cf = flt(row.conversion_factor) or get_item_uom_conversion(row.item_code, row.uom) or 1
+    if vat_included:
+        amount = flt(row.net_amount) + flt(row.vat_amount)
+        if not amount:
+            amount = flt(row.amount)
+        rate = (amount / flt(row.qty)) if flt(row.qty) and amount else flt(row.rate)
+    else:
+        amount = flt(row.net_amount) or flt(row.amount)
+        rate = (amount / flt(row.qty)) if flt(row.qty) and amount else flt(row.net_rate or row.rate)
+    uom = row.uom if row.uom and frappe.db.exists("UOM", row.uom) else None
+    return {
+        "item_code": row.item_code,
+        "item_name": row.item_name,
+        "qty": row.qty,
+        "uom": uom,
+        "conversion_factor": uom_cf,
+        "rate": rate,
+        "amount": amount,
+        "stock_uom": frappe.db.get_value("Item", row.item_code, "stock_uom"),
+        "item_tax_template": getattr(row, "item_tax_template", None),
+    }
+
+
+def _append_selling_items(target, source):
+    from erpnext_moldova_efactura.utils.buying_rate import BUYING_RATE_PRECISION
+    from erpnext_moldova_efactura.utils.buying_taxes import apply_selling_taxes
+
+    if target.meta.has_field("ignore_pricing_rule"):
+        target.ignore_pricing_rule = 1
+    vat_included = bool(frappe.db.get_single_value("eFactura Settings", "vat_included_in_rate"))
+    schedule = source.delivery_date or source.issue_date
+    for row in source.items:
+        vals = _selling_line_from_sef(row, vat_included)
+        item = target.append("items", {})
+        item.item_code = vals["item_code"]
+        item.item_name = vals["item_name"]
+        item.qty = vals["qty"]
+        if vals["uom"]:
+            item.uom = vals["uom"]
+        item.conversion_factor = vals["conversion_factor"]
+        item.rate = flt(vals["rate"], BUYING_RATE_PRECISION)
+        if item.meta.has_field("price_list_rate"):
+            item.price_list_rate = item.rate
+        if item.meta.has_field("amount") and vals.get("amount"):
+            item.amount = flt(vals["amount"], item.precision("amount") or 2)
+        if vals["stock_uom"] and item.meta.has_field("stock_uom"):
+            item.stock_uom = vals["stock_uom"]
+        if vals.get("item_tax_template") and item.meta.has_field("item_tax_template"):
+            item.item_tax_template = vals["item_tax_template"]
+        if schedule and item.meta.has_field("delivery_date"):
+            item.delivery_date = schedule
+    apply_selling_taxes(target, source)
+
+
+def _posting_time_str(value):
+    if value in (None, ""):
+        return None
+    from frappe.utils import get_time
+
+    try:
+        t = get_time(value).replace(microsecond=0)
+    except Exception:
+        return None
+    if t.hour == 0 and t.minute == 0 and t.second == 0:
+        return None
+    return t.strftime("%H:%M:%S")
+
+
+def _apply_posting_from_factura(target, source):
+    if not cint(frappe.db.get_single_value("eFactura Settings", "copy_date_from_factura")):
+        return
+    if not source.issue_date:
+        return
+    if target.meta.has_field("set_posting_time"):
+        target.set_posting_time = 1
+    if target.meta.has_field("posting_date"):
+        target.posting_date = source.issue_date
+    posting_time = _posting_time_str(getattr(source, "issue_time", None) or getattr(source, "posting_time", None))
+    if target.meta.has_field("posting_time") and posting_time:
+        target.posting_time = posting_time
+    if target.meta.has_field("transaction_date"):
+        target.transaction_date = source.issue_date
+
+
+def _prepare_mapped_selling_doc(target):
+    currency = target.currency or "MDL"
+    if target.meta.has_field("price_list_currency") and not target.price_list_currency:
+        target.price_list_currency = currency
+    if target.meta.has_field("conversion_rate"):
+        company_cur = (
+            frappe.get_cached_value("Company", target.company, "default_currency")
+            if target.company
+            else None
+        )
+        need_rate = not flt(target.conversion_rate) or (
+            flt(target.conversion_rate) == 1
+            and currency
+            and company_cur
+            and currency != company_cur
+        )
+        if need_rate:
+            if currency and company_cur and currency != company_cur:
+                from erpnext.setup.utils import get_exchange_rate
+
+                date = (
+                    getattr(target, "posting_date", None)
+                    or getattr(target, "transaction_date", None)
+                    or frappe.utils.today()
+                )
+                target.conversion_rate = flt(get_exchange_rate(currency, company_cur, date)) or 1
+            else:
+                target.conversion_rate = 1
+    if target.meta.has_field("plc_conversion_rate") and not flt(target.plc_conversion_rate):
+        target.plc_conversion_rate = 1
+    if target.meta.has_field("selling_price_list") and not target.selling_price_list:
+        pl = frappe.db.get_single_value("Selling Settings", "selling_price_list")
+        if pl:
+            target.selling_price_list = pl
+    target.set_onload("load_after_mapping", True)
+
+
+def _set_sales_efactura_link(target, source_name):
+    if target.meta.has_field("sales_efactura"):
+        target.sales_efactura = source_name
+
+
+def link_created_sales_invoice(si):
+    """Copy the new Sales Invoice onto the source Sales eFactura."""
+    name = si.get("sales_efactura") if si.meta.has_field("sales_efactura") else None
+    if not name or not frappe.db.exists("Sales eFactura", name):
+        return
+    sef = frappe.get_doc("Sales eFactura", name)
+    if sef.sales_invoice and sef.sales_invoice != si.name:
+        return
+    sef.sales_invoice = si.name
+    for row, si_row in zip(sef.items or [], si.items or []):
+        row.sales_invoice = si.name
+        if si_row.name:
+            row.si_detail = si_row.name
+    sync_sales_invoice_links(sef)
+    sef.flags.ignore_si_qty_guard = True
+    if cint(sef.docstatus) == 1:
+        sef.flags.ignore_validate_update_after_submit = True
+    sef.save(ignore_permissions=True)
+
+
+def unlink_created_sales_invoice(si):
+    name = si.get("sales_efactura") if si.meta.has_field("sales_efactura") else None
+    if not name or not frappe.db.exists("Sales eFactura", name):
+        return
+    sef = frappe.get_doc("Sales eFactura", name)
+    if sef.sales_invoice != si.name:
+        return
+    sef.sales_invoice = None
+    for row in sef.items or []:
+        if row.sales_invoice == si.name:
+            row.sales_invoice = None
+            row.si_detail = None
+    sef.flags.ignore_si_qty_guard = True
+    if cint(sef.docstatus) == 1:
+        sef.flags.ignore_validate_update_after_submit = True
+    sef.save(ignore_permissions=True)
+
+
+@frappe.whitelist()
+def make_sales_invoice(source_name, target_doc=None):
+    frappe.has_permission("Sales Invoice", "create", throw=True)
+    source = _get_sales_efactura(source_name)
+    _require_not_cancelled(source)
+    _require_mapped(source, _("Sales Invoice"))
+    if source.sales_invoice:
+        frappe.throw(_("e-Factura already has a Sales Invoice"))
+
+    si = frappe.new_doc("Sales Invoice")
+    si.company = source.company
+    si.customer = source.customer
+    si.currency = source.currency or "MDL"
+    if source.delivery_date and si.meta.has_field("delivery_date"):
+        si.delivery_date = source.delivery_date
+    _apply_posting_from_factura(si, source)
+    _append_selling_items(si, source)
+    _set_sales_efactura_link(si, source.name)
+    _prepare_mapped_selling_doc(si)
+    return si
+
+
+@frappe.whitelist()
+def make_sales_order(source_name, target_doc=None):
+    from frappe.utils import today
+
+    frappe.has_permission("Sales Order", "create", throw=True)
+    source = _get_sales_efactura(source_name)
+    _require_not_cancelled(source)
+    _require_mapped(source, _("Sales Order"))
+
+    so = frappe.new_doc("Sales Order")
+    so.company = source.company
+    so.customer = source.customer
+    so.currency = source.currency or "MDL"
+    so.transaction_date = today()
+    schedule = source.delivery_date or source.issue_date or today()
+    if so.meta.has_field("delivery_date"):
+        so.delivery_date = schedule
+    _apply_posting_from_factura(so, source)
+    _append_selling_items(so, source)
+    _set_sales_efactura_link(so, source.name)
+    _prepare_mapped_selling_doc(so)
+    return so
+
+
 @frappe.whitelist()
 def make_efactura_from_delivery_note(source_name, target_doc=None, args=None):
     if args is None:
@@ -783,7 +1268,10 @@ def make_efactura_from_delivery_note(source_name, target_doc=None, args=None):
                     "rate": "rate",
                     "item_tax_template": "item_tax_template",
                     "parent": "delivery_note",
+                    "name": "dn_detail",
+                    "against_sales_invoice": "sales_invoice",
                     "sales_invoice": "sales_invoice",
+                    "si_detail": "si_detail",
         },},},
         target_doc,
         _postprocess_with_discount,
@@ -825,6 +1313,9 @@ def make_efactura_from_sales_invoice(source_name, target_doc=None):
                     "rate": "rate",
                     "item_tax_template": "item_tax_template",
                     "parent": "sales_invoice",
+                    "name": "si_detail",
+                    "delivery_note": "delivery_note",
+                    "dn_detail": "dn_detail",
         },},},
         target_doc,
         _postprocess_with_discount,
@@ -884,17 +1375,16 @@ def _set_missing_values(source, target):
     target.currency = source.currency
 
     # Optional but usually correct
-    target.customer_party_type = "Customer"
-    target.customer_party = source.customer
+    target.customer = source.customer
 
-    # Fiscal document is always tied to Sales Invoice:
+    # One Sales Invoice per e-Factura (header is denormalized from item links):
     # - eFactura can be issued without any Delivery Note
     # - one SI may be fulfilled by several DNs; DN only supplies items
-    target.reference_doctype = "Sales Invoice"
     if source.doctype == "Sales Invoice":
-        target.reference_name = source.name
-    elif source.doctype == "Delivery Note" and not target.reference_name:
-        target.reference_name = _resolve_sales_invoice_from_delivery_note(source)
+        target.sales_invoice = source.name
+    elif source.doctype == "Delivery Note" and not target.sales_invoice:
+        target.sales_invoice = _resolve_sales_invoice_from_delivery_note(source)
+    sync_sales_invoice_links(target)
 
     target.set_ef_currency_from_settings()
     target.apply_ef_conversion_rate_rules()
@@ -903,6 +1393,14 @@ def _set_missing_values(source, target):
     for d in target.items or []:
         d.ef_uom = d.ef_uom or d.uom
         d.ef_qty = d.ef_qty or d.qty
+
+
+def _fallback_uom():
+    for name in ("Nos", "Buc", "buc", "Unit"):
+        if frappe.db.exists("UOM", name):
+            return name
+    uoms = frappe.get_all("UOM", pluck="name", limit=1)
+    return uoms[0] if uoms else None
 
 
 def _get_vat_rate_from_item_tax_template(template_name, cache):

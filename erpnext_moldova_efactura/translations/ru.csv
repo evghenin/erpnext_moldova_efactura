@@ -63,7 +63,9 @@ Net Rate (eFactura Currency),Ставка нетто (валюта eFactura)
 Net Total (eFactura Currency),Итого нетто (валюта eFactura)
 Non-Transfer,Непередаваемый
 Pending Registration,Ожидает регистрации
-Please Select a Customer Party Type "Customer" and Customer Party first.,Сначала выберите тип стороны «Клиент» и клиента.
+Please select a Customer first.,Сначала выберите клиента.
+Select Customer first,Сначала выберите клиента
+Sales Invoice {0} does not belong to Customer {1},Счёт продажи {0} не принадлежит клиенту {1}
 Please select at least one Sales Invoice.,Выберите хотя бы один счёт продажи.
 Please set Currency in eFactura Settings.,Укажите валюту в настройках eFactura.
 Print Name,Имя для печати
@@ -234,16 +236,18 @@ Supplier is required to create {0},Для создания {0} нужен пос
 Purchase Order,Заказ поставщику
 Purchase Taxes,Налоги закупки
 Company Settings,Настройки компании
+Purchase Tax Settings,Настройки налогов закупки
+Sales Tax Settings,Настройки налогов продажи
 VAT Account (Purchase),Счёт НДС (закупка)
 Tax Category,Категория налога
 Purchase Taxes and Charges Template,Шаблон налогов закупки
 "Set on Purchase Order / Purchase Invoice. Used to pick Item Tax Template.","Ставится на заказ поставщику / счёт покупки. Нужна для выбора Item Tax Template."
 "Default Purchase Taxes and Charges Template for this company. Applied when Item-wise tax is not used.","Шаблон налогов закупки по умолчанию для компании. Применяется, если Item-wise налог не используется."
 "Which tax account is e-Factura VAT. If the Purchase Taxes template does not include this account, it is added as Actual with the VAT amount from the factura.","Какой счёт — НДС e-Factura. Если его нет в шаблоне налогов, он добавляется как Actual с суммой НДС из фактуры."
-"Per-company Tax Category, Purchase Taxes template, and VAT account for Purchase Order / Purchase Invoice created from e-Factura.","Категория налога, шаблон налогов закупки и счёт НДС по компании для заказа / счёта из e-Factura."
+"Per-company Tax Category, Purchase Taxes template, and VAT account for Purchase Order / Purchase Invoice created from e-Factura.","Категория налога, шаблон налогов закупки и счёт НДС по компании для заказа / счёта покупки из e-Factura."
 Purchase Taxes and Charges Template {0} does not belong to company {1},Шаблон налогов закупки {0} не относится к компании {1}
 "VAT is included in Rate, so Actual tax cannot be used (ERPNext forbids 'Is this Tax included in Basic Rate?' on Actual). Set Purchase Taxes and Charges Template or Item Tax Templates for company {0}.","НДС включён в ставку, Actual нельзя (ERPNext запрещает «Is this Tax included in Basic Rate?» для Actual). Укажите шаблон налогов закупки или Item Tax Template для компании {0}."
-"e-Factura VAT is {0} but Purchase taxes are empty. For company {1} set VAT Account (Purchase) or Purchase Taxes and Charges Template in eFactura Settings (Incoming → Company Settings).","В e-Factura НДС {0}, а в закупке налоги пустые. Для компании {1} укажите счёт НДС (закупка) или шаблон налогов закупки в eFactura Settings (Incoming → Company Settings)."
+"e-Factura VAT is {0} but Purchase taxes are empty. For company {1} set VAT Account (Purchase) or Purchase Taxes and Charges Template in eFactura Settings (Incoming → Purchase Tax Settings).","В e-Factura НДС {0}, а в закупке налоги пустые. Для компании {1} укажите счёт НДС (закупка) или шаблон налогов закупки в eFactura Settings (Incoming → Purchase Tax Settings)."
 "Used when Item-wise tax is not applied. VAT from e-Factura is posted as Actual tax on Purchase Order and Purchase Invoice.","Если Item-wise налог не применяется, НДС из e-Factura ставится как Actual в заказ поставщику и счёт покупки."
 "Per-company VAT account used when Item-wise tax is not applied. Amounts are copied from e-Factura onto Purchase Order and Purchase Invoice.","Счёт НДС по компании, если Item-wise налог не применяется. Суммы копируются из e-Factura в заказ поставщику и счёт покупки."
 "VAT Account (Purchase) must be a ledger account, not a group","Счёт НДС (закупка) должен быть листовым, не группой"
@@ -252,12 +256,27 @@ Company {0} is listed more than once,Компания {0} указана бол�
 VAT {0}%,НДС {0}%
 VAT,НДС
 Purchase taxes are empty,Налоги закупки не заполнены
-"e-Factura VAT is {0} but Purchase taxes are empty. Set VAT Account for company {1} in eFactura Settings (Incoming → Company Settings), or enable Item-wise tax (Accounts Settings → Add taxes from Item Tax Template) and assign Item Tax Templates.","В e-Factura НДС {0}, а в закупке налоги пустые. Укажите счёт НДС для компании {1} в eFactura Settings (Incoming → Company Settings) либо включите Item-wise налог (Accounts Settings → Add taxes from Item Tax Template) и назначьте Item Tax Template."
+"e-Factura VAT is {0} but Purchase taxes are empty. Set VAT Account for company {1} in eFactura Settings (Incoming → Purchase Tax Settings), or enable Item-wise tax (Accounts Settings → Add taxes from Item Tax Template) and assign Item Tax Templates.","В e-Factura НДС {0}, а в закупке налоги пустые. Укажите счёт НДС для компании {1} в eFactura Settings (Incoming → Purchase Tax Settings) либо включите Item-wise налог (Accounts Settings → Add taxes from Item Tax Template) и назначьте Item Tax Template."
 Copy Date from Factura,Копировать дату из фактуры
 "If enabled, Purchase Invoice posting date and time and Purchase Order transaction date are copied from the e-Factura issue date.","Если включено, дата и время проведения счёта покупки и дата заказа поставщику берутся из даты выписки e-Factura."
 Do Not Create Cancelled Invoices,Не создавать аннулированные фактуры
 "If enabled, incoming invoices already cancelled by the supplier in e-Factura are not created. Existing documents still receive the cancelled status.","Если включено, входящие фактуры, уже аннулированные поставщиком в e-Factura, не создаются. У уже загруженных документов статус отмены всё равно обновляется."
 "Found {0}, created {1}, updated {2}, skipped {3}, details {4}, errors {5}","Найдено {0}, создано {1}, обновлено {2}, пропущено {3}, детали {4}, ошибок {5}"
+Fetch Supplier Invoices,Загрузить исходящие фактуры
+Fetching supplier invoices...,Загрузка исходящих фактур...
+All rows must link to the same Sales Invoice.,Все строки должны ссылаться на один счёт продажи.
+Sales Invoice on the document does not match the rows.,Счёт продажи в шапке не совпадает со строками.
+Sales eFactura {0} already exists for {1}{2},Sales eFactura {0} уже существует для {1}{2}
+No Company found for Sales eFactura sync,Не найдена компания для синхронизации Sales eFactura
+Customer is required before submit,Перед проведением укажите клиента
+Company Bank Account is required before submit,Перед проведением укажите банковский счёт компании
+Issue Date is required before submit,Перед проведением укажите дату выписки
+Delivery Date is required before submit,Перед проведением укажите дату поставки
+Add or fetch invoice items before submit,Перед проведением добавьте или загрузите строки фактуры
+eFactura Item Code,Код номенклатуры eFactura
+eFactura UOM is required for row {0},Для строки {0} нужна ЕИ eFactura
+Customer {0} IDNO ({1}) does not match e-Factura buyer IDNO {2},IDNO клиента {0} ({1}) не совпадает с IDNO покупателя в e-Factura {2}
+Customer IDNO mismatch,IDNO клиента не совпадает
 Issue Time,Время выписки
 Link Purchase Order,Связать заказ поставщику
 Unlink Purchase Order,Отвязать заказ поставщику
@@ -338,3 +357,22 @@ Buyer Details,Реквизиты покупателя
 Customer Details,Реквизиты клиента
 Transporter Details,Реквизиты перевозчика
 Rate (with VAT) (eFactura Currency),Ставка с НДС (валюта eFactura)
+Customer is required to create {0},Для создания {0} нужен клиент
+No items on Sales eFactura — fetch details first,В исходящей eFactura нет позиций — сначала загрузите детали
+Cannot create documents from a cancelled Sales eFactura,Нельзя создавать документы из отменённой исходящей eFactura
+e-Factura already has a Sales Invoice,У e-Factura уже есть счёт продажи
+VAT Account (Sales),Счёт НДС (продажа)
+Sales Taxes and Charges Template,Шаблон налогов продажи
+Sales taxes are empty,Налоги продажи пустые
+"e-Factura VAT is {0} but Sales taxes are empty. For company {1} set VAT Account (Sales) or Sales Taxes and Charges Template in eFactura Settings (Outgoing → Sales Tax Settings).","В e-Factura НДС {0}, а в продаже налоги пустые. Для компании {1} укажите счёт НДС (продажа) или шаблон налогов продажи в eFactura Settings (Outgoing → Sales Tax Settings)."
+Return to Sales eFactura,Вернуться в исходящую eFactura
+"Sales Invoice {0} is submitted. Open Sales eFactura {1} to submit it?","Счёт продажи {0} проведён. Открыть исходящую eFactura {1}, чтобы провести её?"
+"Default Sales Taxes and Charges Template for this company. Applied when Item-wise tax is not used.","Шаблон налогов продажи по умолчанию для компании. Применяется, если Item-wise налог не используется."
+"Which tax account is e-Factura VAT on Sales Order / Sales Invoice. If the Sales Taxes template does not include this account, it is added as Actual with the VAT amount from the factura.","Какой счёт — НДС e-Factura в заказе / счёте продажи. Если его нет в шаблоне налогов, он добавляется как Actual с суммой НДС из фактуры."
+"Per-company Tax Category, Sales Taxes template, and VAT account for Sales Order / Sales Invoice created from e-Factura.","Категория налога, шаблон налогов продажи и счёт НДС по компании для заказа / счёта продажи из e-Factura."
+"Set on Sales Order / Sales Invoice. Used to pick Item Tax Template.","Ставится на заказ клиента / счёт продажи. Нужна для выбора Item Tax Template."
+VAT Account (Sales) must be a ledger account, not a group,Счёт НДС (продажа) должен быть листовым счётом, не группой
+Sales Taxes and Charges Template {0} does not belong to company {1},Шаблон налогов продажи {0} не относится к компании {1}
+Item Tax Templates,Шаблоны налогов номенклатуры
+"Allowed Item Tax Templates for Sales eFactura loaded from e-Factura. A line with a VAT % gets the first template from this list with the same rate.","Разрешённые Item Tax Template для исходящей eFactura, загруженной из e-Factura. Строке с % НДС подставляется первый шаблон из списка с той же ставкой."
+Item Tax Template {0} is listed more than once,Item Tax Template {0} указан больше одного раза

@@ -51,7 +51,14 @@ def fmt_qty(value, precision: int) -> str:
 
 
 def buyer_line_name(row) -> str:
-	return (row.supplier_item_name or row.item_name or row.item_code or row.supplier_item_code or "").strip() or _("row {0}").format(row.idx)
+	return (
+		getattr(row, "supplier_item_name", None)
+		or getattr(row, "item_name", None)
+		or getattr(row, "item_code", None)
+		or getattr(row, "supplier_item_code", None)
+		or getattr(row, "ef_item_code", None)
+		or ""
+	).strip() or _("row {0}").format(row.idx)
 
 
 def pi_line_name(row) -> str:

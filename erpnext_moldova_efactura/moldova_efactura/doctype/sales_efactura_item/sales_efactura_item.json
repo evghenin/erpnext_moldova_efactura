@@ -7,6 +7,7 @@
  "engine": "InnoDB",
  "field_order": [
   "item_code",
+  "ef_item_code",
   "item_name",
   "quantity_section",
   "uom",
@@ -42,8 +43,10 @@
   "ef_vat_amount",
   "references_section",
   "sales_invoice",
+  "si_detail",
   "column_break_vwvq",
-  "delivery_note"
+  "delivery_note",
+  "dn_detail"
  ],
  "fields": [
   {
@@ -54,9 +57,16 @@
    "label": "Item Code",
    "options": "Item",
    "print_width": "150px",
-   "reqd": 1,
    "search_index": 1,
    "width": "150px"
+  },
+  {
+   "fieldname": "ef_item_code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "eFactura Item Code",
+   "no_copy": 1,
+   "read_only": 1
   },
   {
    "fieldname": "item_name",
@@ -311,6 +321,7 @@
    "label": "References"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "sales_invoice",
    "fieldtype": "Link",
    "label": "Sales Invoice",
@@ -320,10 +331,21 @@
    "search_index": 1
   },
   {
+   "allow_on_submit": 1,
+   "fieldname": "si_detail",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Sales Invoice Item",
+   "no_copy": 1,
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
    "fieldname": "column_break_vwvq",
    "fieldtype": "Column Break"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "delivery_note",
    "fieldtype": "Link",
    "label": "Delivery Note",
@@ -331,6 +353,16 @@
    "options": "Delivery Note",
    "print_hide": 1,
    "search_index": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "dn_detail",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Delivery Note Item",
+   "no_copy": 1,
+   "print_hide": 1,
+   "read_only": 1
   },
   {
    "fieldname": "available_stock_qty",
@@ -346,7 +378,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-08-15 01:48:28.382546",
+ "modified": "2026-08-21 00:10:00.000000",
  "modified_by": "Administrator",
  "module": "Moldova eFactura",
  "name": "Sales eFactura Item",
