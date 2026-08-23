@@ -93,9 +93,8 @@ def _sync_buyer_invoices_for_company(client, company: str, lookback_days: int) -
 				doc.set_status(update=False)
 				doc.save(ignore_permissions=True)
 				updated += 1
-				# Details come from SFS on demand; refill if parties/items missing
-				if not doc.items or not doc.ef_supplier_idno:
-					detail_candidates.append((priority, doc.name))
+				# Drafts always re-read XML so totals/items can be corrected
+				detail_candidates.append((priority, doc.name))
 			else:
 				if skip_cancelled and is_canceled_by_supplier(ef_status):
 					skipped += 1

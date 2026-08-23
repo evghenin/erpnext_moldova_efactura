@@ -288,6 +288,15 @@ class TestEFacturaBuyerUtils(FrappeTestCase):
 		self.assertEqual(parsed["vat_total"], 97.81)
 		self.assertAlmostEqual(parsed["net_total"], 489.0)
 
+	def test_parse_invoice_xml_mixed_total_dot_and_vat_comma(self):
+		xml = SAMPLE_XML.replace("<Total>118.00</Total>", "<Total>586.81</Total>").replace(
+			"<TotalTVA>18.00</TotalTVA>", "<TotalTVA>97,81</TotalTVA>"
+		)
+		parsed = parse_invoice_xml(xml)
+		self.assertEqual(parsed["total"], 586.81)
+		self.assertEqual(parsed["vat_total"], 97.81)
+		self.assertAlmostEqual(parsed["net_total"], 489.0)
+
 	def test_parse_issued_date_with_fractional_seconds(self):
 		xml = SAMPLE_XML.replace(
 			"<IssuedDate>2026-06-09T10:38:41</IssuedDate>",
@@ -1294,6 +1303,56 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 		doc.items[0].uom = item.stock_uom
 		doc.insert()
 		return doc
+
+	def test_fill_from_xml_drops_pi_links_on_duplicate_supplier_items(self):
+		item = frappe.db.get_value("Item", {"disabled": 0}, ["name", "stock_uom"], as_dict=True)
+		sup = frappe.db.get_value("Supplier", {}, "name")
+		if not item or not sup:
+			self.skipTest("Need Item and Supplier")
+
+		number = "000066901"
+		self._delete_buyer("EBJ", number)
+		xml = SAMPLE_XML.replace("000066606", number).replace(
+			"""      <Row Code="A1" Name="Item A" UnitOfMeasure="buc" Quantity="2"
+           UnitPriceWithoutTVA="50" TotalPriceWithoutTVA="100" TVA="18" TotalTVA="18" TotalPrice="118"/>""",
+			"""      <Row Code="A1" Name="Item A" UnitOfMeasure="buc" Quantity="1"
+           UnitPriceWithoutTVA="50" TotalPriceWithoutTVA="50" TVA="18" TotalTVA="9" TotalPrice="59"/>
+      <Row Code="A1" Name="Item A" UnitOfMeasure="buc" Quantity="1"
+           UnitPriceWithoutTVA="50" TotalPriceWithoutTVA="50" TVA="18" TotalTVA="9" TotalPrice="59"/>""",
+		)
+		doc = frappe.get_doc(
+			{
+				"doctype": "Purchase eFactura",
+				"naming_series": "ACC-PEF-.YYYY.-",
+				"company": self.company,
+				"ef_series": "EBJ",
+				"ef_number": number,
+				"ef_status": 8,
+				"supplier": sup,
+			}
+		)
+		doc.fill_from_xml(xml)
+		self.assertEqual(len(doc.items), 2)
+		for idx, row in enumerate(doc.items, start=1):
+			row.item_code = item.name
+			row.ef_uom = item.stock_uom
+			row.uom = item.stock_uom
+			row.purchase_invoice = "PINV-DUMMY"
+			row.pi_detail = f"PINV-DUMMY-{idx}"
+		doc.flags.ignore_links = True
+		doc.insert()
+
+		doc.flags.allow_sfs_item_refresh = True
+		doc.fill_from_xml(xml)
+		doc.flags.ignore_links = True
+		doc.save()
+		self.assertEqual(len(doc.items), 2)
+		self.assertEqual(doc.items[0].item_code, item.name)
+		self.assertEqual(doc.items[1].item_code, item.name)
+		self.assertFalse(doc.items[0].purchase_invoice)
+		self.assertFalse(doc.items[1].purchase_invoice)
+		self.assertFalse(doc.items[0].pi_detail)
+		self.assertFalse(doc.items[1].pi_detail)
 
 	def _make_pi(self, supplier, item_code, qty, uom, rate=50, bill_no=None):
 		pi = frappe.new_doc("Purchase Invoice")

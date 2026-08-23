@@ -32,6 +32,7 @@ from erpnext_moldova_efactura.utils.pef_currency import (
 )
 from erpnext_moldova_efactura.utils.pi_alloc import (
 	apply_allocations,
+	clear_pi_buyer_link,
 	has_allocations,
 	set_pi_buyer_link,
 	throw_unallocated_items,
@@ -297,7 +298,12 @@ class PurchaseeFactura(Document):
 			apply_uom_to_buyer_row(row)
 
 	def fill_from_xml(self, xml_content: str, preserve_mapped_items: bool = True):
-		"""Apply a freshly fetched SFS XML payload; XML itself is not stored."""
+		"""Apply a freshly fetched SFS XML payload; XML itself is not stored.
+
+		Item/UOM maps are kept in line order. Purchase Invoice allocations are
+		cleared: SFS amounts may change, and identical supplier lines must not
+		share one pi_detail.
+		"""
 		parsed = parse_invoice_xml(xml_content)
 
 		if parsed.get("issue_date"):
@@ -336,25 +342,29 @@ class PurchaseeFactura(Document):
 		if not self.supplier and self.ef_supplier_idno:
 			self.supplier = find_supplier_by_idno(self.ef_supplier_idno)
 
-		existing_maps = {}
+		# Keep Item/UOM maps; drop PI links — amounts may change, and duplicate
+		# supplier lines must not reuse the same pi_detail.
+		linked_invoices = unique_purchase_invoices(self) if preserve_mapped_items else []
+		existing_maps: dict[tuple, list] = {}
 		if preserve_mapped_items:
 			for row in self.items or []:
 				key = (row.supplier_item_code or "", row.supplier_item_name or "")
-				existing_maps[key] = {
-					"item_code": row.item_code,
-					"ef_uom": row.ef_uom,
-					"uom": row.uom,
-					"conversion_factor": row.conversion_factor,
-					"ef_conversion_factor": row.ef_conversion_factor,
-					"purchase_invoice": row.purchase_invoice,
-					"pi_detail": row.pi_detail,
-				}
+				existing_maps.setdefault(key, []).append(
+					{
+						"item_code": row.item_code,
+						"ef_uom": row.ef_uom,
+						"uom": row.uom,
+						"conversion_factor": row.conversion_factor,
+						"ef_conversion_factor": row.ef_conversion_factor,
+					}
+				)
 
 		self.set("items", [])
 		for item in parsed.get("items") or []:
 			key = (item.get("supplier_item_code") or "", item.get("supplier_item_name") or "")
 			row = self.append("items", remap_xml_item_money(item))
-			prev = existing_maps.get(key) or {}
+			queue = existing_maps.get(key) or []
+			prev = queue.pop(0) if queue else {}
 			if prev.get("item_code"):
 				row.item_code = prev["item_code"]
 			if prev.get("ef_uom"):
@@ -365,9 +375,9 @@ class PurchaseeFactura(Document):
 				row.conversion_factor = prev["conversion_factor"]
 			if flt(prev.get("ef_conversion_factor")):
 				row.ef_conversion_factor = prev["ef_conversion_factor"]
-			if prev.get("purchase_invoice"):
-				row.purchase_invoice = prev["purchase_invoice"]
-				row.pi_detail = prev.get("pi_detail")
+
+		for pi_name in linked_invoices:
+			clear_pi_buyer_link(pi_name)
 
 		self.ef_currency = settings_ef_currency()
 		apply_supplier_or_default_currency(self, overwrite_company_default=True)
