@@ -64,20 +64,11 @@ frappe.ui.form.on("Purchase eFactura", {
 		const efActions = __("eFactura Actions");
 
 		if (frm.doc.docstatus === 0 && canWrite) {
-			frm.add_custom_button(__("Fetch Details"), () => {
-				frappe.call({
-					method: "erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura.fetch_details",
-					args: { name: frm.doc.name },
-					freeze: true,
-					callback(r) {
-						if (!r.exc) {
-							frm.reload_doc();
-						}
-					},
-				});
-			});
-
 			frm.add_custom_button(__("Map Items"), () => open_map_dialog(frm));
+		}
+
+		if ((frm.doc.items || []).length && frm.doc.docstatus !== 2 && canWrite) {
+			frm.add_custom_button(__("Link Invoice"), () => link_purchase_invoice_dialog(frm));
 		}
 
 		if (frm.doc.ef_series && frm.doc.ef_number) {
@@ -188,10 +179,6 @@ frappe.ui.form.on("Purchase eFactura", {
 					efActions
 				);
 			}
-		}
-
-		if ((frm.doc.items || []).length && frm.doc.docstatus !== 2 && canWrite) {
-			frm.add_custom_button(__("Link Invoice"), () => link_purchase_invoice_dialog(frm));
 		}
 
 		if (frm.doc.docstatus !== 2 && frm.doc.supplier && (frm.doc.items || []).length && canWrite) {
