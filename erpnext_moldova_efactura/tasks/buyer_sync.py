@@ -9,8 +9,10 @@ from frappe.utils import add_days, cint, now_datetime
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient
 from erpnext_moldova_efactura.utils.api_response import extract_invoices, invoice_status_map, invoice_xml
 from erpnext_moldova_efactura.utils.buyer_status import (
+	BUYER_ACTIONABLE_STATUSES,
 	buyer_search_statuses,
 	do_not_create_cancelled_invoices,
+	is_buyer_actionable_status,
 	is_canceled_by_supplier,
 	status_label,
 )
@@ -70,7 +72,7 @@ def _sync_buyer_invoices_for_company(client, company: str, lookback_days: int) -
 
 	created = updated = skipped = details = errors = 0
 	skip_cancelled = do_not_create_cancelled_invoices()
-	# Fetch XML details for a limited batch (prefer docs missing items/xml)
+	# Fetch XML details for a limited batch (prefer awaiting-action, then missing items/xml)
 	detail_candidates = []
 
 	for (seria, number), ef_status in seen.items():
@@ -79,6 +81,7 @@ def _sync_buyer_invoices_for_company(client, company: str, lookback_days: int) -
 				"Purchase eFactura",
 				{"company": company, "ef_series": seria, "ef_number": number},
 			)
+			priority = 0 if is_buyer_actionable_status(ef_status) else 1
 			if name:
 				doc = frappe.get_doc("Purchase eFactura", name)
 				if cint(doc.docstatus) != 0:
@@ -92,7 +95,7 @@ def _sync_buyer_invoices_for_company(client, company: str, lookback_days: int) -
 				updated += 1
 				# Details come from SFS on demand; refill if parties/items missing
 				if not doc.items or not doc.ef_supplier_idno:
-					detail_candidates.append(doc.name)
+					detail_candidates.append((priority, doc.name))
 			else:
 				if skip_cancelled and is_canceled_by_supplier(ef_status):
 					skipped += 1
@@ -112,7 +115,7 @@ def _sync_buyer_invoices_for_company(client, company: str, lookback_days: int) -
 				doc.flags.from_efactura_sync = True
 				doc.insert(ignore_permissions=True)
 				created += 1
-				detail_candidates.append(doc.name)
+				detail_candidates.append((priority, doc.name))
 		except Exception:
 			errors += 1
 			frappe.log_error(
@@ -120,7 +123,8 @@ def _sync_buyer_invoices_for_company(client, company: str, lookback_days: int) -
 				message=frappe.get_traceback(),
 			)
 
-	for name in detail_candidates[:BATCH_DETAIL]:
+	detail_candidates.sort(key=lambda row: row[0])
+	for _priority, name in detail_candidates[:BATCH_DETAIL]:
 		try:
 			if _fill_details(client, name):
 				details += 1
@@ -180,21 +184,37 @@ def _fill_details(client: EFacturaAPIClient, name: str) -> bool:
 	return True
 
 
+def get_buyer_status_sync_rows(company: str, batch_size: int = 50) -> list[dict]:
+	"""Oldest last_status_check first, but invoices awaiting buyer action always lead.
+
+	SFS CheckInvoicesStatus is batched. Prefer statuses 1/7/9 so Sign/Accept
+	queues stay current even when many accepted/archived docs exist.
+	"""
+	limit = max(int(batch_size or 50), 1)
+	actionable = ",".join(str(code) for code in BUYER_ACTIONABLE_STATUSES)
+	return frappe.db.sql(
+		f"""
+		SELECT name, ef_series, ef_number, ef_status
+		FROM `tabPurchase eFactura`
+		WHERE company = %s
+			AND ifnull(ef_series, '') != ''
+			AND ifnull(ef_number, '') != ''
+		ORDER BY
+			CASE WHEN ef_status IN ({actionable}) THEN 0 ELSE 1 END ASC,
+			ifnull(last_status_check, '1000-01-01') ASC,
+			modified ASC
+		LIMIT {limit}
+		""",
+		(company,),
+		as_dict=True,
+	)
+
+
 def sync_buyer_statuses(batch_size: int = 50) -> dict:
 	"""Refresh ef_status for existing buyer docs via CheckInvoicesStatus."""
 	checked = updated = 0
 	for target in get_sync_targets():
-		rows = frappe.get_all(
-			"Purchase eFactura",
-			fields=["name", "ef_series", "ef_number", "ef_status"],
-			filters={
-				"company": target["company"],
-				"ef_series": ["is", "set"],
-				"ef_number": ["is", "set"],
-			},
-			order_by="modified asc",
-			limit_page_length=batch_size,
-		)
+		rows = get_buyer_status_sync_rows(target["company"], batch_size)
 		if not rows:
 			continue
 		client = EFacturaAPIClient.from_settings(company=target["company"])

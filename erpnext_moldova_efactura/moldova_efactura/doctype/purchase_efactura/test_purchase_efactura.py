@@ -69,6 +69,14 @@ class TestEFacturaBuyerUtils(FrappeTestCase):
 		self.assertEqual(compose_buyer_status(8, "PINV-001"), "Signed by Buyer")
 		self.assertEqual(compose_buyer_status(7, "PINV-001"), "Sent to Buyer")
 
+	def test_is_buyer_actionable_status(self):
+		from erpnext_moldova_efactura.utils.buyer_status import is_buyer_actionable_status
+
+		for code in (1, 7, 9):
+			self.assertTrue(is_buyer_actionable_status(code), code)
+		for code in (2, 3, 5, 8, 10, 11, None, ""):
+			self.assertFalse(is_buyer_actionable_status(code), code)
+
 	def test_should_create_incoming_respects_cancelled_setting(self):
 		prev = frappe.db.get_single_value("eFactura Settings", "do_not_create_cancelled_invoices")
 		try:
@@ -1836,3 +1844,57 @@ class TestEFacturaBuyerPIMatch(FrappeTestCase):
 		buyer, pi = self._pair(grand_total=118.55)
 		errors, _ = collect_totals_and_line_errors(buyer, pi, mprec=2, qprec=3)
 		self.assertTrue(any("Grand Total" in e for e in errors))
+
+
+class TestBuyerStatusSyncOrder(FrappeTestCase):
+	SERIES = "ZZSYN"
+
+	def setUp(self):
+		super().setUp()
+		self.company = frappe.db.get_single_value("Global Defaults", "default_company") or frappe.db.get_value(
+			"Company", {}, "name"
+		)
+		if not self.company:
+			self.skipTest("No company")
+		self._cleanup()
+
+	def tearDown(self):
+		self._cleanup()
+		super().tearDown()
+
+	def _cleanup(self):
+		names = frappe.get_all("Purchase eFactura", filters={"ef_series": self.SERIES}, pluck="name")
+		for name in names:
+			frappe.delete_doc("Purchase eFactura", name, force=True, ignore_permissions=True)
+
+	def _insert(self, number: str, ef_status: int, last_status_check: str):
+		doc = frappe.get_doc(
+			{
+				"doctype": "Purchase eFactura",
+				"naming_series": "ACC-PEF-.YYYY.-",
+				"company": self.company,
+				"ef_series": self.SERIES,
+				"ef_number": number,
+				"ef_status": ef_status,
+			}
+		)
+		doc.flags.from_efactura_sync = True
+		doc.insert(ignore_permissions=True)
+		doc.db_set("ef_status", ef_status, update_modified=False)
+		doc.db_set("last_status_check", last_status_check, update_modified=False)
+		return doc
+
+	def test_status_sync_rows_prefer_awaiting_action(self):
+		from erpnext_moldova_efactura.tasks.buyer_sync import get_buyer_status_sync_rows
+
+		stale_done = self._insert("000000008", 8, "2020-01-01 00:00:00")
+		newer_action = self._insert("000000007", 7, "2026-08-01 00:00:00")
+		older_action = self._insert("000000001", 1, "2026-01-01 00:00:00")
+
+		rows = get_buyer_status_sync_rows(self.company, batch_size=100000)
+		by_name = [row.name for row in rows]
+		self.assertIn(older_action.name, by_name)
+		self.assertIn(newer_action.name, by_name)
+		self.assertIn(stale_done.name, by_name)
+		self.assertLess(by_name.index(older_action.name), by_name.index(newer_action.name))
+		self.assertLess(by_name.index(newer_action.name), by_name.index(stale_done.name))

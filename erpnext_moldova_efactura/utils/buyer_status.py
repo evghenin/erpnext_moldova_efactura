@@ -30,6 +30,14 @@ BUYER_SEARCH_STATUSES = (7, 9, 1, 8, 3, 2, 10, 5, 11)
 BUYER_ACTIONABLE_STATUSES = (1, 7, 9)
 BUYER_SIGNABLE_STATUSES = (1, 7, 9, 3)
 
+
+def is_buyer_actionable_status(ef_status) -> bool:
+	try:
+		return int(ef_status) in BUYER_ACTIONABLE_STATUSES
+	except (TypeError, ValueError):
+		return False
+
+
 # Legacy suffix stripped from stored status; no longer written.
 PI_LINKED_SUFFIX = " · Linked to PI"
 
