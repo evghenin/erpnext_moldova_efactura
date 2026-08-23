@@ -271,31 +271,15 @@ class TestEFacturaBuyerUtils(FrappeTestCase):
 		self.assertEqual(str(parsed["issue_date"]), "2026-06-09")
 		self.assertEqual(get_time(parsed["issue_time"]), get_time("10:38:41"))
 
-	def test_parse_sfs_amount_keeps_comma_decimals(self):
-		self.assertEqual(parse_sfs_amount("97,81"), 97.81)
+	def test_parse_sfs_amount_dot_decimal_only(self):
 		self.assertEqual(parse_sfs_amount("586.81"), 586.81)
-		self.assertEqual(parse_sfs_amount("1.234,56"), 1234.56)
-		self.assertEqual(parse_sfs_amount("1,234.56"), 1234.56)
-		self.assertEqual(parse_sfs_amount("9 781,00"), 9781.0)
+		self.assertEqual(parse_sfs_amount("186.763"), 186.763)
+		self.assertEqual(parse_sfs_amount("8.62480"), 8.6248)
+		self.assertEqual(parse_sfs_amount("9781"), 9781.0)
+		self.assertEqual(parse_sfs_amount("-10.5"), -10.5)
 		self.assertEqual(parse_sfs_amount(""), 0.0)
-
-	def test_parse_invoice_xml_comma_vat_does_not_go_negative(self):
-		xml = SAMPLE_XML.replace("<Total>118.00</Total>", "<Total>586,81</Total>").replace(
-			"<TotalTVA>18.00</TotalTVA>", "<TotalTVA>97,81</TotalTVA>"
-		)
-		parsed = parse_invoice_xml(xml)
-		self.assertEqual(parsed["total"], 586.81)
-		self.assertEqual(parsed["vat_total"], 97.81)
-		self.assertAlmostEqual(parsed["net_total"], 489.0)
-
-	def test_parse_invoice_xml_mixed_total_dot_and_vat_comma(self):
-		xml = SAMPLE_XML.replace("<Total>118.00</Total>", "<Total>586.81</Total>").replace(
-			"<TotalTVA>18.00</TotalTVA>", "<TotalTVA>97,81</TotalTVA>"
-		)
-		parsed = parse_invoice_xml(xml)
-		self.assertEqual(parsed["total"], 586.81)
-		self.assertEqual(parsed["vat_total"], 97.81)
-		self.assertAlmostEqual(parsed["net_total"], 489.0)
+		# Comma is not allowed; do not strip it into 9781.
+		self.assertEqual(parse_sfs_amount("97,81"), 0.0)
 
 	def test_parse_sfs_header_vat_without_decimal_uses_line_sum(self):
 		"""Original SFS signed XML: <TotalTVA>9781</TotalTVA>, lines have 97.81."""

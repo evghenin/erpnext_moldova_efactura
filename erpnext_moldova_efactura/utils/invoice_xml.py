@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+import re
 from typing import Any
 from xml.etree import ElementTree as ET
 
@@ -10,26 +11,23 @@ from frappe.utils import flt, get_datetime, get_time, getdate
 
 from erpnext_moldova_efactura.utils.taxpayer_type import taxpayer_type_from_sfs
 
+# SFS XML amounts are always floats with a dot decimal. Only -, ., and digits.
+_SFS_FLOAT = re.compile(r"-?\d+(?:\.\d+)?")
+
 
 def parse_sfs_amount(value) -> float:
-	"""Parse SFS money/qty. flt() strips commas, so '97,81' must not become 9781."""
+	"""Parse SFS money/qty as a float with '.' decimal (no comma, no thousands)."""
 	if value is None or value == "":
 		return 0.0
 	if isinstance(value, int | float):
 		return flt(value)
-	text = unescape_sfs_text(str(value)).replace("\xa0", "").replace(" ", "")
+	text = unescape_sfs_text(str(value)).strip()
 	if not text:
 		return 0.0
-	if "," in text and "." in text:
-		if text.rfind(",") > text.rfind("."):
-			text = text.replace(".", "").replace(",", ".")
-		else:
-			text = text.replace(",", "")
-	elif "," in text:
-		text = _single_separator_to_dot(text, ",")
-	elif text.count(".") == 1:
-		text = _single_separator_to_dot(text, ".")
-	return flt(text)
+	# Do not use flt() on the raw string: it strips commas and joins digits.
+	if not _SFS_FLOAT.fullmatch(text):
+		return 0.0
+	return flt(float(text))
 
 
 def unscale_inflated_amount(value: float, cap: float) -> float:
@@ -42,13 +40,6 @@ def unscale_inflated_amount(value: float, cap: float) -> float:
 	if 0 < scaled <= cap + 0.005:
 		return scaled
 	return value
-
-
-def _single_separator_to_dot(text: str, sep: str) -> str:
-	left, right = text.split(sep, 1)
-	if right.isdigit() and 1 <= len(right) <= 2:
-		return f"{left.replace('.', '').replace(',', '')}.{right}"
-	return text.replace(sep, "")
 
 
 def unescape_sfs_text(value: str | None) -> str:
