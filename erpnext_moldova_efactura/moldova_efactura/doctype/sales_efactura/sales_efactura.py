@@ -433,7 +433,7 @@ class SaleseFactura(Document):
         from erpnext_moldova_efactura.utils.invoice_xml import parse_invoice_xml
         from erpnext_moldova_efactura.utils.item_tax_template import item_tax_template_for_vat_rate
         from erpnext_moldova_efactura.utils.party import find_customer_by_idno
-        from erpnext_moldova_efactura.utils.uom_map import resolve_uom
+        from erpnext_moldova_efactura.utils.uom_map import ensure_uom_map, resolve_uom
 
         parsed = parse_invoice_xml(xml_content)
         if parsed.get("issue_date"):
@@ -497,8 +497,11 @@ class SaleseFactura(Document):
             item_code = prev.get("item_code") or (
                 code if code and frappe.db.exists("Item", code) else None
             )
-            uom = prev.get("uom") or resolve_uom(item.get("supplier_uom")) or fallback_uom
+            resolved = prev.get("uom") or resolve_uom(item.get("supplier_uom"))
+            uom = resolved or fallback_uom
             ef_uom = prev.get("ef_uom") or uom
+            if item.get("supplier_uom") and resolved:
+                ensure_uom_map(item.get("supplier_uom"), resolved)
             qty = flt(item.get("qty"))
             net_rate = flt(item.get("rate"))
             net_amount = flt(item.get("net_amount"))

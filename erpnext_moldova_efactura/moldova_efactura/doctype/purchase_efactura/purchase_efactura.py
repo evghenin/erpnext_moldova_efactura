@@ -79,7 +79,7 @@ class PurchaseeFactura(Document):
 	def before_insert(self):
 		if not self._is_system_insert_allowed():
 			frappe.throw(
-				_("Incoming e-Factura cannot be created manually. Use Fetch from e-Factura.")
+				_("Purchase eFactura cannot be created manually. Use Fetch from e-Factura.")
 			)
 		if not self.ef_currency:
 			self.ef_currency = settings_ef_currency()

@@ -230,9 +230,18 @@ UOM Conversion Factor,Коэффициент конверсии ЕИ
 eFactura UOM Conversion Factor,Коэффициент конверсии ЕИ eFactura
 eFactura can be cancelled only in Pending Registration status.,eFactura может быть отменена только в статусе «Ожидает регистрации».
 Block Submit When Qty Exceeds Sales Invoice,Блокировать проведение при превышении количества по счёту
-"If enabled, submit is blocked when cumulative stock qty of any item across submitted eFactura exceeds the linked Sales Invoice. If disabled, the user must confirm the overage in the document form before submit.","Если включено, проведение блокируется, когда совокупное складское количество любой позиции по проведённым eFactura превышает связанный счёт продажи. Если выключено, перед проведением нужно подтвердить превышение в форме документа."
+"If enabled, submit of a Sales eFactura is blocked when cumulative stock qty of any item across submitted documents exceeds the linked Sales Invoice. If disabled, the user must confirm the overage in the document form before submit.","Если включено, проведение Sales eFactura блокируется, когда совокупное складское количество любой позиции по проведённым документам превышает связанный счёт продажи. Если выключено, перед проведением нужно подтвердить превышение в форме документа."
 Quantity vs Sales Invoice,Количество относительно счёта продажи
 Outgoing,Исходящие
+Purchases,Закупки
+Fetch / Sync,Загрузка / синхронизация
+Purchase Invoice / Order,Счёт и заказ закупки
+UOM Mapping,Соответствие ЕИ
+"Maps e-Factura UOM text from SFS XML to an ERPNext UOM. Used when Fetch / sync creates Sales eFactura and Purchase eFactura.","Соответствие текста ЕИ из XML SFS единице ERPNext. Используется при загрузке Sales eFactura и Purchase eFactura."
+Auto-add UOM Map,Добавлять ЕИ в карту
+"If enabled, an unmapped e-Factura UOM is added here when a Sales or Purchase eFactura is loaded from SFS or when items are mapped.","Если включено, несопоставленная ЕИ e-Factura добавляется сюда при загрузке Sales или Purchase eFactura из SFS или при маппинге строк."
+"e-Factura UOM text from the invoice XML (Sales and Purchase).","Текст ЕИ из XML фактуры (продажа и закупка)."
+Purchase eFactura cannot be created manually. Use Fetch from e-Factura.,Purchase eFactura нельзя создать вручную. Используйте загрузку из e-Factura.
 Quantity exceeds Sales Invoice,Количество превышает счёт продажи
 Quantity exceeds Sales Invoice — confirmation required,Количество превышает счёт продажи — требуется подтверждение
 "Cumulative eFactura quantity exceeds Sales Invoice {0} for the following items:","Совокупное количество по eFactura превышает счёт продажи {0} по следующим товарам:"
@@ -244,9 +253,9 @@ Submit Anyway,Провести всё равно
 Checking quantities against Sales Invoice...,Проверка количества по счёту продажи...
 SI Qty Overage Confirmed,Превышение количества по счёту подтверждено
 Exclude Rejected / Canceled from Qty Quota,Не учитывать отклонённые / отменённые в квоте количества
-"If enabled, eFactura in status Rejected by Customer or Canceled by Supplier do not occupy Sales Invoice quantity. You can reissue without cancelling the failed document in ERPNext. If disabled, those documents keep the qty until they are cancelled.","Если включено, eFactura в статусе «Отклонена клиентом» или «Отменена поставщиком» не занимают количество по счёту продажи. Можно выставить заново без отмены неудачного документа в ERPNext. Если выключено, эти документы держат количество, пока их не отменят."
+"If enabled, Sales eFactura in status Rejected by Customer or Canceled by Supplier do not occupy Sales Invoice quantity. You can reissue without cancelling the failed document in ERPNext. If disabled, those documents keep the qty until they are cancelled.","Если включено, eFactura в статусе «Отклонена клиентом» или «Отменена поставщиком» не занимают количество по счёту продажи. Можно выставить заново без отмены неудачного документа в ERPNext. Если выключено, эти документы держат количество, пока их не отменят."
 Confirm Draft Save When Qty Exceeds Sales Invoice,Подтверждать сохранение черновика при превышении количества по счёту
-"If enabled, saving a Draft asks for confirmation when this document plus other Draft and submitted eFactura exceed the Sales Invoice qty. This surfaces overlapping drafts before submit. Submit still checks only submitted documents.","Если включено, при сохранении черновика запрашивается подтверждение, когда этот документ вместе с другими черновиками и проведёнными eFactura превышает количество по счёту продажи. Так пересекающиеся черновики видны до проведения. Проведение по-прежнему проверяет только проведённые документы."
+"If enabled, saving a Draft Sales eFactura asks for confirmation when this document plus other Draft and submitted documents exceed the Sales Invoice qty. Submit still checks only submitted documents.","Если включено, при сохранении черновика Sales eFactura запрашивается подтверждение, когда этот документ вместе с другими черновиками и проведёнными превышает количество по счёту продажи. Проведение по-прежнему проверяет только проведённые документы."
 Other eFactura,Другие eFactura
 Save Anyway,Сохранить всё равно
 "Other Draft eFactura are included. The first document submitted takes the quantity; the other will be blocked or need confirmation.","Учтены другие черновики eFactura. Количество заберёт документ, который проведут первым; второй будет заблокирован или потребует подтверждения."
@@ -293,10 +302,10 @@ Purchase Taxes and Charges Template,Шаблон налогов закупки
 "Set on Purchase Order / Purchase Invoice. Used to pick Item Tax Template.","Ставится на заказ поставщику / счёт покупки. Нужна для выбора Item Tax Template."
 "Default Purchase Taxes and Charges Template for this company. Applied when Item-wise tax is not used.","Шаблон налогов закупки по умолчанию для компании. Применяется, если Item-wise налог не используется."
 "Which tax account is e-Factura VAT. If the Purchase Taxes template does not include this account, it is added as Actual with the VAT amount from the factura.","Какой счёт — НДС e-Factura. Если его нет в шаблоне налогов, он добавляется как Actual с суммой НДС из фактуры."
-"Per-company Tax Category, Purchase Taxes template, and VAT account for Purchase Order / Purchase Invoice created from e-Factura.","Категория налога, шаблон налогов закупки и счёт НДС по компании для заказа / счёта покупки из e-Factura."
+"Per company: Tax Category, Purchase Taxes template, and VAT account for Purchase Order / Purchase Invoice created from a Purchase eFactura.","Категория налога, шаблон налогов закупки и счёт НДС по компании для заказа / счёта покупки из Purchase eFactura."
 Purchase Taxes and Charges Template {0} does not belong to company {1},Шаблон налогов закупки {0} не относится к компании {1}
 "VAT is included in Rate, so Actual tax cannot be used (ERPNext forbids 'Is this Tax included in Basic Rate?' on Actual). Set Purchase Taxes and Charges Template or Item Tax Templates for company {0}.","НДС включён в ставку, Actual нельзя (ERPNext запрещает «Is this Tax included in Basic Rate?» для Actual). Укажите шаблон налогов закупки или Item Tax Template для компании {0}."
-"e-Factura VAT is {0} but Purchase taxes are empty. For company {1} set VAT Account (Purchase) or Purchase Taxes and Charges Template in eFactura Settings (Incoming → Purchase Tax Settings).","В e-Factura НДС {0}, а в закупке налоги пустые. Для компании {1} укажите счёт НДС (закупка) или шаблон налогов закупки в eFactura Settings (Incoming → Purchase Tax Settings)."
+"e-Factura VAT is {0} but Purchase taxes are empty. For company {1} set VAT Account (Purchase) or Purchase Taxes and Charges Template in eFactura Settings (Purchase → Purchase Tax Settings).","В e-Factura НДС {0}, а в закупке налоги пустые. Для компании {1} укажите счёт НДС (закупка) или шаблон налогов закупки в eFactura Settings (Purchase → Purchase Tax Settings)."
 "Used when Item-wise tax is not applied. VAT from e-Factura is posted as Actual tax on Purchase Order and Purchase Invoice.","Если Item-wise налог не применяется, НДС из e-Factura ставится как Actual в заказ поставщику и счёт покупки."
 "Per-company VAT account used when Item-wise tax is not applied. Amounts are copied from e-Factura onto Purchase Order and Purchase Invoice.","Счёт НДС по компании, если Item-wise налог не применяется. Суммы копируются из e-Factura в заказ поставщику и счёт покупки."
 "VAT Account (Purchase) must be a ledger account, not a group","Счёт НДС (закупка) должен быть листовым, не группой"
@@ -305,14 +314,14 @@ Company {0} is listed more than once,Компания {0} указана бол�
 VAT {0}%,НДС {0}%
 VAT,НДС
 Purchase taxes are empty,Налоги закупки не заполнены
-"e-Factura VAT is {0} but Purchase taxes are empty. Set VAT Account for company {1} in eFactura Settings (Incoming → Purchase Tax Settings), or enable Item-wise tax (Accounts Settings → Add taxes from Item Tax Template) and assign Item Tax Templates.","В e-Factura НДС {0}, а в закупке налоги пустые. Укажите счёт НДС для компании {1} в eFactura Settings (Incoming → Purchase Tax Settings) либо включите Item-wise налог (Accounts Settings → Add taxes from Item Tax Template) и назначьте Item Tax Template."
-Copy Date from Factura,Копировать дату из фактуры
+"e-Factura VAT is {0} but Purchase taxes are empty. Set VAT Account for company {1} in eFactura Settings (Purchase → Purchase Tax Settings), or enable Item-wise tax (Accounts Settings → Add taxes from Item Tax Template) and assign Item Tax Templates.","В e-Factura НДС {0}, а в закупке налоги пустые. Укажите счёт НДС для компании {1} в eFactura Settings (Purchase → Purchase Tax Settings) либо включите Item-wise налог (Accounts Settings → Add taxes from Item Tax Template) и назначьте Item Tax Template."
+Copy Issue Date to Purchase Invoice / Order,Копировать дату выписки в счёт / заказ закупки
 "If enabled, Purchase Invoice posting date and time and Purchase Order transaction date are copied from the e-Factura issue date.","Если включено, дата и время проведения счёта покупки и дата заказа поставщику берутся из даты выписки e-Factura."
-Do Not Create Cancelled Invoices,Не создавать аннулированные фактуры
-"If enabled, incoming invoices already cancelled by the supplier in e-Factura are not created. Existing documents still receive the cancelled status.","Если включено, входящие фактуры, уже аннулированные поставщиком в e-Factura, не создаются. У уже загруженных документов статус отмены всё равно обновляется."
-Load Archived Invoices,Загружать архивные фактуры
-"If enabled, Fetch and daily sync also load invoices with SFS status Archived (6) into Sales eFactura.","Если включено, загрузка и ежедневная синхронизация также получают фактуры со статусом SFS «Архивная» (6) в исходящие Sales eFactura."
-"If enabled, Fetch and daily sync also load invoices with SFS status Archived (6) into Purchase eFactura.","Если включено, загрузка и ежедневная синхронизация также получают фактуры со статусом SFS «Архивная» (6) во входящие Purchase eFactura."
+Do Not Create Cancelled eFactura,Не создавать аннулированные eFactura
+"If enabled, Fetch and daily sync do not insert new Sales or Purchase eFactura that are already cancelled by the supplier in SFS. Existing documents still receive the cancelled status.","Если включено, загрузка и ежедневная синхронизация не создают новые Sales или Purchase eFactura, уже аннулированные поставщиком в SFS. У существующих документов статус отмены всё равно обновляется."
+Include Archived Invoices,Включать архивные фактуры
+"If enabled, Fetch and daily sync also include Sales eFactura with SFS status Archived (6).","Если включено, загрузка и ежедневная синхронизация также получают Sales eFactura со статусом SFS «Архивная» (6)."
+"If enabled, Fetch and daily sync also include Purchase eFactura with SFS status Archived (6).","Если включено, загрузка и ежедневная синхронизация также получают Purchase eFactura со статусом SFS «Архивная» (6)."
 "Found {0}, created {1}, updated {2}, skipped {3}, details {4}, errors {5}","Найдено {0}, создано {1}, обновлено {2}, пропущено {3}, детали {4}, ошибок {5}"
 Fetch Supplier Invoices,Загрузить исходящие фактуры
 Fetching supplier invoices...,Загрузка исходящих фактур...
@@ -416,15 +425,15 @@ e-Factura already has a Sales Invoice,У e-Factura уже есть счёт пр
 VAT Account (Sales),Счёт НДС (продажа)
 Sales Taxes and Charges Template,Шаблон налогов продажи
 Sales taxes are empty,Налоги продажи пустые
-"e-Factura VAT is {0} but Sales taxes are empty. For company {1} set VAT Account (Sales) or Sales Taxes and Charges Template in eFactura Settings (Outgoing → Sales Tax Settings).","В e-Factura НДС {0}, а в продаже налоги пустые. Для компании {1} укажите счёт НДС (продажа) или шаблон налогов продажи в eFactura Settings (Outgoing → Sales Tax Settings)."
+"e-Factura VAT is {0} but Sales taxes are empty. For company {1} set VAT Account (Sales) or Sales Taxes and Charges Template in eFactura Settings (Sales → Sales Tax Settings).","В e-Factura НДС {0}, а в продаже налоги пустые. Для компании {1} укажите счёт НДС (продажа) или шаблон налогов продажи в eFactura Settings (Outgoing → Sales Tax Settings)."
 Return to Sales eFactura,Вернуться в исходящую eFactura
 "Sales Invoice {0} is submitted. Open Sales eFactura {1} to submit it?","Счёт продажи {0} проведён. Открыть исходящую eFactura {1}, чтобы провести её?"
 "Default Sales Taxes and Charges Template for this company. Applied when Item-wise tax is not used.","Шаблон налогов продажи по умолчанию для компании. Применяется, если Item-wise налог не используется."
 "Which tax account is e-Factura VAT on Sales Order / Sales Invoice. If the Sales Taxes template does not include this account, it is added as Actual with the VAT amount from the factura.","Какой счёт — НДС e-Factura в заказе / счёте продажи. Если его нет в шаблоне налогов, он добавляется как Actual с суммой НДС из фактуры."
-"Per-company Tax Category, Sales Taxes template, and VAT account for Sales Order / Sales Invoice created from e-Factura.","Категория налога, шаблон налогов продажи и счёт НДС по компании для заказа / счёта продажи из e-Factura."
+"Per company: Tax Category, Sales Taxes template, and VAT account for Sales Order / Sales Invoice created from a Sales eFactura.","Категория налога, шаблон налогов продажи и счёт НДС по компании для заказа / счёта продажи из Sales eFactura."
 "Set on Sales Order / Sales Invoice. Used to pick Item Tax Template.","Ставится на заказ клиента / счёт продажи. Нужна для выбора Item Tax Template."
 VAT Account (Sales) must be a ledger account, not a group,Счёт НДС (продажа) должен быть листовым счётом, не группой
 Sales Taxes and Charges Template {0} does not belong to company {1},Шаблон налогов продажи {0} не относится к компании {1}
 Item Tax Templates,Шаблоны налогов номенклатуры
-"Allowed Item Tax Templates for Sales eFactura loaded from e-Factura. A line with a VAT % gets the first template from this list with the same rate.","Разрешённые Item Tax Template для исходящей eFactura, загруженной из e-Factura. Строке с % НДС подставляется первый шаблон из списка с той же ставкой."
+"Allowed Item Tax Templates when loading a Sales eFactura from SFS. A line with a VAT % gets the first template from this list with the same rate.","Разрешённые Item Tax Template при загрузке Sales eFactura из SFS. Строке с % НДС подставляется первый шаблон из списка с той же ставкой."
 Item Tax Template {0} is listed more than once,Item Tax Template {0} указан больше одного раза

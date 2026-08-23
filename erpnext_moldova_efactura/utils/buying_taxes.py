@@ -50,7 +50,7 @@ def apply_buying_taxes(target, source) -> None:
 		empty_msg=_(
 			"e-Factura VAT is {0} but Purchase taxes are empty. "
 			"For company {1} set VAT Account (Purchase) or Purchase Taxes and Charges Template "
-			"in eFactura Settings (Incoming → Purchase Tax Settings)."
+			"in eFactura Settings (Purchase → Purchase Tax Settings)."
 		),
 	)
 
@@ -72,7 +72,7 @@ def apply_selling_taxes(target, source) -> None:
 		empty_msg=_(
 			"e-Factura VAT is {0} but Sales taxes are empty. "
 			"For company {1} set VAT Account (Sales) or Sales Taxes and Charges Template "
-			"in eFactura Settings (Outgoing → Sales Tax Settings)."
+			"in eFactura Settings (Sales → Sales Tax Settings)."
 		),
 	)
 
@@ -232,7 +232,7 @@ def _ensure_actual_vat_row(
 			msg = empty_msg or _(
 				"e-Factura VAT is {0} but Purchase taxes are empty. "
 				"For company {1} set VAT Account (Purchase) or Purchase Taxes and Charges Template "
-				"in eFactura Settings (Incoming → Purchase Tax Settings)."
+				"in eFactura Settings (Purchase → Purchase Tax Settings)."
 			)
 			frappe.msgprint(
 				msg.format(

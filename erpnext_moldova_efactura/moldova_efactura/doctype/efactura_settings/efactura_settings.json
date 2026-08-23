@@ -19,6 +19,9 @@
   "idno_section",
   "api_url",
   "company_api_accounts",
+  "uom_section",
+  "auto_add_uom_map_on_invoice_mapping",
+  "uom_map",
   "tab_outgoing",
   "outgoing_sync_section",
   "load_archived_sales_efactura",
@@ -31,14 +34,13 @@
   "outgoing_sales_tax_section",
   "sales_tax_settings",
   "tab_incoming",
-  "copy_date_from_factura",
-  "do_not_create_cancelled_invoices",
+  "purchases_sync_section",
   "load_archived_purchase_efactura",
+  "do_not_create_cancelled_invoices",
+  "purchases_docs_section",
+  "copy_date_from_factura",
   "buying_tax_section",
-  "company_settings",
-  "uom_section",
-  "auto_add_uom_map_on_invoice_mapping",
-  "uom_map"
+  "company_settings"
  ],
  "fields": [
   {
@@ -87,19 +89,19 @@
   {
    "fieldname": "tab_outgoing",
    "fieldtype": "Tab Break",
-   "label": "Outgoing"
+   "label": "Sales"
   },
   {
    "fieldname": "outgoing_sync_section",
    "fieldtype": "Section Break",
-   "label": "Sync"
+   "label": "Fetch / Sync"
   },
   {
    "default": "0",
-   "description": "If enabled, Fetch and daily sync also load invoices with SFS status Archived (6) into Sales eFactura.",
+   "description": "If enabled, Fetch and daily sync also include Sales eFactura with SFS status Archived (6).",
    "fieldname": "load_archived_sales_efactura",
    "fieldtype": "Check",
-   "label": "Load Archived Invoices"
+   "label": "Include Archived Invoices"
   },
   {
    "fieldname": "outgoing_qty_section",
@@ -108,21 +110,21 @@
   },
   {
    "default": "0",
-   "description": "If enabled, submit is blocked when cumulative stock qty of any item across submitted eFactura exceeds the linked Sales Invoice. If disabled, the user must confirm the overage in the document form before submit.",
+   "description": "If enabled, submit of a Sales eFactura is blocked when cumulative stock qty of any item across submitted documents exceeds the linked Sales Invoice. If disabled, the user must confirm the overage in the document form before submit.",
    "fieldname": "block_submit_on_si_qty_overage",
    "fieldtype": "Check",
    "label": "Block Submit When Qty Exceeds Sales Invoice"
   },
   {
    "default": "0",
-   "description": "If enabled, eFactura in status Rejected by Customer or Canceled by Supplier do not occupy Sales Invoice quantity. You can reissue without cancelling the failed document in ERPNext. If disabled, those documents keep the qty until they are cancelled.",
+   "description": "If enabled, Sales eFactura in status Rejected by Customer or Canceled by Supplier do not occupy Sales Invoice quantity. You can reissue without cancelling the failed document in ERPNext. If disabled, those documents keep the qty until they are cancelled.",
    "fieldname": "exclude_failed_efactura_from_qty_quota",
    "fieldtype": "Check",
    "label": "Exclude Rejected / Canceled from Qty Quota"
   },
   {
    "default": "0",
-   "description": "If enabled, saving a Draft asks for confirmation when this document plus other Draft and submitted eFactura exceed the Sales Invoice qty. This surfaces overlapping drafts before submit. Submit still checks only submitted documents.",
+   "description": "If enabled, saving a Draft Sales eFactura asks for confirmation when this document plus other Draft and submitted documents exceed the Sales Invoice qty. Submit still checks only submitted documents.",
    "fieldname": "warn_si_qty_overage_on_draft_save",
    "fieldtype": "Check",
    "label": "Confirm Draft Save When Qty Exceeds Sales Invoice"
@@ -133,7 +135,7 @@
    "label": "Item Tax Templates"
   },
   {
-   "description": "Allowed Item Tax Templates for Sales eFactura loaded from e-Factura. A line with a VAT % gets the first template from this list with the same rate.",
+   "description": "Allowed Item Tax Templates when loading a Sales eFactura from SFS. A line with a VAT % gets the first template from this list with the same rate.",
    "fieldname": "outgoing_item_tax_templates",
    "fieldtype": "Table",
    "label": "Item Tax Templates",
@@ -145,7 +147,7 @@
    "label": "Sales Tax Settings"
   },
   {
-   "description": "Per-company Tax Category, Sales Taxes template, and VAT account for Sales Order / Sales Invoice created from e-Factura.",
+   "description": "Per company: Tax Category, Sales Taxes template, and VAT account for Sales Order / Sales Invoice created from a Sales eFactura.",
    "fieldname": "sales_tax_settings",
    "fieldtype": "Table",
    "label": "Sales Tax Settings",
@@ -200,28 +202,38 @@
   {
    "fieldname": "tab_incoming",
    "fieldtype": "Tab Break",
-   "label": "Incoming"
+   "label": "Purchase"
+  },
+  {
+   "fieldname": "purchases_sync_section",
+   "fieldtype": "Section Break",
+   "label": "Fetch / Sync"
+  },
+  {
+   "default": "0",
+   "description": "If enabled, Fetch and daily sync also include Purchase eFactura with SFS status Archived (6).",
+   "fieldname": "load_archived_purchase_efactura",
+   "fieldtype": "Check",
+   "label": "Include Archived Invoices"
+  },
+  {
+   "default": "1",
+   "description": "If enabled, Fetch and daily sync do not insert new Sales or Purchase eFactura that are already cancelled by the supplier in SFS. Existing documents still receive the cancelled status.",
+   "fieldname": "do_not_create_cancelled_invoices",
+   "fieldtype": "Check",
+   "label": "Do Not Create Cancelled eFactura"
+  },
+  {
+   "fieldname": "purchases_docs_section",
+   "fieldtype": "Section Break",
+   "label": "Purchase Invoice / Order"
   },
   {
    "default": "1",
    "description": "If enabled, Purchase Invoice posting date and time and Purchase Order transaction date are copied from the e-Factura issue date.",
    "fieldname": "copy_date_from_factura",
    "fieldtype": "Check",
-   "label": "Copy Date from Factura"
-  },
-  {
-   "default": "1",
-   "description": "If enabled, incoming invoices already cancelled by the supplier in e-Factura are not created. Existing documents still receive the cancelled status.",
-   "fieldname": "do_not_create_cancelled_invoices",
-   "fieldtype": "Check",
-   "label": "Do Not Create Cancelled Invoices"
-  },
-  {
-   "default": "0",
-   "description": "If enabled, Fetch and daily sync also load invoices with SFS status Archived (6) into Purchase eFactura.",
-   "fieldname": "load_archived_purchase_efactura",
-   "fieldtype": "Check",
-   "label": "Load Archived Invoices"
+   "label": "Copy Issue Date to Purchase Invoice / Order"
   },
   {
    "fieldname": "buying_tax_section",
@@ -229,7 +241,7 @@
    "label": "Purchase Tax Settings"
   },
   {
-   "description": "Per-company Tax Category, Purchase Taxes template, and VAT account for Purchase Order / Purchase Invoice created from e-Factura.",
+   "description": "Per company: Tax Category, Purchase Taxes template, and VAT account for Purchase Order / Purchase Invoice created from a Purchase eFactura.",
    "fieldname": "company_settings",
    "fieldtype": "Table",
    "label": "Purchase Tax Settings",
@@ -238,13 +250,15 @@
   {
    "fieldname": "uom_section",
    "fieldtype": "Section Break",
+   "description": "Maps e-Factura UOM text from SFS XML to an ERPNext UOM. Used when Fetch / sync creates Sales eFactura and Purchase eFactura.",
    "label": "UOM Mapping"
   },
   {
    "default": "0",
+   "description": "If enabled, an unmapped e-Factura UOM is added here when a Sales or Purchase eFactura is loaded from SFS or when items are mapped.",
    "fieldname": "auto_add_uom_map_on_invoice_mapping",
    "fieldtype": "Check",
-   "label": "Auto-add UOM Map on Invoice Mapping"
+   "label": "Auto-add UOM Map"
   },
   {
    "fieldname": "uom_map",
@@ -257,7 +271,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-08-23 19:20:00.000000",
+ "modified": "2026-08-23 19:45:00.000000",
  "modified_by": "Administrator",
  "module": "Moldova eFactura",
  "name": "eFactura Settings",

@@ -16,6 +16,7 @@ from erpnext_moldova_efactura.utils.buyer_status import (
 )
 from erpnext_moldova_efactura.utils.company_api import get_sync_targets
 from erpnext_moldova_efactura.utils.party import find_supplier_by_idno
+from erpnext_moldova_efactura.utils.search_windows import iter_search_invoices
 
 DEFAULT_LOOKBACK_DAYS = 180
 BATCH_DETAIL = 100
@@ -49,20 +50,14 @@ def _sync_buyer_invoices_for_company(client, company: str, lookback_days: int) -
 
 	seen: dict[tuple[str, str], int] = {}
 	for st in buyer_search_statuses():
-		params = {
-			"InvoiceStatus": st,
-			"IssuedOn": {"StartDate": date_from, "EndDate": date_to},
-		}
-		try:
-			resp = client.search_invoices(actor_role=2, parameters=params)
-		except Exception:
-			frappe.log_error(
-				title=f"Purchase eFactura SearchInvoices failed status={st} company={company}",
-				message=frappe.get_traceback(),
-			)
-			continue
-
-		for inv in extract_invoices(resp):
+		for inv in iter_search_invoices(
+			client,
+			actor_role=2,
+			invoice_status=st,
+			date_from=date_from,
+			date_to=date_to,
+			error_title=f"Purchase eFactura SearchInvoices failed status={st} company={company}",
+		):
 			seria = str(inv.get("Seria") or "").strip()
 			number = str(inv.get("Number") or "").strip()
 			if not seria or not number:

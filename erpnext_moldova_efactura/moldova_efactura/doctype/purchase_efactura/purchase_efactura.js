@@ -5,7 +5,7 @@ frappe.ui.form.on("Purchase eFactura", {
 	onload(frm) {
 		if (frm.is_new()) {
 			frappe.show_alert({
-				message: __("Incoming e-Factura cannot be created manually. Use Fetch from e-Factura."),
+				message: __("Purchase eFactura cannot be created manually. Use Fetch from e-Factura."),
 				indicator: "orange",
 			});
 			frappe.set_route("List", "Purchase eFactura");

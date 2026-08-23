@@ -3,6 +3,7 @@ from frappe.utils import now_datetime, add_days
 from collections import defaultdict
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient
 from erpnext_moldova_efactura.utils.company_api import get_sync_targets
+from erpnext_moldova_efactura.utils.search_windows import iter_search_invoices
 
 
 CHECKABLE_EF_STATUSES = (
@@ -182,24 +183,29 @@ def sync_efactura_cancelled_from_search_invoices():
     for target in get_sync_targets():
         try:
             client = EFacturaAPIClient.from_settings(company=target["company"])
-            resp = client.search_invoices(
-                actor_role=1,
-                parameters={
-                    "InvoiceStatus": CANCELLED_BY_SUPPLIER,
-                    "IssuedOn": {"StartDate": date_from},
-                },
-            )
         except Exception:
             frappe.log_error(
                 title=f"e-Factura SearchInvoices failed company={target['company']}",
                 message=frappe.get_traceback(),
             )
             continue
-
-        cancelled = _extract_rows_from_invoices_response(resp)
+        cancelled = []
+        for inv in iter_search_invoices(
+            client,
+            actor_role=1,
+            invoice_status=CANCELLED_BY_SUPPLIER,
+            date_from=date_from,
+            date_to=date_to,
+            error_title=f"e-Factura SearchInvoices failed company={target['company']}",
+        ):
+            row = _cancelled_row_from_invoice(inv)
+            if row:
+                cancelled.append(row)
+            if len(cancelled) >= MAX_RESULTS_PER_RUN:
+                break
         if not cancelled:
             continue
-        cancelled = cancelled[:MAX_RESULTS_PER_RUN]
+        cancelled = list(dict.fromkeys(cancelled))[:MAX_RESULTS_PER_RUN]
         cancelled_count += len(cancelled)
         updated += _apply_cancelled_status_to_local_docs(cancelled, company=target["company"])
 
@@ -208,45 +214,20 @@ def sync_efactura_cancelled_from_search_invoices():
     )
 
 
-def _extract_rows_from_invoices_response(resp: dict) -> list[tuple[str, str, int]]:
-    """
-    Returns list of (Seria, Number, Status) for InvoiceStatus == 5
-    """
-    out: list[tuple[str, str, int]] = []
-    if not isinstance(resp, dict):
-        return out
-
-    results = resp.get("Results") or resp
-    invoices = results.get("Invoice") if isinstance(results, dict) else None
-
-    if not invoices:
-        return out
-
-    # Sometimes SOAP serializers return a dict for single item
-    if isinstance(invoices, dict):
-        invoices = [invoices]
-
-    for inv in invoices:
-        if not isinstance(inv, dict):
-            continue
-        try:
-            status = int(inv.get("InvoiceStatus"))
-        except Exception:
-            continue
-
-        if status != CANCELLED_BY_SUPPLIER:
-            continue
-
-        seria = (inv.get("Seria") or "").strip()
-        number = (inv.get("Number") or "").strip()
+def _cancelled_row_from_invoice(inv) -> tuple[str, str, int] | None:
+    if not isinstance(inv, dict):
+        return None
+    try:
         status = int(inv.get("InvoiceStatus"))
-
-        if seria and number and status:
-            out.append((seria, number, status))
-
-    # Deduplicate
-    out = list(dict.fromkeys(out))
-    return out
+    except (TypeError, ValueError):
+        return None
+    if status != CANCELLED_BY_SUPPLIER:
+        return None
+    seria = (inv.get("Seria") or "").strip()
+    number = (inv.get("Number") or "").strip()
+    if seria and number:
+        return (seria, number, status)
+    return None
 
 
 def _apply_cancelled_status_to_local_docs(keys: list[tuple[str, str, int]], company: str | None = None) -> int:

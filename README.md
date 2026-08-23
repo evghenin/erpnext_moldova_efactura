@@ -6,33 +6,33 @@ Version **2.0**. Requires ERPNext / Frappe v15.
 
 ### Features
 
-#### Outgoing — Sales eFactura
+#### Sales eFactura
 
 - Create e-Factura from a Sales Invoice (Transfer / Non-Transfer).
 - Sign, send, and track SFS status (`ef_status` + document status).
-- Optional **Load Archived Invoices** in eFactura Settings (Outgoing; off by default) includes SFS status Archived (6) in Fetch / daily sync.
+- Optional **Include Archived Invoices** in eFactura Settings (Sales → Fetch / Sync; off by default) includes SFS status Archived (6) in Fetch / daily sync.
 - Bulk **Register Signed** and **Register Unsigned** from the Sales eFactura list. A confirmation lists ineligible documents (skipped) and eligible documents that will be processed.
 - Multi-currency: document currency vs eFactura currency (`MDL`) with `ef_conversion_rate`.
 - Quantity guards against the linked Sales Invoice (block submit, exclude failed documents, warn on draft save).
 - 0% VAT lines are included in document totals (`net_total` / `total`); XML line amounts stay in sync.
 
-#### Incoming — Purchase eFactura
+#### Purchase eFactura
 
 - Fetch buyer invoices from SFS (cannot be created manually).
-- Optional **Load Archived Invoices** in eFactura Settings (Incoming; off by default) includes SFS status Archived (6).
+- Optional **Include Archived Invoices** in eFactura Settings (Purchase → Fetch / Sync; off by default) includes SFS status Archived (6).
 - Accept, reject (with comment), PDF, and refresh status.
 - Bulk **Sign** and **Accept** from the Purchase eFactura list. A confirmation lists ineligible documents (skipped) and eligible documents that will be processed.
 - Map supplier items → Item, supplier UOM → eFactura UOM / purchase UOM.
 - **UOM conversion factors** are stored on the row at mapping time, so a later change of Item UOM does not rewrite qty.
 - Create Purchase Order and/or Purchase Invoice, or link an existing PI (qty allocation; submit requires full allocation).
-- Copy issue date **and time** from `IssuedDate` onto PI posting date/time (eFactura Settings: *Copy Date from Factura*).
+- Copy issue date **and time** from `IssuedDate` onto PI posting date/time (eFactura Settings: Purchase → *Copy Issue Date to Purchase Invoice / Order*).
 - Multi-currency like Sales eFactura: `ef_*` amounts in eFactura currency, document amounts converted.
 - Supplier IDNO must match the factura; taxpayer type is stored as Company / Individual / Non-Resident.
 - Supplier / buyer / transporter shown as HTML (same pattern as Sales eFactura).
 
 #### Settings
 
-Configure API credentials per Company (Company API Accounts), IDNO fields, eFactura currency, VAT-in-rate, UOM map (optional auto-add), buying tax templates per company, and incoming/outgoing options under **eFactura Settings**.
+Configure API credentials per Company (Company API Accounts), IDNO fields, eFactura currency, VAT-in-rate, UOM map (optional auto-add; Sales and Purchase fetch), buying tax templates per company, and Sales / Purchase options under **eFactura Settings**.
 
 There is no site-wide API user. Add one **Company API Accounts** row per legal entity (username and password required). Fetch and daily sync poll each account into that Company. The API URL on Settings is shared.
 
@@ -40,9 +40,9 @@ There is no site-wide API user. Add one **Company API Accounts** row per legal e
 
 Assign Desk roles to match the workflow. Fetch / Register / Sign / Accept / Reject / Create PI are shown only when the user can write the corresponding document.
 
-- **eFactura Manager** — outgoing and incoming documents, Settings (including per-company API credentials), supplier item map.
-- **eFactura Sales User** / **Sales User** / **Sales Manager** — outgoing Sales eFactura only (create, submit, register). No Purchase eFactura.
-- **Accounts User** / **Purchase User** / **Purchase Manager** — incoming Purchase eFactura (write, submit, accept, sign, reject, create PI). Accounts User can view Sales eFactura but cannot create or register it.
+- **eFactura Manager** — Sales and Purchase eFactura, Settings (including per-company API credentials), supplier item map.
+- **eFactura Sales User** / **Sales User** / **Sales Manager** — Sales eFactura only (create, submit, register). No Purchase eFactura.
+- **Accounts User** / **Purchase User** / **Purchase Manager** — Purchase eFactura (write, submit, accept, sign, reject, create PI). Accounts User can view Sales eFactura but cannot create or register it.
 - **System Manager** / **Accounts Manager** — full module access. API URL and Company API Account username/password are permlevel 1 (these roles and eFactura Manager only).
 
 Purchase eFactura cannot be created manually (`create` is off for every role); Fetch / sync still inserts documents server-side.

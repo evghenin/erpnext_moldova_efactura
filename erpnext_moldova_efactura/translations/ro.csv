@@ -238,9 +238,18 @@ UOM Conversion Factor,Factor de conversie UM
 eFactura UOM Conversion Factor,Factor de conversie UM eFactura
 eFactura can be cancelled only in Pending Registration status.,eFactura poate fi anulată doar în statutul „În așteptare”.
 Block Submit When Qty Exceeds Sales Invoice,Blochează confirmarea dacă cantitatea depășește factura de vânzare
-"If enabled, submit is blocked when cumulative stock qty of any item across submitted eFactura exceeds the linked Sales Invoice. If disabled, the user must confirm the overage in the document form before submit.","Dacă este activat, confirmarea este blocată când cantitatea cumulată în UM stoc a oricărui articol din eFactura confirmate depășește factura de vânzare asociată. Dacă este dezactivat, utilizatorul trebuie să confirme depășirea în formularul documentului înainte de confirmare."
+"If enabled, submit of a Sales eFactura is blocked when cumulative stock qty of any item across submitted documents exceeds the linked Sales Invoice. If disabled, the user must confirm the overage in the document form before submit.","Dacă este activat, confirmarea unei Sales eFactura este blocată când cantitatea cumulată în UM stoc a oricărui articol din documentele confirmate depășește factura de vânzare asociată. Dacă este dezactivat, utilizatorul trebuie să confirme depășirea în formularul documentului înainte de confirmare."
 Quantity vs Sales Invoice,Cantitate față de factura de vânzare
 Outgoing,Ieșire
+Purchases,Achiziții
+Fetch / Sync,Încărcare / sincronizare
+Purchase Invoice / Order,Factură și comandă de achiziție
+UOM Mapping,Mapare UM
+"Maps e-Factura UOM text from SFS XML to an ERPNext UOM. Used when Fetch / sync creates Sales eFactura and Purchase eFactura.","Asociază textul UM din XML SFS cu o UM ERPNext. Se folosește la încărcarea Sales eFactura și Purchase eFactura."
+Auto-add UOM Map,Adaugă UM în hartă
+"If enabled, an unmapped e-Factura UOM is added here when a Sales or Purchase eFactura is loaded from SFS or when items are mapped.","Dacă este activat, UM-ul e-Factura nemapat se adaugă aici la încărcarea Sales sau Purchase eFactura din SFS sau la maparea rândurilor."
+"e-Factura UOM text from the invoice XML (Sales and Purchase).","Textul UM din XML-ul facturii (vânzare și achiziție)."
+Purchase eFactura cannot be created manually. Use Fetch from e-Factura.,Factura eFactura de cumpărare nu poate fi creată manual. Folosiți încărcarea din e-Factura.
 Quantity exceeds Sales Invoice,Cantitatea depășește factura de vânzare
 Quantity exceeds Sales Invoice — confirmation required,Cantitatea depășește factura de vânzare — este necesară confirmarea
 "Cumulative eFactura quantity exceeds Sales Invoice {0} for the following items:","Cantitatea cumulată eFactura depășește factura de vânzare {0} pentru următoarele articole:"
@@ -252,9 +261,9 @@ Submit Anyway,Confirmă oricum
 Checking quantities against Sales Invoice...,Verificare cantități față de factura de vânzare...
 SI Qty Overage Confirmed,Depășirea cantității față de factură confirmată
 Exclude Rejected / Canceled from Qty Quota,Nu include respinse / anulate în cota de cantitate
-"If enabled, eFactura in status Rejected by Customer or Canceled by Supplier do not occupy Sales Invoice quantity. You can reissue without cancelling the failed document in ERPNext. If disabled, those documents keep the qty until they are cancelled.","Dacă este activat, eFactura în statutul „Respinsă de client” sau „Anulată de furnizor” nu ocupă cantitatea facturii de vânzare. Puteți reemite fără a anula documentul eșuat în ERPNext. Dacă este dezactivat, aceste documente păstrează cantitatea până la anulare."
+"If enabled, Sales eFactura in status Rejected by Customer or Canceled by Supplier do not occupy Sales Invoice quantity. You can reissue without cancelling the failed document in ERPNext. If disabled, those documents keep the qty until they are cancelled.","Dacă este activat, Sales eFactura în statutul „Respinsă de client” sau „Anulată de furnizor” nu ocupă cantitatea facturii de vânzare. Puteți reemite fără a anula documentul eșuat în ERPNext. Dacă este dezactivat, aceste documente păstrează cantitatea până la anulare."
 Confirm Draft Save When Qty Exceeds Sales Invoice,Confirmă salvarea ciornei dacă cantitatea depășește factura de vânzare
-"If enabled, saving a Draft asks for confirmation when this document plus other Draft and submitted eFactura exceed the Sales Invoice qty. This surfaces overlapping drafts before submit. Submit still checks only submitted documents.","Dacă este activat, salvarea unei ciorne cere confirmare când acest document plus alte ciorne și eFactura confirmate depășesc cantitatea facturii de vânzare. Astfel ciornele suprapuse sunt vizibile înainte de confirmare. Confirmarea verifică în continuare doar documentele confirmate."
+"If enabled, saving a Draft Sales eFactura asks for confirmation when this document plus other Draft and submitted documents exceed the Sales Invoice qty. Submit still checks only submitted documents.","Dacă este activat, salvarea unei ciorne Sales eFactura cere confirmare când acest document plus alte ciorne și documente confirmate depășesc cantitatea facturii de vânzare. Confirmarea verifică în continuare doar documentele confirmate."
 Other eFactura,Alte eFactura
 Save Anyway,Salvează oricum
 "Other Draft eFactura are included. The first document submitted takes the quantity; the other will be blocked or need confirmation.","Sunt incluse alte eFactura ciornă. Cantitatea o ia documentul confirmat primul; celălalt va fi blocat sau va necesita confirmare."
@@ -301,10 +310,10 @@ Purchase Taxes and Charges Template,Șablon de taxe de achiziție
 "Set on Purchase Order / Purchase Invoice. Used to pick Item Tax Template.","Se pune pe comandă / factură de achiziție. Servește la alegerea Item Tax Template."
 "Default Purchase Taxes and Charges Template for this company. Applied when Item-wise tax is not used.","Șablonul implicit de taxe de achiziție pentru companie. Se aplică dacă taxa Item-wise nu este folosită."
 "Which tax account is e-Factura VAT. If the Purchase Taxes template does not include this account, it is added as Actual with the VAT amount from the factura.","Contul TVA e-Factura. Dacă lipsește din șablonul de taxe, se adaugă ca Actual cu suma TVA din factură."
-"Per-company Tax Category, Purchase Taxes template, and VAT account for Purchase Order / Purchase Invoice created from e-Factura.","Categorie de taxă, șablon de taxe și cont TVA pe companie pentru comandă / factură din e-Factura."
+"Per company: Tax Category, Purchase Taxes template, and VAT account for Purchase Order / Purchase Invoice created from a Purchase eFactura.","Categorie de taxă, șablon de taxe și cont TVA pe companie pentru comandă / factură din Purchase eFactura."
 Purchase Taxes and Charges Template {0} does not belong to company {1},Șablonul de taxe de achiziție {0} nu aparține companiei {1}
 "VAT is included in Rate, so Actual tax cannot be used (ERPNext forbids 'Is this Tax included in Basic Rate?' on Actual). Set Purchase Taxes and Charges Template or Item Tax Templates for company {0}.","TVA este inclus în preț, Actual nu poate fi folosit (ERPNext interzice «Is this Tax included in Basic Rate?» pe Actual). Setați șablonul de taxe sau Item Tax Template pentru compania {0}."
-"e-Factura VAT is {0} but Purchase taxes are empty. For company {1} set VAT Account (Purchase) or Purchase Taxes and Charges Template in eFactura Settings (Incoming → Purchase Tax Settings).","TVA e-Factura este {0}, dar taxele de achiziție sunt goale. Pentru compania {1} setați contul TVA (achiziție) sau șablonul de taxe în eFactura Settings (Incoming → Purchase Tax Settings)."
+"e-Factura VAT is {0} but Purchase taxes are empty. For company {1} set VAT Account (Purchase) or Purchase Taxes and Charges Template in eFactura Settings (Purchase → Purchase Tax Settings).","TVA e-Factura este {0}, dar taxele de achiziție sunt goale. Pentru compania {1} setați contul TVA (achiziție) sau șablonul de taxe în eFactura Settings (Purchase → Purchase Tax Settings)."
 "Used when Item-wise tax is not applied. VAT from e-Factura is posted as Actual tax on Purchase Order and Purchase Invoice.","Dacă taxa Item-wise nu se aplică, TVA din e-Factura se trece ca Actual pe comandă și factură de achiziție."
 "Per-company VAT account used when Item-wise tax is not applied. Amounts are copied from e-Factura onto Purchase Order and Purchase Invoice.","Cont TVA pe companie, dacă taxa Item-wise nu se aplică. Sumele se copiază din e-Factura pe comandă și factură de achiziție."
 "VAT Account (Purchase) must be a ledger account, not a group","Contul TVA (achiziție) trebuie să fie un cont ledger, nu grup"
@@ -313,14 +322,14 @@ Company {0} is listed more than once,Compania {0} este listată de mai multe ori
 VAT {0}%,TVA {0}%
 VAT,TVA
 Purchase taxes are empty,Taxele de achiziție sunt goale
-"e-Factura VAT is {0} but Purchase taxes are empty. Set VAT Account for company {1} in eFactura Settings (Incoming → Purchase Tax Settings), or enable Item-wise tax (Accounts Settings → Add taxes from Item Tax Template) and assign Item Tax Templates.","TVA e-Factura este {0}, dar taxele de achiziție sunt goale. Setați contul TVA pentru compania {1} în eFactura Settings (Incoming → Purchase Tax Settings) sau activați taxa Item-wise (Accounts Settings → Add taxes from Item Tax Template) și atribuiți Item Tax Template."
-Copy Date from Factura,Copiază data din factură
+"e-Factura VAT is {0} but Purchase taxes are empty. Set VAT Account for company {1} in eFactura Settings (Purchase → Purchase Tax Settings), or enable Item-wise tax (Accounts Settings → Add taxes from Item Tax Template) and assign Item Tax Templates.","TVA e-Factura este {0}, dar taxele de achiziție sunt goale. Setați contul TVA pentru compania {1} în eFactura Settings (Purchase → Purchase Tax Settings) sau activați taxa Item-wise (Accounts Settings → Add taxes from Item Tax Template) și atribuiți Item Tax Template."
+Copy Issue Date to Purchase Invoice / Order,Copiază data emiterii pe factura / comanda de achiziție
 "If enabled, Purchase Invoice posting date and time and Purchase Order transaction date are copied from the e-Factura issue date.","Dacă este activat, data și ora de înregistrare a facturii de achiziție și data comenzii de achiziție se copiază din data emiterii e-Factura."
-Do Not Create Cancelled Invoices,Nu crea facturi anulate
-"If enabled, incoming invoices already cancelled by the supplier in e-Factura are not created. Existing documents still receive the cancelled status.","Dacă este activat, facturile de intrare deja anulate de furnizor în e-Factura nu se creează. Documentele existente primesc totuși statutul de anulare."
-Load Archived Invoices,Încarcă facturile arhivate
-"If enabled, Fetch and daily sync also load invoices with SFS status Archived (6) into Sales eFactura.","Dacă este activat, încărcarea și sincronizarea zilnică preiau și facturile cu statutul SFS Arhivată (6) în Sales eFactura."
-"If enabled, Fetch and daily sync also load invoices with SFS status Archived (6) into Purchase eFactura.","Dacă este activat, încărcarea și sincronizarea zilnică preiau și facturile cu statutul SFS Arhivată (6) în Purchase eFactura."
+Do Not Create Cancelled eFactura,Nu crea eFactura anulate
+"If enabled, Fetch and daily sync do not insert new Sales or Purchase eFactura that are already cancelled by the supplier in SFS. Existing documents still receive the cancelled status.","Dacă este activat, încărcarea și sincronizarea zilnică nu creează Sales sau Purchase eFactura deja anulate de furnizor în SFS. Documentele existente primesc totuși statutul de anulare."
+Include Archived Invoices,Include facturile arhivate
+"If enabled, Fetch and daily sync also include Sales eFactura with SFS status Archived (6).","Dacă este activat, încărcarea și sincronizarea zilnică preiau și Sales eFactura cu statutul SFS Arhivată (6)."
+"If enabled, Fetch and daily sync also include Purchase eFactura with SFS status Archived (6).","Dacă este activat, încărcarea și sincronizarea zilnică preiau și Purchase eFactura cu statutul SFS Arhivată (6)."
 "Found {0}, created {1}, updated {2}, skipped {3}, details {4}, errors {5}","Găsite {0}, create {1}, actualizate {2}, omise {3}, detalii {4}, erori {5}"
 Fetch Supplier Invoices,Încarcă facturi de ieșire
 Fetching supplier invoices...,Se încarcă facturile de ieșire...
@@ -423,15 +432,15 @@ e-Factura already has a Sales Invoice,e-Factura are deja o factură de vânzare
 VAT Account (Sales),Cont TVA (vânzare)
 Sales Taxes and Charges Template,Șablon de taxe de vânzare
 Sales taxes are empty,Taxele de vânzare sunt goale
-"e-Factura VAT is {0} but Sales taxes are empty. For company {1} set VAT Account (Sales) or Sales Taxes and Charges Template in eFactura Settings (Outgoing → Sales Tax Settings).","TVA e-Factura este {0}, dar taxele de vânzare sunt goale. Pentru compania {1} setați contul TVA (vânzare) sau șablonul de taxe în eFactura Settings (Outgoing → Sales Tax Settings)."
+"e-Factura VAT is {0} but Sales taxes are empty. For company {1} set VAT Account (Sales) or Sales Taxes and Charges Template in eFactura Settings (Sales → Sales Tax Settings).","TVA e-Factura este {0}, dar taxele de vânzare sunt goale. Pentru compania {1} setați contul TVA (vânzare) sau șablonul de taxe în eFactura Settings (Outgoing → Sales Tax Settings)."
 Return to Sales eFactura,Reveniți la eFactura de vânzare
 "Sales Invoice {0} is submitted. Open Sales eFactura {1} to submit it?","Factura de vânzare {0} a fost confirmată. Deschideți eFactura de vânzare {1} pentru a o confirma?"
 "Default Sales Taxes and Charges Template for this company. Applied when Item-wise tax is not used.","Șablonul implicit de taxe de vânzare pentru companie. Se aplică dacă taxa Item-wise nu este folosită."
 "Which tax account is e-Factura VAT on Sales Order / Sales Invoice. If the Sales Taxes template does not include this account, it is added as Actual with the VAT amount from the factura.","Contul TVA e-Factura pe comandă / factură de vânzare. Dacă lipsește din șablon, se adaugă ca Actual cu suma TVA din factură."
-"Per-company Tax Category, Sales Taxes template, and VAT account for Sales Order / Sales Invoice created from e-Factura.","Categorie de taxă, șablon de taxe de vânzare și cont TVA pe companie pentru comandă / factură de vânzare din e-Factura."
+"Per company: Tax Category, Sales Taxes template, and VAT account for Sales Order / Sales Invoice created from a Sales eFactura.","Categorie de taxă, șablon de taxe de vânzare și cont TVA pe companie pentru comandă / factură de vânzare din Sales eFactura."
 "Set on Sales Order / Sales Invoice. Used to pick Item Tax Template.","Se pune pe comandă / factură de vânzare. Servește la alegerea Item Tax Template."
 VAT Account (Sales) must be a ledger account, not a group,Contul TVA (vânzare) trebuie să fie un cont ledger, nu grup
 Sales Taxes and Charges Template {0} does not belong to company {1},Șablonul de taxe de vânzare {0} nu aparține companiei {1}
 Item Tax Templates,Șabloane de taxe articol
-"Allowed Item Tax Templates for Sales eFactura loaded from e-Factura. A line with a VAT % gets the first template from this list with the same rate.","Șabloane Item Tax Template permise pentru eFactura de vânzare încărcată din e-Factura. Rândului cu % TVA i se pune primul șablon din listă cu aceeași cotă."
+"Allowed Item Tax Templates when loading a Sales eFactura from SFS. A line with a VAT % gets the first template from this list with the same rate.","Șabloane Item Tax Template permise la încărcarea Sales eFactura din SFS. Rândului cu % TVA i se pune primul șablon din listă cu aceeași cotă."
 Item Tax Template {0} is listed more than once,Item Tax Template {0} este listat de mai multe ori
