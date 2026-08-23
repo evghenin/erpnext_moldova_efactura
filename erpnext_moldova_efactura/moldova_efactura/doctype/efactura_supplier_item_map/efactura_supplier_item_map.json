@@ -31,6 +31,7 @@
    "label": "Supplier Item Code"
   },
   {
+   "description": "Use % as a wildcard to match several e-Factura names (for example Milk%).",
    "fieldname": "supplier_item_name",
    "fieldtype": "Small Text",
    "in_list_view": 1,
@@ -65,7 +66,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-23 22:55:00.000000",
+ "modified": "2026-08-24 00:05:00.000000",
  "modified_by": "Administrator",
  "module": "Moldova eFactura",
  "name": "eFactura Supplier Item Map",

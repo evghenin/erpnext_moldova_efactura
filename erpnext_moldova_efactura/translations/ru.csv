@@ -437,3 +437,4 @@ Sales Taxes and Charges Template {0} does not belong to company {1},Шаблон
 Item Tax Templates,Шаблоны налогов номенклатуры
 "Allowed Item Tax Templates when loading a Sales eFactura from SFS. A line with a VAT % gets the first template from this list with the same rate.","Разрешённые Item Tax Template при загрузке Sales eFactura из SFS. Строке с % НДС подставляется первый шаблон из списка с той же ставкой."
 Item Tax Template {0} is listed more than once,Item Tax Template {0} указан больше одного раза
+"Use % as a wildcard to match several e-Factura names (for example Milk%).","Используйте % как маску для нескольких названий из e-Factura (например Молоко%)."

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import frappe
 
 
@@ -12,6 +14,22 @@ def _norm_name(value: str | None) -> str:
 def _names_match(a: str | None, b: str | None) -> bool:
 	na, nb = _norm_name(a), _norm_name(b)
 	return bool(na) and na == nb
+
+
+def _like_match(text: str | None, pattern: str | None) -> bool:
+	"""Match text to a supplier-map pattern where % is a wildcard."""
+	raw = (text or "").strip()
+	pat = (pattern or "").strip()
+	if not raw or not pat:
+		return False
+	rx = ".*".join(re.escape(part) for part in pat.split("%"))
+	return re.fullmatch(rx, raw, flags=re.IGNORECASE) is not None
+
+
+def _names_agree(current: str | None, expected: str | None) -> bool:
+	if "%" in (expected or ""):
+		return _like_match(current, expected)
+	return _names_match(current, expected)
 
 
 def resolve_item_code(
@@ -27,7 +45,7 @@ def resolve_item_code(
 	   (code alone is unreliable / may be random)
 	2) By supplier_item_name (stable product title):
 	   - past Purchase eFactura of this supplier
-	   - Supplier Item Map
+	   - Supplier Item Map (exact, then % wildcard in the map name)
 	   - direct Item.item_name match
 	"""
 	code = (supplier_item_code or "").strip()
@@ -60,12 +78,7 @@ def resolve_item_code(
 			if past_item:
 				return past_item
 
-			mapped = frappe.db.get_value(
-				"eFactura Supplier Item Map",
-				{"supplier": supplier, "supplier_item_name": name},
-				"item_code",
-				order_by="modified desc",
-			)
+			mapped = _from_supplier_item_map(supplier, name)
 			if mapped:
 				return mapped
 
@@ -95,7 +108,7 @@ def _code_hit_trusted(
 		return _names_match(current_supplier_name, item_name)
 
 	if expected_supplier_name is not None:
-		return _names_match(current_supplier_name, expected_supplier_name)
+		return _names_agree(current_supplier_name, expected_supplier_name)
 
 	return True
 
@@ -146,6 +159,35 @@ def _from_past_invoices(
 	if not rows:
 		return None, None
 	return rows[0][0], rows[0][1]
+
+
+def _from_supplier_item_map(supplier: str, name: str) -> str | None:
+	"""Exact map name first, then the longest % pattern that matches."""
+	exact = frappe.db.get_value(
+		"eFactura Supplier Item Map",
+		{"supplier": supplier, "supplier_item_name": name},
+		"item_code",
+		order_by="modified desc",
+	)
+	if exact:
+		return exact
+
+	rows = frappe.get_all(
+		"eFactura Supplier Item Map",
+		filters={"supplier": supplier},
+		fields=["item_code", "supplier_item_name"],
+		order_by="modified desc",
+	)
+	patterns = [
+		row
+		for row in rows
+		if row.item_code and "%" in (row.supplier_item_name or "")
+	]
+	patterns.sort(key=lambda row: len(row.supplier_item_name or ""), reverse=True)
+	for row in patterns:
+		if _like_match(name, row.supplier_item_name):
+			return row.item_code
+	return None
 
 
 def upsert_item_map(

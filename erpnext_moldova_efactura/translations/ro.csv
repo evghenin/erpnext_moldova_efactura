@@ -444,3 +444,4 @@ Sales Taxes and Charges Template {0} does not belong to company {1},Șablonul de
 Item Tax Templates,Șabloane de taxe articol
 "Allowed Item Tax Templates when loading a Sales eFactura from SFS. A line with a VAT % gets the first template from this list with the same rate.","Șabloane Item Tax Template permise la încărcarea Sales eFactura din SFS. Rândului cu % TVA i se pune primul șablon din listă cu aceeași cotă."
 Item Tax Template {0} is listed more than once,Item Tax Template {0} este listat de mai multe ori
+"Use % as a wildcard to match several e-Factura names (for example Milk%).","Folosiți % ca mască pentru mai multe denumiri din e-Factura (de exemplu Lapte%)."

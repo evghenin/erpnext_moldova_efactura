@@ -455,6 +455,31 @@ class TestEFacturaBuyerUOM(FrappeTestCase):
 			item.name,
 		)
 
+	def test_resolve_item_by_percent_wildcard_in_supplier_map(self):
+		from erpnext_moldova_efactura.utils.item_map import _like_match, upsert_item_map
+
+		self.assertTrue(_like_match("EF-WILDCARD-MILK 1L", "EF-WILDCARD-MILK%"))
+		self.assertFalse(_like_match("EF-WILDCARD-BUTTER", "EF-WILDCARD-MILK%"))
+
+		item = frappe.db.get_value("Item", {"disabled": 0}, ["name", "stock_uom"], as_dict=True)
+		sup = frappe.db.get_value("Supplier", {}, "name")
+		if not item or not sup:
+			self.skipTest("Need Item and Supplier")
+
+		pattern = "EF-WILDCARD-MILK%"
+		exact = "EF-WILDCARD-MILK 1L"
+		other = "EF-WILDCARD-BUTTER"
+		frappe.db.delete("eFactura Supplier Item Map", {"supplier": sup, "supplier_item_name": pattern})
+		frappe.db.delete("eFactura Supplier Item Map", {"supplier": sup, "supplier_item_name": exact})
+		upsert_item_map(sup, None, pattern, item.name, item.stock_uom)
+
+		self.assertEqual(resolve_item_code(sup, None, "EF-WILDCARD-MILK 1L"), item.name)
+		self.assertEqual(resolve_item_code(sup, "RND", "EF-WILDCARD-MILK 2% fat"), item.name)
+		self.assertIsNone(resolve_item_code(sup, None, other))
+
+		upsert_item_map(sup, None, exact, item.name, item.stock_uom)
+		self.assertEqual(resolve_item_code(sup, None, exact), item.name)
+
 	def test_compute_stock_qty_from_item_uom_conversion(self):
 		item = frappe.db.get_value("Item", {"disabled": 0}, ["name", "stock_uom"], as_dict=True)
 		if not item:
