@@ -32,6 +32,18 @@ def parse_sfs_amount(value) -> float:
 	return flt(text)
 
 
+def unscale_inflated_amount(value: float, cap: float) -> float:
+	"""Treat value as lei×100 when it exceeds the parent amount (dropped decimal or bani)."""
+	value = flt(value)
+	cap = flt(cap)
+	if value <= 0 or cap <= 0 or value <= cap + 0.005:
+		return value
+	scaled = flt(value / 100.0)
+	if 0 < scaled <= cap + 0.005:
+		return scaled
+	return value
+
+
 def _single_separator_to_dot(text: str, sep: str) -> str:
 	left, right = text.split(sep, 1)
 	if right.isdigit() and 1 <= len(right) <= 2:
@@ -203,6 +215,15 @@ def parse_invoice_xml(xml_content: str | bytes) -> dict[str, Any]:
 					"amount": amount,
 				}
 			)
+
+	# SFS signed XML sometimes drops the decimal in header TotalTVA (9781 vs 97.81)
+	# while line TotalTVA attributes stay correct.
+	line_vat = flt(sum(flt(row["vat_amount"]) for row in items))
+	if vat_total > total + 0.005:
+		if items and line_vat and line_vat <= total + 0.05:
+			vat_total = line_vat
+		else:
+			vat_total = unscale_inflated_amount(vat_total, total)
 
 	return {
 		"ef_series": _text(supplier_info, "Seria"),

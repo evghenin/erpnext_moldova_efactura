@@ -297,6 +297,19 @@ class TestEFacturaBuyerUtils(FrappeTestCase):
 		self.assertEqual(parsed["vat_total"], 97.81)
 		self.assertAlmostEqual(parsed["net_total"], 489.0)
 
+	def test_parse_sfs_header_vat_without_decimal_uses_line_sum(self):
+		"""Original SFS signed XML: <TotalTVA>9781</TotalTVA>, lines have 97.81."""
+		xml = SAMPLE_XML.replace("<Total>118.00</Total>", "<Total>586.81</Total>").replace(
+			"<TotalTVA>18.00</TotalTVA>", "<TotalTVA>9781</TotalTVA>"
+		).replace(
+			'TotalPriceWithoutTVA="100" TVA="18" TotalTVA="18" TotalPrice="118"',
+			'TotalPriceWithoutTVA="489.00" TVA="20" TotalTVA="97.81" TotalPrice="586.81"',
+		)
+		parsed = parse_invoice_xml(xml)
+		self.assertEqual(parsed["total"], 586.81)
+		self.assertEqual(parsed["vat_total"], 97.81)
+		self.assertAlmostEqual(parsed["net_total"], 489.0)
+
 	def test_parse_issued_date_with_fractional_seconds(self):
 		xml = SAMPLE_XML.replace(
 			"<IssuedDate>2026-06-09T10:38:41</IssuedDate>",
