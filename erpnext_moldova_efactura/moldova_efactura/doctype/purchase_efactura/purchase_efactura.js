@@ -71,6 +71,25 @@ frappe.ui.form.on("Purchase eFactura", {
 			frm.add_custom_button(__("Link Invoice"), () => link_purchase_invoice_dialog(frm));
 		}
 
+		if (frm.doc.docstatus === 0 && canWrite && frm.doc.ef_series && frm.doc.ef_number) {
+			frm.add_custom_button(
+				__("Fetch Details"),
+				() => {
+					frappe.call({
+						method: "erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura.fetch_details",
+						args: { name: frm.doc.name },
+						freeze: true,
+						callback(r) {
+							if (!r.exc) {
+								frm.reload_doc();
+							}
+						},
+					});
+				},
+				efActions
+			);
+		}
+
 		if (frm.doc.ef_series && frm.doc.ef_number) {
 			frm.add_custom_button(
 				__("Download XML"),
