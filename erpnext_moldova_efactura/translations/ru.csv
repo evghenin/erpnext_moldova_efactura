@@ -215,10 +215,15 @@ eFactura Company API,API компании eFactura
 Company API Accounts,Учётные записи API по компаниям
 eFactura Manager,Менеджер eFactura
 "API username {0} is used for more than one Company. Use one row per e-Factura account.","Имя пользователя API {0} указано для нескольких компаний. Нужна одна строка на каждый кабинет e-Factura."
+e-Factura API credentials are set per Company. Pass a Company.,Учётные данные API e-Factura задаются по компании. Укажите компанию.
+Set API username and password for company {0} in eFactura Settings (Company API Accounts).,Укажите API логин и пароль для компании {0} в настройках eFactura (учётные записи API по компаниям).
+Add at least one Company API Account with username and password in eFactura Settings.,Добавьте хотя бы одну учётную запись API компании с логином и паролем в настройках eFactura.
+"One row per legal entity. Username and password are required on each row; there is no site-wide API user. Fetch and daily sync poll each account into that Company.","Одна строка на юридическое лицо. Логин и пароль обязательны в каждой строке; общего пользователя API нет. Загрузка и ежедневная синхронизация опрашивают каждый кабинет в эту компанию."
+e-Factura API username for this company.,Имя пользователя API e-Factura для этой компании.
+e-Factura API password for this company.,Пароль API e-Factura для этой компании.
 eFactura Sales User,Пользователь eFactura (продажи)
 eFactura Settings,Настройки eFactura
-eFactura Settings: API username/password are not set.,Настройки eFactura: не заданы API логин/пароль.
-eFactura Settings: api_wsdl_url is not set.,Настройки eFactura: api_wsdl_url не задан.
+eFactura Settings: API URL is not set.,Настройки eFactura: не задан URL API.
 eFactura Status,Статус eFactura
 eFactura UOM,ЕИ eFactura
 UOM Conversion Factor,Коэффициент конверсии ЕИ

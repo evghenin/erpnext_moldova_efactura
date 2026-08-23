@@ -18,8 +18,6 @@
   "supplier_idno_field",
   "idno_section",
   "api_url",
-  "api_username",
-  "api_password",
   "company_api_accounts",
   "tab_outgoing",
   "outgoing_sync_section",
@@ -193,21 +191,7 @@
    "reqd": 1
   },
   {
-   "fieldname": "api_username",
-   "fieldtype": "Data",
-   "label": "Username",
-   "permlevel": 1,
-   "reqd": 1
-  },
-  {
-   "fieldname": "api_password",
-   "fieldtype": "Data",
-   "label": "Password",
-   "permlevel": 1,
-   "reqd": 1
-  },
-  {
-   "description": "One row per legal entity with its own e-Factura account. Fetch and daily sync poll each account into that Company. Username and password override the API user above; leave them empty to reuse the global API user.",
+   "description": "One row per legal entity. Username and password are required on each row; there is no site-wide API user. Fetch and daily sync poll each account into that Company.",
    "fieldname": "company_api_accounts",
    "fieldtype": "Table",
    "label": "Company API Accounts",
@@ -273,7 +257,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-08-23 19:10:00.000000",
+ "modified": "2026-08-23 19:20:00.000000",
  "modified_by": "Administrator",
  "module": "Moldova eFactura",
  "name": "eFactura Settings",

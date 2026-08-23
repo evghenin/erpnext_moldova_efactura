@@ -4,7 +4,22 @@
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
-from erpnext_moldova_efactura.utils.company_api import _unique_by_username, get_sync_targets
+from erpnext_moldova_efactura.utils.company_api import (
+	_unique_by_username,
+	get_sync_targets,
+	resolve_api_credentials,
+)
+
+
+def _account_payload(settings):
+	return [
+		{
+			"company": row.company,
+			"api_username": row.api_username,
+			"api_password": row.api_password,
+		}
+		for row in (settings.get("company_api_accounts") or [])
+	]
 
 
 class TestCompanyAPI(FrappeTestCase):
@@ -17,19 +32,17 @@ class TestCompanyAPI(FrappeTestCase):
 		out = _unique_by_username(rows)
 		self.assertEqual([r["company"] for r in out], ["A", "C"])
 
-	def test_empty_table_uses_default_company(self):
+	def test_empty_table_throws(self):
 		settings = frappe.get_single("eFactura Settings")
-		if not (settings.api_username and settings.api_password):
-			self.skipTest("Global API credentials are not set")
-		prev = list(settings.get("company_api_accounts") or [])
+		prev = _account_payload(settings)
 		settings.set("company_api_accounts", [])
 		settings.flags.ignore_permissions = True
 		settings.save()
 		try:
-			targets = get_sync_targets()
-			self.assertEqual(len(targets), 1)
-			self.assertTrue(targets[0]["company"])
-			self.assertEqual(targets[0]["username"], settings.api_username)
+			with self.assertRaises(frappe.ValidationError):
+				get_sync_targets()
+			with self.assertRaises(frappe.ValidationError):
+				resolve_api_credentials(None)
 		finally:
 			settings.reload()
 			settings.set("company_api_accounts", prev)
@@ -38,31 +51,28 @@ class TestCompanyAPI(FrappeTestCase):
 
 	def test_table_rows_become_sync_targets(self):
 		companies = frappe.get_all("Company", pluck="name", limit=2)
-		if len(companies) < 2:
-			self.skipTest("Need two companies")
+		if not companies:
+			self.skipTest("Need a Company")
 		settings = frappe.get_single("eFactura Settings")
-		if not (settings.api_username and settings.api_password):
-			self.skipTest("Global API credentials are not set")
-		prev = list(settings.get("company_api_accounts") or [])
-		settings.set(
-			"company_api_accounts",
-			[
-				{"company": companies[0], "api_username": "user-a", "api_password": "pass-a"},
-				{"company": companies[1], "api_username": "user-b", "api_password": "pass-b"},
-			],
-		)
+		prev = _account_payload(settings)
+		rows = [{"company": companies[0], "api_username": "user-a", "api_password": "pass-a"}]
+		if len(companies) > 1:
+			rows.append({"company": companies[1], "api_username": "user-b", "api_password": "pass-b"})
+		settings.set("company_api_accounts", rows)
 		settings.flags.ignore_permissions = True
 		settings.save()
 		try:
 			targets = get_sync_targets()
-			self.assertEqual({t["company"] for t in targets}, set(companies[:2]))
-			by_company = {t["company"]: t["username"] for t in targets}
-			self.assertEqual(by_company[companies[0]], "user-a")
-			self.assertEqual(by_company[companies[1]], "user-b")
-			one = get_sync_targets(company=companies[1])
-			self.assertEqual(len(one), 1)
-			self.assertEqual(one[0]["company"], companies[1])
-			self.assertEqual(one[0]["username"], "user-b")
+			self.assertEqual({t["company"] for t in targets}, {r["company"] for r in rows})
+			creds = resolve_api_credentials(companies[0])
+			self.assertEqual(creds["username"], "user-a")
+			self.assertEqual(creds["password"], "pass-a")
+			if len(companies) > 1:
+				one = get_sync_targets(company=companies[1])
+				self.assertEqual(len(one), 1)
+				self.assertEqual(one[0]["username"], "user-b")
+			with self.assertRaises(frappe.ValidationError):
+				resolve_api_credentials("Not A Real Company")
 		finally:
 			settings.reload()
 			settings.set("company_api_accounts", prev)

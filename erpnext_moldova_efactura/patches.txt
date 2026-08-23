@@ -8,3 +8,4 @@ erpnext_moldova_efactura.patches.v2_0.rename_efactura_doctypes
 erpnext_moldova_efactura.patches.v1_0.migrate_sales_invoice_fiscal_status
 erpnext_moldova_efactura.patches.v1_0.fix_efactura_cancelled_status_spelling
 erpnext_moldova_efactura.patches.v2_0.migrate_from_v1
+erpnext_moldova_efactura.patches.v2_0.move_api_user_to_company

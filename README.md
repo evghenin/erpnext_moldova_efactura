@@ -32,18 +32,18 @@ Version **2.0**. Requires ERPNext / Frappe v15.
 
 #### Settings
 
-Configure API credentials, IDNO fields, eFactura currency, VAT-in-rate, UOM map (optional auto-add), buying tax templates per company, and incoming/outgoing options under **eFactura Settings**.
+Configure API credentials per Company (Company API Accounts), IDNO fields, eFactura currency, VAT-in-rate, UOM map (optional auto-add), buying tax templates per company, and incoming/outgoing options under **eFactura Settings**.
 
-For several legal entities, add **Company API Accounts** on the API tab (one row per Company, with that entity's e-Factura username/password). Fetch and daily sync then poll each account into that Company. Leave the table empty to keep the previous behaviour: global API user and the default Company.
+There is no site-wide API user. Add one **Company API Accounts** row per legal entity (username and password required). Fetch and daily sync poll each account into that Company. The API URL on Settings is shared.
 
 #### Roles
 
 Assign Desk roles to match the workflow. Fetch / Register / Sign / Accept / Reject / Create PI are shown only when the user can write the corresponding document.
 
-- **eFactura Manager** — outgoing and incoming documents, Settings (including API credentials), supplier item map.
+- **eFactura Manager** — outgoing and incoming documents, Settings (including per-company API credentials), supplier item map.
 - **eFactura Sales User** / **Sales User** / **Sales Manager** — outgoing Sales eFactura only (create, submit, register). No Purchase eFactura.
 - **Accounts User** / **Purchase User** / **Purchase Manager** — incoming Purchase eFactura (write, submit, accept, sign, reject, create PI). Accounts User can view Sales eFactura but cannot create or register it.
-- **System Manager** / **Accounts Manager** — full module access. API fields on Settings are permlevel 1 (these roles and eFactura Manager only).
+- **System Manager** / **Accounts Manager** — full module access. API URL and Company API Account username/password are permlevel 1 (these roles and eFactura Manager only).
 
 Purchase eFactura cannot be created manually (`create` is off for every role); Fetch / sync still inserts documents server-side.
 

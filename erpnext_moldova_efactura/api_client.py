@@ -92,7 +92,7 @@ class EFacturaAPIClient:
 
 
     @classmethod
-    def from_settings(cls, company=None):
+    def from_settings(cls, company):
         from erpnext_moldova_efactura.utils.company_api import resolve_api_credentials
 
         creds = resolve_api_credentials(company)

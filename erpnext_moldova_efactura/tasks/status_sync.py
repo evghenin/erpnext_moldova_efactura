@@ -68,9 +68,16 @@ def sync_efactura_statuses():
     missing_docs = []
 
     for company, company_docs in grouped.items():
+        if not company:
+            frappe.log_error(
+                title="eFactura batch status skipped: missing Company",
+                message="\n".join(row.name for row in company_docs),
+            )
+            errors += len(company_docs)
+            continue
         seria_and_numbers = [{"Seria": row.ef_series, "Number": row.ef_number} for row in company_docs]
         try:
-            client = EFacturaAPIClient.from_settings(company=company or None)
+            client = EFacturaAPIClient.from_settings(company=company)
             response = client.check_invoices_status(seria_and_numbers=seria_and_numbers)
         except Exception:
             frappe.log_error(

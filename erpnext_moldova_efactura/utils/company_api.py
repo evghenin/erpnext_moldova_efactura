@@ -5,28 +5,30 @@ from __future__ import annotations
 import frappe
 from frappe import _
 
-from erpnext_moldova_efactura.utils.party import get_default_company
-
 
 def resolve_api_credentials(company: str | None = None) -> dict:
-	"""Return wsdl/username/password, using a company row when set."""
+	"""Return wsdl/username/password for one Company. No site-wide API user."""
+	if not company:
+		frappe.throw(_("e-Factura API credentials are set per Company. Pass a Company."))
+
 	settings = frappe.get_single("eFactura Settings")
 	wsdl_url = getattr(settings, "api_wsdl_url", None) or getattr(settings, "api_url", None)
-	username = (getattr(settings, "api_username", None) or "").strip()
-	password = (getattr(settings, "api_password", None) or "").strip()
-
-	if company:
-		for row in settings.get("company_api_accounts") or []:
-			if row.company != company:
-				continue
-			username = (row.api_username or "").strip() or username
-			password = (row.api_password or "").strip() or password
-			break
+	username = password = ""
+	for row in settings.get("company_api_accounts") or []:
+		if row.company != company:
+			continue
+		username = (row.api_username or "").strip()
+		password = (row.api_password or "").strip()
+		break
 
 	if not wsdl_url:
-		frappe.throw(_("eFactura Settings: api_wsdl_url is not set."))
+		frappe.throw(_("eFactura Settings: API URL is not set."))
 	if not username or not password:
-		frappe.throw(_("eFactura Settings: API username/password are not set."))
+		frappe.throw(
+			_("Set API username and password for company {0} in eFactura Settings (Company API Accounts).").format(
+				company
+			)
+		)
 
 	timeout = int(getattr(settings, "api_timeout_seconds", 20) or 20)
 	verify_tls = bool(getattr(settings, "api_verify_tls", 1))
@@ -42,23 +44,17 @@ def resolve_api_credentials(company: str | None = None) -> dict:
 
 
 def get_sync_targets(company: str | None = None) -> list[dict]:
-	"""Companies to poll in Fetch / daily sync, each with resolved API credentials.
-
-	Empty Company API table → one target (default Company + global API user).
-	Rows in the table → only those companies (global user used when a row has blank username).
-	"""
+	"""Companies to poll in Fetch / daily sync. Only rows in Company API Accounts."""
 	settings = frappe.get_single("eFactura Settings")
 	wsdl_url = getattr(settings, "api_wsdl_url", None) or getattr(settings, "api_url", None)
-	global_user = (getattr(settings, "api_username", None) or "").strip()
-	global_pass = (getattr(settings, "api_password", None) or "").strip()
 
 	rows: list[dict] = []
 	seen_companies: set[str] = set()
 	for row in settings.get("company_api_accounts") or []:
 		if not row.company or row.company in seen_companies:
 			continue
-		username = (row.api_username or "").strip() or global_user
-		password = (row.api_password or "").strip() or global_pass
+		username = (row.api_username or "").strip()
+		password = (row.api_password or "").strip()
 		if not username or not password:
 			continue
 		seen_companies.add(row.company)
@@ -75,33 +71,17 @@ def get_sync_targets(company: str | None = None) -> list[dict]:
 		for target in rows:
 			if target["company"] == company:
 				return [target]
-		if not global_user or not global_pass:
-			frappe.throw(_("eFactura Settings: API username/password are not set."))
-		return [
-			{
-				"company": company,
-				"username": global_user,
-				"password": global_pass,
-				"wsdl_url": wsdl_url,
-			}
-		]
+		frappe.throw(
+			_("Set API username and password for company {0} in eFactura Settings (Company API Accounts).").format(
+				company
+			)
+		)
 
-	if rows:
-		return _unique_by_username(rows)
-
-	default = get_default_company()
-	if not default:
-		frappe.throw(_("No Company found for eFactura sync"))
-	if not global_user or not global_pass:
-		frappe.throw(_("eFactura Settings: API username/password are not set."))
-	return [
-		{
-			"company": default,
-			"username": global_user,
-			"password": global_pass,
-			"wsdl_url": wsdl_url,
-		}
-	]
+	if not rows:
+		frappe.throw(
+			_("Add at least one Company API Account with username and password in eFactura Settings.")
+		)
+	return _unique_by_username(rows)
 
 
 def _unique_by_username(rows: list[dict]) -> list[dict]:

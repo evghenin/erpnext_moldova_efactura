@@ -223,10 +223,15 @@ eFactura Company API,API companie eFactura
 Company API Accounts,Conturi API pe companii
 eFactura Manager,Manager eFactura
 "API username {0} is used for more than one Company. Use one row per e-Factura account.","Numele de utilizator API {0} este folosit pentru mai multe companii. Folosiți un rând pentru fiecare cont e-Factura."
+e-Factura API credentials are set per Company. Pass a Company.,Datele de autentificare API e-Factura sunt setate pe companii. Transmiteți o companie.
+Set API username and password for company {0} in eFactura Settings (Company API Accounts).,Setați utilizatorul și parola API pentru compania {0} în setările eFactura (conturi API pe companii).
+Add at least one Company API Account with username and password in eFactura Settings.,Adăugați cel puțin un cont API de companie cu utilizator și parolă în setările eFactura.
+"One row per legal entity. Username and password are required on each row; there is no site-wide API user. Fetch and daily sync poll each account into that Company.","Un rând pentru fiecare persoană juridică. Utilizatorul și parola sunt obligatorii pe fiecare rând; nu există un utilizator API global. Preluarea și sincronizarea zilnică interoghează fiecare cont în acea companie."
+e-Factura API username for this company.,Numele de utilizator API e-Factura pentru această companie.
+e-Factura API password for this company.,Parola API e-Factura pentru această companie.
 eFactura Sales User,Utilizator eFactura (vânzări)
 eFactura Settings,Setări eFactura
-eFactura Settings: API username/password are not set.,Setări eFactura: utilizator/parolă API necompletate.
-eFactura Settings: api_wsdl_url is not set.,Setări eFactura: api_wsdl_url nu este setat.
+eFactura Settings: API URL is not set.,Setări eFactura: URL-ul API nu este setat.
 eFactura Status,Statut eFactura
 eFactura UOM,UM eFactura
 UOM Conversion Factor,Factor de conversie UM

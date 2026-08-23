@@ -24,16 +24,20 @@ class eFacturaSettings(Document):
 	def _validate_company_api_accounts(self):
 		seen_company = set()
 		seen_username = set()
-		global_user = (self.api_username or "").strip()
 		for row in self.get("company_api_accounts") or []:
 			if not row.company:
 				continue
 			if row.company in seen_company:
 				frappe.throw(_("Company {0} is listed more than once").format(row.company))
 			seen_company.add(row.company)
-			username = (row.api_username or "").strip() or global_user
-			if not username:
-				continue
+			username = (row.api_username or "").strip()
+			password = (row.api_password or "").strip()
+			if not username or not password:
+				frappe.throw(
+					_("Set API username and password for company {0} in eFactura Settings (Company API Accounts).").format(
+						row.company
+					)
+				)
 			if username in seen_username:
 				frappe.throw(
 					_(
