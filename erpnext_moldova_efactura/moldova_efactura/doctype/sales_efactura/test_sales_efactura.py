@@ -400,6 +400,18 @@ class TestSaleseFactura(FrappeTestCase):
 		self.assertEqual(missing["skipped"][0]["name"], "SEF-DOES-NOT-EXIST")
 		self.assertEqual(missing["skipped"][0]["reason"], frappe._("Not found"))
 
+		pending = frappe.get_all(
+			"Sales eFactura",
+			filters={"docstatus": 1, "ef_status": -1},
+			fields=["name", "status"],
+			limit=1,
+		)
+		if pending:
+			mixed = filter_signable([pending[0].name, "SEF-DOES-NOT-EXIST"])
+			self.assertEqual([row["name"] for row in mixed["signable"]], [pending[0].name])
+			self.assertIn("status", mixed["signable"][0])
+			self.assertEqual(mixed["skipped"][0]["name"], "SEF-DOES-NOT-EXIST")
+
 	def test_assert_can_register_signed(self):
 		from erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura import (
 			_assert_can_register_signed,

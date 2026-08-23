@@ -132,6 +132,21 @@ class TestEFacturaBuyerUtils(FrappeTestCase):
 		self.assertEqual(missing["skipped"][0]["reason"], frappe._("Not found"))
 		self.assertEqual(filter_acceptable([])["acceptable"], [])
 
+		signable_row = frappe.get_all(
+			"Purchase eFactura",
+			filters={"docstatus": 1, "ef_status": ["in", [1, 7, 9, 3]]},
+			fields=["name", "status"],
+			limit=1,
+		)
+		if signable_row:
+			mixed = filter_signable([signable_row[0].name, "PEF-DOES-NOT-EXIST"])
+			self.assertEqual([row["name"] for row in mixed["signable"]], [signable_row[0].name])
+			self.assertIn("status", mixed["signable"][0])
+			self.assertEqual(mixed["skipped"][0]["name"], "PEF-DOES-NOT-EXIST")
+			acceptable = filter_acceptable([signable_row[0].name, "PEF-DOES-NOT-EXIST"])
+			self.assertEqual(len(acceptable["skipped"]), 1)
+			self.assertTrue("acceptable" in acceptable)
+
 	def test_normalize_idno(self):
 		self.assertEqual(normalize_idno("1015 608 001 255"), "1015608001255")
 		self.assertEqual(normalize_idno("1015608001255"), "1015608001255")

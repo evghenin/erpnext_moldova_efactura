@@ -393,6 +393,7 @@ frappe.provide("erpnext_moldova_efactura.moldsign");
 		}
 		if (skipped.length) {
 			parts.push(`<p>${__("Skipped: {0}", [skipped.length])}</p>`);
+			parts.push("<ul>" + skipped_items_html(skipped) + "</ul>");
 		}
 		if (opts.aborted && opts.abort_message) {
 			parts.push(`<p>${opts.abort_message}</p>`);
