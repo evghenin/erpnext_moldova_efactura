@@ -1,6 +1,8 @@
 import frappe
 from frappe.utils import now_datetime, add_days
+from collections import defaultdict
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient
+from erpnext_moldova_efactura.utils.company_api import get_sync_targets
 
 
 CHECKABLE_EF_STATUSES = (
@@ -27,6 +29,7 @@ def sync_efactura_statuses():
         """
         SELECT
             name,
+            company,
             ef_series,
             ef_number,
             ef_status,
@@ -52,54 +55,57 @@ def sync_efactura_statuses():
     if not docs:
         return
 
-    seria_and_numbers = [{"Seria": row.ef_series, "Number": row.ef_number} for row in docs]
+    grouped = defaultdict(list)
+    for row in docs:
+        grouped[row.company or ""].append(row)
 
-    client = EFacturaAPIClient.from_settings()
-
-    try:
-        response = client.check_invoices_status(seria_and_numbers=seria_and_numbers)
-    except Exception:
-        frappe.log_error(
-            title="eFactura batch status request failed",
-            message=frappe.get_traceback(),
-        )
-        return
-
-    statuses = _extract_status_map(response)
     now_ts = now_datetime()
-
     total = len(docs)
     updated = 0
     unchanged = 0
     missing_count = 0
     errors = 0
-
     missing_docs = []
 
-    for row in docs:
+    for company, company_docs in grouped.items():
+        seria_and_numbers = [{"Seria": row.ef_series, "Number": row.ef_number} for row in company_docs]
         try:
-            key = (str(row.ef_series), str(row.ef_number))
-            new_status = statuses.get(key)
-
-            if new_status is None:
-                missing_count += 1
-                if len(missing_docs) < 5:
-                    missing_docs.append(f"{row.ef_series}{row.ef_number}")
-                continue
-
-            doc = frappe.get_doc("Sales eFactura", row.name)
-
-            if doc.ef_status != new_status:
-                doc.db_set("ef_status", new_status, update_modified=False)
-                doc.set_status()
-                updated += 1
-            else:
-                unchanged += 1
-
-            doc.db_set("last_status_check", now_ts, update_modified=False)
-
+            client = EFacturaAPIClient.from_settings(company=company or None)
+            response = client.check_invoices_status(seria_and_numbers=seria_and_numbers)
         except Exception:
-            errors += 1
+            frappe.log_error(
+                title=f"eFactura batch status request failed company={company}",
+                message=frappe.get_traceback(),
+            )
+            errors += len(company_docs)
+            continue
+
+        statuses = _extract_status_map(response)
+
+        for row in company_docs:
+            try:
+                key = (str(row.ef_series), str(row.ef_number))
+                new_status = statuses.get(key)
+
+                if new_status is None:
+                    missing_count += 1
+                    if len(missing_docs) < 5:
+                        missing_docs.append(f"{row.ef_series}{row.ef_number}")
+                    continue
+
+                doc = frappe.get_doc("Sales eFactura", row.name)
+
+                if doc.ef_status != new_status:
+                    doc.db_set("ef_status", new_status, update_modified=False)
+                    doc.set_status()
+                    updated += 1
+                else:
+                    unchanged += 1
+
+                doc.db_set("last_status_check", now_ts, update_modified=False)
+
+            except Exception:
+                errors += 1
 
     if missing_count or errors:
         msg_lines = [
@@ -163,38 +169,35 @@ def sync_efactura_cancelled_from_search_invoices():
     date_from = add_days(now_datetime(), -lookback_days)
 
     date_to = now_datetime()
+    updated = 0
+    cancelled_count = 0
 
-    # Build API call
-    from erpnext_moldova_efactura.api_client import EFacturaAPIClient
-    client = EFacturaAPIClient.from_settings()
+    for target in get_sync_targets():
+        try:
+            client = EFacturaAPIClient.from_settings(company=target["company"])
+            resp = client.search_invoices(
+                actor_role=1,
+                parameters={
+                    "InvoiceStatus": CANCELLED_BY_SUPPLIER,
+                    "IssuedOn": {"StartDate": date_from},
+                },
+            )
+        except Exception:
+            frappe.log_error(
+                title=f"e-Factura SearchInvoices failed company={target['company']}",
+                message=frappe.get_traceback(),
+            )
+            continue
 
-    # NOTE: parameter names depend on the SOAP contract you use.
-    # Replace keys below to match your API spec if needed.
-    parameters = {
-        "InvoiceStatus": CANCELLED_BY_SUPPLIER,
-        "IssuedOn": {
-            "StartDate": date_from
-        }
-    }
-
-    try:
-        resp = client.search_invoices(actor_role=1, parameters=parameters)
-    except Exception:
-        frappe.log_error(title="e-Factura SearchInvoices failed", message=frappe.get_traceback())
-        return
-
-    cancelled = _extract_rows_from_invoices_response(resp)
-    
-    if not cancelled:
-        return
-
-    # Optional: limit to avoid excessive DB load
-    cancelled = cancelled[:MAX_RESULTS_PER_RUN]
-
-    updated = _apply_cancelled_status_to_local_docs(cancelled)
+        cancelled = _extract_rows_from_invoices_response(resp)
+        if not cancelled:
+            continue
+        cancelled = cancelled[:MAX_RESULTS_PER_RUN]
+        cancelled_count += len(cancelled)
+        updated += _apply_cancelled_status_to_local_docs(cancelled, company=target["company"])
 
     frappe.logger().info(
-        f"e-Factura cancelled sync finished. from={date_from} to={date_to} cancelled={len(cancelled)} updated={updated}"
+        f"e-Factura cancelled sync finished. from={date_from} to={date_to} cancelled={cancelled_count} updated={updated}"
     )
 
 
@@ -239,7 +242,7 @@ def _extract_rows_from_invoices_response(resp: dict) -> list[tuple[str, str, int
     return out
 
 
-def _apply_cancelled_status_to_local_docs(keys: list[tuple[str, str, int]]) -> int:
+def _apply_cancelled_status_to_local_docs(keys: list[tuple[str, str, int]], company: str | None = None) -> int:
     """
     Update local records. Adjust Doctype/fields below to match your data model.
     """
@@ -250,12 +253,10 @@ def _apply_cancelled_status_to_local_docs(keys: list[tuple[str, str, int]]) -> i
         if status != CANCELLED_BY_SUPPLIER:
             continue
 
-        # Example Doctype: "Sales eFactura" (adjust if you store ef fields in Sales Invoice)
-        name = frappe.db.get_value(
-            "Sales eFactura",
-            {"ef_series": seria, "ef_number": number, "docstatus": 1},
-            "name",
-        )
+        filters = {"ef_series": seria, "ef_number": number, "docstatus": 1}
+        if company:
+            filters["company"] = company
+        name = frappe.db.get_value("Sales eFactura", filters, "name")
         if not name:
             continue
 
@@ -292,6 +293,7 @@ def sync_efactura_draft_invoices_by_api_invoice_id():
         """
         SELECT
             name,
+            company,
             ef_series,
             ef_number,
             ef_status,
@@ -317,8 +319,6 @@ def sync_efactura_draft_invoices_by_api_invoice_id():
     if not docs:
         return
 
-    client = EFacturaAPIClient.from_settings()
-
     total = len(docs)
     updated = 0
     unchanged = 0
@@ -337,7 +337,8 @@ def sync_efactura_draft_invoices_by_api_invoice_id():
 
     for row in docs:
         try:
-            
+            client = EFacturaAPIClient.from_settings(company=row.company)
+            inv = None
             for status in search_statuses:
                 params = {
                     "APIeInvoiceId": row.name, 

@@ -92,32 +92,18 @@ class EFacturaAPIClient:
 
 
     @classmethod
-    def from_settings(cls):
-        s = frappe.get_single("eFactura Settings")
+    def from_settings(cls, company=None):
+        from erpnext_moldova_efactura.utils.company_api import resolve_api_credentials
 
-        wsdl_url = getattr(s, "api_wsdl_url", None) or getattr(s, "api_url", None)
-        if not wsdl_url:
-            frappe.throw(_("eFactura Settings: api_wsdl_url is not set."))
-
-        username = getattr(s, "api_username", None)
-        password = getattr(s, "api_password", None)
-        if not username or not password:
-            frappe.throw(_("eFactura Settings: API username/password are not set."))
-
-        timeout = int(getattr(s, "api_timeout_seconds", 20) or 20)
-        verify_tls = bool(getattr(s, "api_verify_tls", 1))
-
-        service_name = getattr(s, "api_service_name", None)  # optional
-        port_name = getattr(s, "api_port_name", None)        # optional
-
+        creds = resolve_api_credentials(company)
         return cls(
-            wsdl_url=wsdl_url,
-            username=username,
-            password=password,
-            timeout=timeout,
-            verify_tls=verify_tls,
-            service_name=service_name,
-            port_name=port_name,
+            wsdl_url=creds["wsdl_url"],
+            username=creds["username"],
+            password=creds["password"],
+            timeout=creds["timeout"],
+            verify_tls=creds["verify_tls"],
+            service_name=creds["service_name"],
+            port_name=creds["port_name"],
         )
 
     def _new_request_id(self) -> str:

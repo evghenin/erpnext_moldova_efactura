@@ -376,7 +376,7 @@ class PurchaseeFactura(Document):
 		self.apply_item_maps()
 
 	def refresh_from_api(self):
-		client = EFacturaAPIClient.from_settings()
+		client = EFacturaAPIClient.from_settings(company=self.company)
 		resp = client.get_invoices_by_seria_number(
 			[{"Seria": self.ef_series, "Number": self.ef_number}]
 		)
@@ -563,7 +563,7 @@ def fetch_details(name: str):
 def accept_invoice(name: str):
 	doc = _get_purchase_efactura(name)
 	_require_actionable(doc)
-	client = EFacturaAPIClient.from_settings()
+	client = EFacturaAPIClient.from_settings(company=doc.company)
 	try:
 		resp = client.post_accepted_invoices([{"Seria": doc.ef_series, "Number": doc.ef_number}])
 	except Exception as e:
@@ -584,7 +584,7 @@ def reject_invoice(name: str, reason: str | None = None):
 	if not comment:
 		frappe.throw(_("Rejection Reason is required"))
 
-	client = EFacturaAPIClient.from_settings()
+	client = EFacturaAPIClient.from_settings(company=doc.company)
 	try:
 		resp = client.post_rejected_invoices(
 			[
@@ -615,7 +615,7 @@ def download_xml(name: str):
 	if not doc.ef_series or not doc.ef_number:
 		frappe.throw(_("eFactura Series/Number is required to download XML"))
 
-	client = EFacturaAPIClient.from_settings()
+	client = EFacturaAPIClient.from_settings(company=doc.company)
 	resp = client.get_invoices_by_seria_number(
 		[{"Seria": doc.ef_series, "Number": doc.ef_number}]
 	)
@@ -638,7 +638,7 @@ def download_pdf(name: str):
 	if not doc.ef_series or not doc.ef_number:
 		frappe.throw(_("eFactura Series/Number is required to download PDF"))
 
-	client = EFacturaAPIClient.from_settings()
+	client = EFacturaAPIClient.from_settings(company=doc.company)
 	resp = client.get_invoices_content_for_print(
 		seria_and_numbers={"Seria": doc.ef_series, "Number": doc.ef_number},
 		actor_role=2,
@@ -677,7 +677,7 @@ def get_xml_for_sign(name: str):
 
 	doc = _get_purchase_efactura(name)
 	_require_signable(doc)
-	client = EFacturaAPIClient.from_settings()
+	client = EFacturaAPIClient.from_settings(company=doc.company)
 	resp = client.get_invoices_by_seria_number(
 		[{"Seria": doc.ef_series, "Number": doc.ef_number}]
 	)
@@ -730,7 +730,7 @@ def process_signed_xml(name: str, signature: str, content: str):
 		"</Documents>"
 	)
 
-	client = EFacturaAPIClient.from_settings()
+	client = EFacturaAPIClient.from_settings(company=doc.company)
 	client.post_invoices(
 		actor_role=2,
 		invoices_xml=wrapped,
@@ -742,7 +742,7 @@ def process_signed_xml(name: str, signature: str, content: str):
 
 
 def _refresh_status(doc):
-	client = EFacturaAPIClient.from_settings()
+	client = EFacturaAPIClient.from_settings(company=doc.company)
 	resp = client.check_invoices_status([{"Seria": doc.ef_series, "Number": doc.ef_number}])
 	statuses = invoice_status_map(resp)
 	key = (str(doc.ef_series), str(doc.ef_number))

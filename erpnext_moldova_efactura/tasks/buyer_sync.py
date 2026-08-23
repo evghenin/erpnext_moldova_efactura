@@ -14,7 +14,8 @@ from erpnext_moldova_efactura.utils.buyer_status import (
 	is_canceled_by_supplier,
 	status_label,
 )
-from erpnext_moldova_efactura.utils.party import find_supplier_by_idno, get_default_company
+from erpnext_moldova_efactura.utils.company_api import get_sync_targets
+from erpnext_moldova_efactura.utils.party import find_supplier_by_idno
 
 DEFAULT_LOOKBACK_DAYS = 180
 BATCH_DETAIL = 100
@@ -22,12 +23,27 @@ BATCH_DETAIL = 100
 
 def sync_buyer_invoices(lookback_days: int | None = None, company: str | None = None) -> dict:
 	"""Search buyer invoices and upsert Purchase eFactura docs. Read + local write only."""
-	client = EFacturaAPIClient.from_settings()
 	lookback_days = int(lookback_days or DEFAULT_LOOKBACK_DAYS)
-	company = company or get_default_company()
-	if not company:
-		frappe.throw("No Company found for Purchase eFactura sync")
+	totals = {
+		"found": 0,
+		"created": 0,
+		"updated": 0,
+		"skipped": 0,
+		"details_loaded": 0,
+		"errors": 0,
+	}
+	by_company = []
+	for target in get_sync_targets(company):
+		client = EFacturaAPIClient.from_settings(company=target["company"])
+		result = _sync_buyer_invoices_for_company(client, target["company"], lookback_days)
+		by_company.append({"company": target["company"], **result})
+		for key in totals:
+			totals[key] += result.get(key, 0)
+	totals["by_company"] = by_company
+	return totals
 
+
+def _sync_buyer_invoices_for_company(client, company: str, lookback_days: int) -> dict:
 	date_from = add_days(now_datetime(), -lookback_days)
 	date_to = now_datetime()
 
@@ -41,7 +57,7 @@ def sync_buyer_invoices(lookback_days: int | None = None, company: str | None = 
 			resp = client.search_invoices(actor_role=2, parameters=params)
 		except Exception:
 			frappe.log_error(
-				title=f"Purchase eFactura SearchInvoices failed status={st}",
+				title=f"Purchase eFactura SearchInvoices failed status={st} company={company}",
 				message=frappe.get_traceback(),
 			)
 			continue
@@ -105,7 +121,7 @@ def sync_buyer_invoices(lookback_days: int | None = None, company: str | None = 
 		except Exception:
 			errors += 1
 			frappe.log_error(
-				title=f"Purchase eFactura upsert failed {seria}{number}",
+				title=f"Purchase eFactura upsert failed {seria}{number} company={company}",
 				message=frappe.get_traceback(),
 			)
 
@@ -171,36 +187,44 @@ def _fill_details(client: EFacturaAPIClient, name: str) -> bool:
 
 def sync_buyer_statuses(batch_size: int = 50) -> dict:
 	"""Refresh ef_status for existing buyer docs via CheckInvoicesStatus."""
-	rows = frappe.get_all(
-		"Purchase eFactura",
-		fields=["name", "ef_series", "ef_number", "ef_status"],
-		filters={"ef_series": ["is", "set"], "ef_number": ["is", "set"]},
-		order_by="modified asc",
-		limit_page_length=batch_size,
-	)
-	if not rows:
-		return {"checked": 0, "updated": 0}
+	checked = updated = 0
+	for target in get_sync_targets():
+		rows = frappe.get_all(
+			"Purchase eFactura",
+			fields=["name", "ef_series", "ef_number", "ef_status"],
+			filters={
+				"company": target["company"],
+				"ef_series": ["is", "set"],
+				"ef_number": ["is", "set"],
+			},
+			order_by="modified asc",
+			limit_page_length=batch_size,
+		)
+		if not rows:
+			continue
+		client = EFacturaAPIClient.from_settings(company=target["company"])
+		payload = [{"Seria": r.ef_series, "Number": r.ef_number} for r in rows]
+		try:
+			resp = client.check_invoices_status(seria_and_numbers=payload)
+		except Exception:
+			frappe.log_error(
+				title=f"Purchase eFactura status sync failed company={target['company']}",
+				message=frappe.get_traceback(),
+			)
+			continue
 
-	client = EFacturaAPIClient.from_settings()
-	payload = [{"Seria": r.ef_series, "Number": r.ef_number} for r in rows]
-	try:
-		resp = client.check_invoices_status(seria_and_numbers=payload)
-	except Exception:
-		frappe.log_error(title="Purchase eFactura status sync failed", message=frappe.get_traceback())
-		return {"checked": 0, "updated": 0, "error": 1}
-
-	statuses = invoice_status_map(resp)
-	updated = 0
-	for row in rows:
-		key = (str(row.ef_series), str(row.ef_number))
-		new_status = statuses.get(key)
-		doc = frappe.get_doc("Purchase eFactura", row.name)
-		if new_status is not None and doc.ef_status != new_status:
-			updated += 1
-		doc.persist_sfs_status(new_status)
+		statuses = invoice_status_map(resp)
+		for row in rows:
+			key = (str(row.ef_series), str(row.ef_number))
+			new_status = statuses.get(key)
+			doc = frappe.get_doc("Purchase eFactura", row.name)
+			if new_status is not None and doc.ef_status != new_status:
+				updated += 1
+			doc.persist_sfs_status(new_status)
+		checked += len(rows)
 
 	frappe.db.commit()
-	return {"checked": len(rows), "updated": updated}
+	return {"checked": checked, "updated": updated}
 
 
 @frappe.whitelist()

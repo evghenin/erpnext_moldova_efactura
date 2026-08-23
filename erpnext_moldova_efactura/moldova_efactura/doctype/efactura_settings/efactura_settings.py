@@ -10,6 +10,7 @@ class eFacturaSettings(Document):
 	def validate(self):
 		self._validate_company_settings()
 		self._validate_sales_tax_settings()
+		self._validate_company_api_accounts()
 		self._validate_outgoing_item_tax_templates()
 		seen = set()
 		for row in self.get("uom_map") or []:
@@ -19,6 +20,28 @@ class eFacturaSettings(Document):
 			if key in seen:
 				frappe.throw(_("Duplicate Supplier UOM in map: {0}").format(row.supplier_uom))
 			seen.add(key)
+
+	def _validate_company_api_accounts(self):
+		seen_company = set()
+		seen_username = set()
+		global_user = (self.api_username or "").strip()
+		for row in self.get("company_api_accounts") or []:
+			if not row.company:
+				continue
+			if row.company in seen_company:
+				frappe.throw(_("Company {0} is listed more than once").format(row.company))
+			seen_company.add(row.company)
+			username = (row.api_username or "").strip() or global_user
+			if not username:
+				continue
+			if username in seen_username:
+				frappe.throw(
+					_(
+						"API username {0} is used for more than one Company. "
+						"Use one row per e-Factura account."
+					).format(username)
+				)
+			seen_username.add(username)
 
 	def _validate_outgoing_item_tax_templates(self):
 		seen = set()

@@ -580,7 +580,7 @@ class SaleseFactura(Document):
         try:
             from erpnext_moldova_efactura.api_client import EFacturaAPIClient
 
-            client = EFacturaAPIClient.from_settings()
+            client = EFacturaAPIClient.from_settings(company=self.company)
 
             self._autofill_party_block(
                 client,
@@ -713,8 +713,8 @@ def download_xml(efactura_name):
 
 @frappe.whitelist()
 def update_ef_status(efactura_name):
-    client = EFacturaAPIClient.from_settings()
     efactura = _get_sales_efactura(efactura_name)
+    client = EFacturaAPIClient.from_settings(company=efactura.company)
 
     if not efactura.ef_series or not efactura.ef_number:
         # List of statuses to check in sequence (eFactura API requires status filter)
@@ -777,7 +777,7 @@ def update_ef_status(efactura_name):
 def download_pdf(efactura_name):
     efactura = _get_sales_efactura(efactura_name, "read")
 
-    client = EFacturaAPIClient.from_settings()
+    client = EFacturaAPIClient.from_settings(company=efactura.company)
     resp = client.get_invoices_content_for_print(seria_and_numbers=
         {
             "Seria": efactura.ef_series,
@@ -837,7 +837,7 @@ def get_for_sign(efactura_name):
     ef_lang = frappe.db.get_single_value("eFactura Settings", "language")
 
     if not efactura.ef_series or not efactura.ef_number:
-        client = EFacturaAPIClient.from_settings()
+        client = EFacturaAPIClient.from_settings(company=efactura.company)
         resp = client.get_series_and_numbers(count=1)
         data = resp.get("Results", {}).get("SeriaAndNumber", [{}])[0]
 
@@ -886,7 +886,7 @@ def send_unsigned(efactura_name):
     _assert_can_register_signed(efactura)
     ef_lang = frappe.db.get_single_value("eFactura Settings", "language")
 
-    client = EFacturaAPIClient.from_settings()
+    client = EFacturaAPIClient.from_settings(company=efactura.company)
 
     xml_content = _generate_invoice_xml(
         efactura=efactura,
@@ -1017,7 +1017,7 @@ def process_signed_xml(name, signature, content):
     _assert_can_register_signed(ef)
 
     # Send signed XML via PostInvoices
-    client = EFacturaAPIClient.from_settings()
+    client = EFacturaAPIClient.from_settings(company=efactura.company)
 
     # NOTE:
     # - send_unsigned() uses invoices_xml_status=0 (unsigned)

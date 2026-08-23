@@ -219,7 +219,10 @@ eFactura Exchange Rate,Curs eFactura
 Sales eFactura Item,Articol eFactura de vânzare
 eFactura Number,Număr eFactura
 eFactura Series,Serie eFactura
+eFactura Company API,API companie eFactura
+Company API Accounts,Conturi API pe companii
 eFactura Manager,Manager eFactura
+"API username {0} is used for more than one Company. Use one row per e-Factura account.","Numele de utilizator API {0} este folosit pentru mai multe companii. Folosiți un rând pentru fiecare cont e-Factura."
 eFactura Sales User,Utilizator eFactura (vânzări)
 eFactura Settings,Setări eFactura
 eFactura Settings: API username/password are not set.,Setări eFactura: utilizator/parolă API necompletate.

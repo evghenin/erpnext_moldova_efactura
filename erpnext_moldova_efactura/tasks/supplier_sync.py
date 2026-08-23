@@ -15,7 +15,8 @@ from erpnext_moldova_efactura.utils.buyer_status import (
 	load_archived_sales_efactura,
 )
 from erpnext_moldova_efactura.utils.invoice_xml import parse_invoice_xml
-from erpnext_moldova_efactura.utils.party import find_customer_by_idno, get_default_company
+from erpnext_moldova_efactura.utils.company_api import get_sync_targets
+from erpnext_moldova_efactura.utils.party import find_customer_by_idno
 
 DEFAULT_LOOKBACK_DAYS = 180
 BATCH_DETAIL = 100
@@ -32,12 +33,27 @@ def supplier_search_statuses() -> tuple[int, ...]:
 
 def sync_supplier_invoices(lookback_days: int | None = None, company: str | None = None) -> dict:
 	"""Search supplier invoices and upsert Sales eFactura docs that are missing locally."""
-	client = EFacturaAPIClient.from_settings()
 	lookback_days = int(lookback_days or DEFAULT_LOOKBACK_DAYS)
-	company = company or get_default_company()
-	if not company:
-		frappe.throw(_("No Company found for Sales eFactura sync"))
+	totals = {
+		"found": 0,
+		"created": 0,
+		"updated": 0,
+		"skipped": 0,
+		"details_loaded": 0,
+		"errors": 0,
+	}
+	by_company = []
+	for target in get_sync_targets(company):
+		client = EFacturaAPIClient.from_settings(company=target["company"])
+		result = _sync_supplier_invoices_for_company(client, target["company"], lookback_days)
+		by_company.append({"company": target["company"], **result})
+		for key in totals:
+			totals[key] += result.get(key, 0)
+	totals["by_company"] = by_company
+	return totals
 
+
+def _sync_supplier_invoices_for_company(client, company: str, lookback_days: int) -> dict:
 	date_from = add_days(now_datetime(), -lookback_days)
 	date_to = now_datetime()
 
@@ -51,7 +67,7 @@ def sync_supplier_invoices(lookback_days: int | None = None, company: str | None
 			resp = client.search_invoices(actor_role=1, parameters=params)
 		except Exception:
 			frappe.log_error(
-				title=f"Sales eFactura SearchInvoices failed status={st}",
+				title=f"Sales eFactura SearchInvoices failed status={st} company={company}",
 				message=frappe.get_traceback(),
 			)
 			continue
@@ -124,7 +140,7 @@ def sync_supplier_invoices(lookback_days: int | None = None, company: str | None
 		except Exception:
 			errors += 1
 			frappe.log_error(
-				title=f"Sales eFactura upsert failed {seria}{number}",
+				title=f"Sales eFactura upsert failed {seria}{number} company={company}",
 				message=frappe.get_traceback(),
 			)
 
