@@ -1,8 +1,10 @@
 ### ERPNext Moldova Efactura
 
-ERPNext integration for Moldovan electronic tax invoices (e-Factura / SFS): outgoing **Sales eFactura** and incoming **Purchase eFactura**.
+ERPNext integration for Moldovan electronic tax invoices (e-Factura / SFS).
 
-Version **2.0**. Requires ERPNext / Frappe v15.
+Version **2.0.0**. Requires ERPNext / Frappe v15.
+
+Outgoing invoices are **Sales eFactura**. Incoming invoices are **Purchase eFactura**. Desk workspaces: **eFactura**, **eFactura Sales**, **eFactura Purchase**.
 
 ### Features
 
@@ -29,10 +31,11 @@ Version **2.0**. Requires ERPNext / Frappe v15.
 - Multi-currency like Sales eFactura: `ef_*` amounts in eFactura currency, document amounts converted.
 - Supplier IDNO must match the factura; taxpayer type is stored as Company / Individual / Non-Resident.
 - Supplier / buyer / transporter shown as HTML (same pattern as Sales eFactura).
+- Status sync prefers invoices awaiting buyer action (SFS 1 / 7 / 9). SearchInvoices uses 7-day `IssuedOn` windows (the SFS API has no pagination).
 
 #### Settings
 
-Configure API credentials per Company (Company API Accounts), IDNO fields, eFactura currency, VAT-in-rate, UOM map (optional auto-add; Sales and Purchase fetch), buying tax templates per company, and Sales / Purchase options under **eFactura Settings**.
+Configure API credentials per Company (**Company API Accounts**), IDNO fields, eFactura currency, VAT-in-rate, UOM map (optional auto-add; Sales and Purchase fetch), buying tax templates per company, and Sales / Purchase options under **eFactura Settings**.
 
 There is no site-wide API user. Add one **Company API Accounts** row per legal entity (username and password required). Fetch and daily sync poll each account into that Company. The API URL on Settings is shared.
 
@@ -47,20 +50,27 @@ Assign Desk roles to match the workflow. Fetch / Register / Sign / Accept / Reje
 
 Purchase eFactura cannot be created manually (`create` is off for every role); Fetch / sync still inserts documents server-side.
 
-Upgrade: run `bench migrate` so Role fixtures and DocType permissions sync. Then assign **eFactura Manager** or **eFactura Sales User** to users as needed; existing Sales / Accounts / Purchase roles keep the mapping above.
-
 ### Installation
-
-You can install this app using the [bench](https://github.com/frappe/bench) CLI:
 
 ```bash
 cd $PATH_TO_YOUR_BENCH
-bench get-app $URL_OF_THIS_REPO --branch v2
+bench get-app https://github.com/evghenin/erpnext_moldova_efactura.git
 bench --site $SITE install-app erpnext_moldova_efactura
 bench --site $SITE migrate
 ```
 
-Upgrade from 1.x: install this version and run `bench migrate`. DocTypes are renamed (`eFactura` → `Sales eFactura`, `eFactura Buyer` → `Purchase eFactura`); patches convert existing data.
+Then open **eFactura Settings**, set the API URL, and add a **Company API Accounts** row for each legal entity.
+
+### Upgrade from 1.x
+
+```bash
+bench get-app https://github.com/evghenin/erpnext_moldova_efactura.git
+bench --site $SITE migrate
+```
+
+- DocTypes are renamed (`eFactura` → `Sales eFactura`, `eFactura Buyer` → `Purchase eFactura`); patches convert existing data.
+- Site-wide API username/password are removed. After migrate, copy leftover credentials onto **Company API Accounts** (the patch does this when it can) and fill any missing company rows.
+- Assign **eFactura Manager** or **eFactura Sales User** as needed; existing Sales / Accounts / Purchase roles keep the mapping above.
 
 ### Contributing
 
