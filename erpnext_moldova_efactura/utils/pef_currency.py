@@ -100,11 +100,23 @@ def apply_document_amounts_from_ef(doc) -> None:
 	if not has_ef:
 		return
 	conv = flt(doc.ef_conversion_rate) or 1
+	vat_included = cint(frappe.db.get_single_value("eFactura Settings", "vat_included_in_rate") or 0)
 	for row in getattr(doc, "items", None) or []:
 		for ef_field, doc_field in ITEM_EF_TO_DOC:
 			setattr(row, doc_field, flt(getattr(row, ef_field, None)) / conv)
+		_apply_line_rate_amount_from_vat_setting(row, vat_included)
 	for ef_field, doc_field in HEADER_EF_TO_DOC:
 		setattr(doc, doc_field, flt(getattr(doc, ef_field, None)) / conv)
+
+
+def _apply_line_rate_amount_from_vat_setting(row, vat_included: int) -> None:
+	"""rate/amount follow eFactura Settings: VAT included in rate or not."""
+	if vat_included:
+		row.rate = flt(row.rate_with_vat) or flt(row.rate)
+		gross = flt(row.net_amount) + flt(row.vat_amount)
+		row.amount = gross or flt(row.amount)
+	else:
+		row.amount = flt(row.net_amount)
 
 
 def remap_xml_item_money(item: dict) -> dict:
