@@ -32,7 +32,7 @@
   },
   {
    "fieldname": "supplier_item_name",
-   "fieldtype": "Data",
+   "fieldtype": "Small Text",
    "in_list_view": 1,
    "label": "Supplier Item Name",
    "reqd": 1
@@ -65,7 +65,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-23 18:55:00.000000",
+ "modified": "2026-08-23 22:55:00.000000",
  "modified_by": "Administrator",
  "module": "Moldova eFactura",
  "name": "eFactura Supplier Item Map",

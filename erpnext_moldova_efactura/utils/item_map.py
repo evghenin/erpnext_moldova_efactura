@@ -155,29 +155,26 @@ def upsert_item_map(
 	item_code: str,
 	uom: str | None = None,
 ):
-	"""Persist mapping. Prefer stable key: supplier + supplier_item_name."""
-	name = (supplier_item_name or "").strip()
-	code = (supplier_item_code or "").strip()
+	"""Persist mapping. Stable key: supplier + supplier_item_name.
 
-	existing = None
-	if name:
-		existing = frappe.db.get_value(
-			"eFactura Supplier Item Map",
-			{"supplier": supplier, "supplier_item_name": name},
-			"name",
-			order_by="modified desc",
-		)
-	if not existing and code:
-		existing = frappe.db.get_value(
-			"eFactura Supplier Item Map",
-			{"supplier": supplier, "supplier_item_code": code},
-			"name",
-		)
+	Do not reuse another product's row just because SFS Code matches — codes
+	are reused across different names and that used to block PEF save.
+	"""
+	name = (supplier_item_name or "").strip() or (supplier_item_code or "").strip()
+	code = (supplier_item_code or "").strip()
+	if not name:
+		return None
+
+	existing = frappe.db.get_value(
+		"eFactura Supplier Item Map",
+		{"supplier": supplier, "supplier_item_name": name},
+		"name",
+		order_by="modified desc",
+	)
 
 	if existing:
 		doc = frappe.get_doc("eFactura Supplier Item Map", existing)
 		doc.item_code = item_code
-		doc.supplier_item_name = name or doc.supplier_item_name
 		if code:
 			doc.supplier_item_code = code
 		if uom:

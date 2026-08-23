@@ -11,12 +11,16 @@ class eFacturaSupplierItemMap(Document):
 		if not self.supplier_item_code and not self.supplier_item_name:
 			frappe.throw(_("Supplier Item Code or Supplier Item Name is required"))
 
-		filters = {"supplier": self.supplier, "name": ["!=", self.name]}
-		if self.supplier_item_code:
-			filters["supplier_item_code"] = self.supplier_item_code
-		else:
-			filters["supplier_item_name"] = self.supplier_item_name
-			filters["supplier_item_code"] = ["in", ["", None]]
-
-		if frappe.db.exists("eFactura Supplier Item Map", filters):
+		# SFS Code is unreliable and is often reused; the stable key is the name.
+		name = (self.supplier_item_name or "").strip()
+		if not name:
+			return
+		if frappe.db.exists(
+			"eFactura Supplier Item Map",
+			{
+				"supplier": self.supplier,
+				"supplier_item_name": name,
+				"name": ["!=", self.name],
+			},
+		):
 			frappe.throw(_("Item map already exists for this supplier item"))

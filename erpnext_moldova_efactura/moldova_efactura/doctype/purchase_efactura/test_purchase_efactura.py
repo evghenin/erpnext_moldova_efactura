@@ -1270,6 +1270,60 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 			)
 		)
 
+	def test_pef_save_allows_same_supplier_code_on_different_names(self):
+		from erpnext_moldova_efactura.utils.item_map import upsert_item_map
+
+		item = frappe.db.get_value("Item", {"disabled": 0}, ["name", "stock_uom"], as_dict=True)
+		sup = frappe.db.get_value("Supplier", {}, "name")
+		if not item or not sup:
+			self.skipTest("Need Item and Supplier")
+
+		self._delete_buyer("EBJ", "000066703")
+		for title in ("Item A", "Item B"):
+			frappe.db.delete("eFactura Supplier Item Map", {"supplier": sup, "supplier_item_name": title})
+
+		# Previously mapped under different codes; new XML reuses one SFS Code.
+		upsert_item_map(sup, "OLD-A", "Item A", item.name, item.stock_uom)
+		upsert_item_map(sup, "OLD-B", "Item B", item.name, item.stock_uom)
+
+		xml = SAMPLE_XML.replace("000066606", "000066703").replace(
+			"</Merchandises>",
+			'<Row Code="A1" Name="Item B" UnitOfMeasure="buc" Quantity="1"'
+			' UnitPriceWithoutTVA="50" TotalPriceWithoutTVA="50" TVA="18" TotalTVA="9" TotalPrice="59"/>\n'
+			"    </Merchandises>",
+		)
+		doc = frappe.get_doc(
+			{
+				"doctype": "Purchase eFactura",
+				"naming_series": "ACC-PEF-.YYYY.-",
+				"company": self.company,
+				"ef_series": "EBJ",
+				"ef_number": "000066703",
+				"ef_status": 8,
+				"supplier": sup,
+			}
+		)
+		doc.fill_from_xml(xml)
+		doc.supplier = sup
+		for row in doc.items:
+			row.item_code = item.name
+			row.ef_uom = item.stock_uom
+			row.uom = item.stock_uom
+		doc.insert()
+		self.assertEqual(len(doc.items), 2)
+		self.assertTrue(
+			frappe.db.exists(
+				"eFactura Supplier Item Map",
+				{"supplier": sup, "supplier_item_name": "Item A", "supplier_item_code": "A1"},
+			)
+		)
+		self.assertTrue(
+			frappe.db.exists(
+				"eFactura Supplier Item Map",
+				{"supplier": sup, "supplier_item_name": "Item B", "supplier_item_code": "A1"},
+			)
+		)
+
 	def _make_buyer(self, number, supplier, item, qty=2, ef_status=8):
 		self._delete_buyer("EBJ", number)
 		xml = SAMPLE_XML.replace("000066606", number)
