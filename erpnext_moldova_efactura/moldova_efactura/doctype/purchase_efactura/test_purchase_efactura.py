@@ -12,7 +12,7 @@ from erpnext_moldova_efactura.utils.buyer_status import (
 	should_create_incoming,
 	status_label,
 )
-from erpnext_moldova_efactura.utils.invoice_xml import parse_invoice_xml, unescape_sfs_text
+from erpnext_moldova_efactura.utils.invoice_xml import parse_invoice_xml, parse_sfs_amount, unescape_sfs_text
 from erpnext_moldova_efactura.utils.item_map import resolve_item_code
 from erpnext_moldova_efactura.utils.party import (
 	normalize_idno,
@@ -270,6 +270,23 @@ class TestEFacturaBuyerUtils(FrappeTestCase):
 		self.assertEqual(parsed["vat_total"], 18)
 		self.assertEqual(str(parsed["issue_date"]), "2026-06-09")
 		self.assertEqual(get_time(parsed["issue_time"]), get_time("10:38:41"))
+
+	def test_parse_sfs_amount_keeps_comma_decimals(self):
+		self.assertEqual(parse_sfs_amount("97,81"), 97.81)
+		self.assertEqual(parse_sfs_amount("586.81"), 586.81)
+		self.assertEqual(parse_sfs_amount("1.234,56"), 1234.56)
+		self.assertEqual(parse_sfs_amount("1,234.56"), 1234.56)
+		self.assertEqual(parse_sfs_amount("9 781,00"), 9781.0)
+		self.assertEqual(parse_sfs_amount(""), 0.0)
+
+	def test_parse_invoice_xml_comma_vat_does_not_go_negative(self):
+		xml = SAMPLE_XML.replace("<Total>118.00</Total>", "<Total>586,81</Total>").replace(
+			"<TotalTVA>18.00</TotalTVA>", "<TotalTVA>97,81</TotalTVA>"
+		)
+		parsed = parse_invoice_xml(xml)
+		self.assertEqual(parsed["total"], 586.81)
+		self.assertEqual(parsed["vat_total"], 97.81)
+		self.assertAlmostEqual(parsed["net_total"], 489.0)
 
 	def test_parse_issued_date_with_fractional_seconds(self):
 		xml = SAMPLE_XML.replace(

@@ -11,6 +11,34 @@ from frappe.utils import flt, get_datetime, get_time, getdate
 from erpnext_moldova_efactura.utils.taxpayer_type import taxpayer_type_from_sfs
 
 
+def parse_sfs_amount(value) -> float:
+	"""Parse SFS money/qty. flt() strips commas, so '97,81' must not become 9781."""
+	if value is None or value == "":
+		return 0.0
+	if isinstance(value, int | float):
+		return flt(value)
+	text = unescape_sfs_text(str(value)).replace("\xa0", "").replace(" ", "")
+	if not text:
+		return 0.0
+	if "," in text and "." in text:
+		if text.rfind(",") > text.rfind("."):
+			text = text.replace(".", "").replace(",", ".")
+		else:
+			text = text.replace(",", "")
+	elif "," in text:
+		text = _single_separator_to_dot(text, ",")
+	elif text.count(".") == 1:
+		text = _single_separator_to_dot(text, ".")
+	return flt(text)
+
+
+def _single_separator_to_dot(text: str, sep: str) -> str:
+	left, right = text.split(sep, 1)
+	if right.isdigit() and 1 <= len(right) <= 2:
+		return f"{left.replace('.', '').replace(',', '')}.{right}"
+	return text.replace(sep, "")
+
+
 def unescape_sfs_text(value: str | None) -> str:
 	"""Decode HTML entities; SFS often double-encodes (&amp;apos; → &apos; → ')."""
 	if value is None:
@@ -116,7 +144,7 @@ def _row_vat_rate(row: ET.Element, net_amount: float, vat_amount: float) -> floa
 	for name in ("TVA", "Vat", "VAT", "ProcTVA"):
 		raw = _attr(row, name)
 		if raw:
-			rate = flt(raw)
+			rate = parse_sfs_amount(raw)
 			if rate:
 				return rate
 	if net_amount and vat_amount:
@@ -136,8 +164,8 @@ def parse_invoice_xml(xml_content: str | bytes) -> dict[str, Any]:
 	buyer = _party_block(supplier_info, "Buyer")
 	transporter = _party_block(supplier_info, "Transporter")
 
-	total = flt(_text(supplier_info, "Total") or 0)
-	vat_total = flt(_text(supplier_info, "TotalTVA") or 0)
+	total = parse_sfs_amount(_text(supplier_info, "Total"))
+	vat_total = parse_sfs_amount(_text(supplier_info, "TotalTVA"))
 
 	items: list[dict[str, Any]] = []
 	merchandises = _find(supplier_info, "Merchandises")
@@ -146,11 +174,11 @@ def parse_invoice_xml(xml_content: str | bytes) -> dict[str, Any]:
 			if _local(row.tag) != "Row":
 				continue
 			name = _attr(row, "Name") or _attr(row, "Code") or "Item"
-			qty = flt(_attr(row, "Quantity") or 0)
-			rate = flt(_attr(row, "UnitPriceWithoutTVA") or 0)
-			amount = flt(_attr(row, "TotalPrice") or 0)
-			net_amount = flt(_attr(row, "TotalPriceWithoutTVA") or 0)
-			vat_amount = flt(_attr(row, "TotalTVA") or 0)
+			qty = parse_sfs_amount(_attr(row, "Quantity"))
+			rate = parse_sfs_amount(_attr(row, "UnitPriceWithoutTVA"))
+			amount = parse_sfs_amount(_attr(row, "TotalPrice"))
+			net_amount = parse_sfs_amount(_attr(row, "TotalPriceWithoutTVA"))
+			vat_amount = parse_sfs_amount(_attr(row, "TotalTVA"))
 			vat_rate = _row_vat_rate(row, net_amount, vat_amount)
 			if qty:
 				rate_with_vat = flt(amount / qty)
