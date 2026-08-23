@@ -477,7 +477,13 @@ class TestEFacturaBuyerUOM(FrappeTestCase):
 		self.assertEqual(resolve_item_code(sup, "RND", "EF-WILDCARD-MILK 2% fat"), item.name)
 		self.assertIsNone(resolve_item_code(sup, None, other))
 
-		upsert_item_map(sup, None, exact, item.name, item.stock_uom)
+		self.assertIsNone(upsert_item_map(sup, None, exact, item.name, item.stock_uom))
+		self.assertFalse(
+			frappe.db.exists(
+				"eFactura Supplier Item Map",
+				{"supplier": sup, "supplier_item_name": exact},
+			)
+		)
 		self.assertEqual(resolve_item_code(sup, None, exact), item.name)
 
 	def test_compute_stock_qty_from_item_uom_conversion(self):
@@ -1292,6 +1298,49 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 			frappe.db.exists(
 				"eFactura Supplier Item Map",
 				{"supplier": sup, "supplier_item_name": "Item A", "item_code": item.name},
+			)
+		)
+
+	def test_pef_save_skips_exact_map_when_wildcard_covers_name(self):
+		from erpnext_moldova_efactura.utils.item_map import upsert_item_map
+
+		item = frappe.db.get_value("Item", {"disabled": 0}, ["name", "stock_uom"], as_dict=True)
+		sup = frappe.db.get_value("Supplier", {}, "name")
+		if not item or not sup:
+			self.skipTest("Need Item and Supplier")
+
+		self._delete_buyer("EBJ", "000066704")
+		frappe.db.delete("eFactura Supplier Item Map", {"supplier": sup, "supplier_item_name": "Item A"})
+		frappe.db.delete("eFactura Supplier Item Map", {"supplier": sup, "supplier_item_name": "Item%"})
+		upsert_item_map(sup, None, "Item%", item.name, item.stock_uom)
+
+		doc = frappe.get_doc(
+			{
+				"doctype": "Purchase eFactura",
+				"naming_series": "ACC-PEF-.YYYY.-",
+				"company": self.company,
+				"ef_series": "EBJ",
+				"ef_number": "000066704",
+				"ef_status": 8,
+				"supplier": sup,
+			}
+		)
+		doc.fill_from_xml(SAMPLE_XML.replace("000066606", "000066704"))
+		doc.supplier = sup
+		doc.items[0].item_code = item.name
+		doc.items[0].ef_uom = item.stock_uom
+		doc.items[0].uom = item.stock_uom
+		doc.insert()
+		self.assertFalse(
+			frappe.db.exists(
+				"eFactura Supplier Item Map",
+				{"supplier": sup, "supplier_item_name": "Item A"},
+			)
+		)
+		self.assertTrue(
+			frappe.db.exists(
+				"eFactura Supplier Item Map",
+				{"supplier": sup, "supplier_item_name": "Item%", "item_code": item.name},
 			)
 		)
 

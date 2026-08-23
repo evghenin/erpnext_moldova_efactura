@@ -161,17 +161,10 @@ def _from_past_invoices(
 	return rows[0][0], rows[0][1]
 
 
-def _from_supplier_item_map(supplier: str, name: str) -> str | None:
-	"""Exact map name first, then the longest % pattern that matches."""
-	exact = frappe.db.get_value(
-		"eFactura Supplier Item Map",
-		{"supplier": supplier, "supplier_item_name": name},
-		"item_code",
-		order_by="modified desc",
-	)
-	if exact:
-		return exact
-
+def _best_wildcard_map(supplier: str, name: str):
+	"""Longest % pattern for this supplier that matches name, or None."""
+	if not supplier or not name:
+		return None
 	rows = frappe.get_all(
 		"eFactura Supplier Item Map",
 		filters={"supplier": supplier},
@@ -186,8 +179,22 @@ def _from_supplier_item_map(supplier: str, name: str) -> str | None:
 	patterns.sort(key=lambda row: len(row.supplier_item_name or ""), reverse=True)
 	for row in patterns:
 		if _like_match(name, row.supplier_item_name):
-			return row.item_code
+			return row
 	return None
+
+
+def _from_supplier_item_map(supplier: str, name: str) -> str | None:
+	"""Exact map name first, then the longest % pattern that matches."""
+	exact = frappe.db.get_value(
+		"eFactura Supplier Item Map",
+		{"supplier": supplier, "supplier_item_name": name},
+		"item_code",
+		order_by="modified desc",
+	)
+	if exact:
+		return exact
+	wildcard = _best_wildcard_map(supplier, name)
+	return wildcard.item_code if wildcard else None
 
 
 def upsert_item_map(
@@ -223,6 +230,10 @@ def upsert_item_map(
 			doc.uom = uom
 		doc.save(ignore_permissions=True)
 		return doc.name
+
+	# Line already covered by a % pattern — do not add a redundant exact row.
+	if "%" not in name and _best_wildcard_map(supplier, name):
+		return None
 
 	doc = frappe.get_doc(
 		{
