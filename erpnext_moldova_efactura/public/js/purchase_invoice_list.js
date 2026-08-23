@@ -4,9 +4,11 @@
 	const custom = {
 		formatters: Object.assign({}, existing.formatters || {}, {
 			fiscal_status(value, field, doc) {
-				if (!value || doc.docstatus != 1) return "";
+				if (cint(doc.docstatus) === 2) return "";
+				if (cint(doc.docstatus) !== 1) return "";
+				const label = value || "Pending";
 
-				const base = String(value).replace(/ \(Draft\)$/, "");
+				const base = String(label).replace(/ \(Draft\)$/, "");
 				const color_map = {
 					Pending: "red",
 					Partial: "red",
@@ -17,7 +19,7 @@
 				const color = color_map[base] || "gray";
 				return `
 					<span class="indicator-pill no-indicator-dot ${color}">
-						${__(value)}
+						${__(label)}
 					</span>
 				`;
 			},

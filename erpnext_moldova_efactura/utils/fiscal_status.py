@@ -196,7 +196,21 @@ def _pi_supplier_is_individual(pi) -> bool:
 	return (supplier_type or "") == "Individual"
 
 
-def _pi_fiscal_cover(pi) -> tuple[bool, float, float, float, bool]:
+def _buyer_status_fields(name: str, buyer_override=None):
+	if buyer_override and getattr(buyer_override, "name", None) == name:
+		return frappe._dict(
+			ef_status=getattr(buyer_override, "ef_status", None),
+			docstatus=getattr(buyer_override, "docstatus", None),
+		)
+	return frappe.db.get_value(
+		"Purchase eFactura",
+		name,
+		["ef_status", "docstatus"],
+		as_dict=True,
+	)
+
+
+def _pi_fiscal_cover(pi, buyer_override=None) -> tuple[bool, float, float, float, bool]:
 	"""(has_factura, total_qty, signed_qty, in_progress_qty, has_draft_factura)."""
 	items = getattr(pi, "items", None) or []
 	total = sum(flt(row.qty) for row in items)
@@ -214,17 +228,13 @@ def _pi_fiscal_cover(pi) -> tuple[bool, float, float, float, bool]:
 
 	parents = list({row.parent for row in rows if row.parent})
 	status_by_buyer: dict[str, int | None] = {}
+	live_parents: set[str] = set()
 	has_draft = False
 	for name in parents:
-		buyer = frappe.db.get_value(
-			"Purchase eFactura",
-			name,
-			["ef_status", "docstatus"],
-			as_dict=True,
-		)
+		buyer = _buyer_status_fields(name, buyer_override)
 		if not buyer or cint(buyer.docstatus) == 2:
-			status_by_buyer[name] = None
 			continue
+		live_parents.add(name)
 		if cint(buyer.docstatus) == 0:
 			has_draft = True
 		try:
@@ -234,18 +244,16 @@ def _pi_fiscal_cover(pi) -> tuple[bool, float, float, float, bool]:
 
 	signed = 0.0
 	in_progress = 0.0
-	has_factura = False
 	for row in rows:
-		code = status_by_buyer.get(row.parent)
-		if code is None:
+		if row.parent not in live_parents:
 			continue
-		has_factura = True
+		code = status_by_buyer.get(row.parent)
 		qty = flt(row.qty) if flt(row.qty) else flt(row.ef_qty)
 		if code in PI_FISCAL_COMPLETED:
 			signed += qty
 		elif code in PI_FISCAL_IN_PROGRESS:
 			in_progress += qty
-	return has_factura, total, signed, in_progress, has_draft
+	return bool(live_parents), total, signed, in_progress, has_draft
 
 
 def apply_draft_suffix(status: str, has_draft: bool) -> str:
@@ -254,11 +262,11 @@ def apply_draft_suffix(status: str, has_draft: bool) -> str:
 	return status
 
 
-def determine_pi_fiscal_status(pi) -> str | None:
+def determine_pi_fiscal_status(pi, buyer_override=None) -> str | None:
 	"""Fiscalization label for a submitted Purchase Invoice. Drafts have no status."""
 	if cint(getattr(pi, "docstatus", 0)) != 1:
 		return None
-	has_factura, total, signed, in_progress, has_draft = _pi_fiscal_cover(pi)
+	has_factura, total, signed, in_progress, has_draft = _pi_fiscal_cover(pi, buyer_override)
 	status = classify_pi_fiscal_status(
 		individual=_pi_supplier_is_individual(pi),
 		has_factura=has_factura,
@@ -269,7 +277,7 @@ def determine_pi_fiscal_status(pi) -> str | None:
 	return apply_draft_suffix(status, has_draft)
 
 
-def sync_pi_fiscal_status(pi_name, pi=None):
+def sync_pi_fiscal_status(pi_name, pi=None, buyer_override=None):
     if not pi_name:
         return None
     if not frappe.db.exists("Purchase Invoice", pi_name):
@@ -277,7 +285,7 @@ def sync_pi_fiscal_status(pi_name, pi=None):
     if not frappe.get_meta("Purchase Invoice").has_field("fiscal_status"):
         return None
     pi = pi or frappe.get_doc("Purchase Invoice", pi_name)
-    status = determine_pi_fiscal_status(pi) or ""
+    status = determine_pi_fiscal_status(pi, buyer_override=buyer_override) or ""
     if (pi.get("fiscal_status") or "") != status:
         frappe.db.set_value("Purchase Invoice", pi.name, "fiscal_status", status, update_modified=False)
         pi.fiscal_status = status

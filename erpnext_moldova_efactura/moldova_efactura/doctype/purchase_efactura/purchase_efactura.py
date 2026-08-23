@@ -254,10 +254,19 @@ class PurchaseeFactura(Document):
 			self.db_set({"status": label, "efactura_status": label}, update_modified=False)
 		if log and not self.is_new():
 			log_status_change(self, old_status, label)
-		for pi_name in unique_purchase_invoices(self):
-			from erpnext_moldova_efactura.utils.fiscal_status import sync_pi_fiscal_status
+		self._sync_linked_pi_fiscal()
 
-			sync_pi_fiscal_status(pi_name)
+	def on_submit(self):
+		self._sync_linked_pi_fiscal()
+
+	def on_cancel(self):
+		self._sync_linked_pi_fiscal()
+
+	def _sync_linked_pi_fiscal(self):
+		from erpnext_moldova_efactura.utils.fiscal_status import sync_pi_fiscal_status
+
+		for pi_name in unique_purchase_invoices(self):
+			sync_pi_fiscal_status(pi_name, buyer_override=self)
 
 	def persist_sfs_status(self, ef_status=None):
 		"""Write SFS status fields without a full save (safe after submit)."""

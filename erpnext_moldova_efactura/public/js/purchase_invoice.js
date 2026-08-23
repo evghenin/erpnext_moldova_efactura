@@ -11,7 +11,7 @@ frappe.ui.form.on("Purchase Invoice", {
 		}
 
 		if (frm.doc.docstatus === 1) {
-			const status = frm.doc.fiscal_status;
+			const status = frm.doc.fiscal_status || "Pending";
 			if (status) {
 				const base = String(status).replace(/ \(Draft\)$/, "");
 				const color_map = {

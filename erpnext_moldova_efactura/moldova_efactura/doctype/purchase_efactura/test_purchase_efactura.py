@@ -1663,6 +1663,13 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 				self.assertEqual(determine_pi_fiscal_status(pi), "Not Required")
 			else:
 				self.assertEqual(determine_pi_fiscal_status(pi), "In Progress")
+				self.assertNotIn("(Draft)", determine_pi_fiscal_status(pi) or "")
+				from erpnext_moldova_efactura.utils.fiscal_status import sync_pi_fiscal_status
+
+				doc.reload()
+				sync_pi_fiscal_status(pi.name, buyer_override=doc)
+				pi.reload()
+				self.assertEqual(pi.fiscal_status, "In Progress")
 				doc.db_set("ef_status", 8)
 				self.assertEqual(determine_pi_fiscal_status(pi), "Completed")
 				doc.db_set("ef_status", 4)
@@ -1908,6 +1915,16 @@ class TestEFacturaBuyerPIMatch(FrappeTestCase):
 		self.assertEqual(apply_draft_suffix("Completed", True), "Completed (Draft)")
 		self.assertEqual(apply_draft_suffix("Partial", True), "Partial (Draft)")
 		self.assertEqual(apply_draft_suffix("", True), "")
+
+	def test_buyer_override_drops_draft_suffix_on_submit(self):
+		from types import SimpleNamespace
+
+		from erpnext_moldova_efactura.utils.fiscal_status import apply_draft_suffix, _buyer_status_fields
+
+		draft = SimpleNamespace(name="PEF-1", ef_status=7, docstatus=1)
+		row = _buyer_status_fields("PEF-1", draft)
+		self.assertEqual(cint(row.docstatus), 1)
+		self.assertEqual(apply_draft_suffix("In Progress", cint(row.docstatus) == 0), "In Progress")
 
 	def test_split_rows_rejected_as_item_count_mismatch(self):
 		from types import SimpleNamespace
