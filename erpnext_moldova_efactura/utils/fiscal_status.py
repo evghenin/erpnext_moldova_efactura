@@ -59,7 +59,13 @@ def determine_fiscal_status(si):
             return "In Progress"
 
     # 9) Compare totals
-    ef_total = float(sum((ef.total or 0) for ef in ef_docs if ef.status == "Signed by Customer"))
+    ef_total = float(
+        sum(
+            (ef.total or 0)
+            for ef in ef_docs
+            if ef.status in ("Signed by Customer", "Archived")
+        )
+    )
     si_total = float(si.grand_total or 0)
 
     if ef_total < si_total:

@@ -63,6 +63,7 @@ class TestEFacturaBuyerUtils(FrappeTestCase):
 		self.assertEqual(status_label(8), "Signed by Buyer")
 		self.assertEqual(status_label(2), "Rejected")
 		self.assertEqual(status_label(4), "Signing")
+		self.assertEqual(status_label(6), "Archived")
 		self.assertEqual(status_label(0), "")
 		self.assertEqual(compose_buyer_status(8), "Signed by Buyer")
 		self.assertEqual(compose_buyer_status(8, "PINV-001"), "Signed by Buyer")
@@ -80,6 +81,56 @@ class TestEFacturaBuyerUtils(FrappeTestCase):
 			self.assertTrue(should_create_incoming(5))
 		finally:
 			frappe.db.set_single_value("eFactura Settings", "do_not_create_cancelled_invoices", prev)
+
+	def test_search_statuses_skip_archived_by_default(self):
+		from erpnext_moldova_efactura.tasks.supplier_sync import supplier_search_statuses
+		from erpnext_moldova_efactura.utils.buyer_status import buyer_search_statuses
+
+		prev_in = frappe.db.get_single_value("eFactura Settings", "load_archived_purchase_efactura")
+		prev_out = frappe.db.get_single_value("eFactura Settings", "load_archived_sales_efactura")
+		try:
+			frappe.db.set_single_value("eFactura Settings", "load_archived_purchase_efactura", 0)
+			frappe.db.set_single_value("eFactura Settings", "load_archived_sales_efactura", 0)
+			self.assertNotIn(6, buyer_search_statuses())
+			self.assertNotIn(6, supplier_search_statuses())
+			frappe.db.set_single_value("eFactura Settings", "load_archived_purchase_efactura", 1)
+			frappe.db.set_single_value("eFactura Settings", "load_archived_sales_efactura", 1)
+			self.assertIn(6, buyer_search_statuses())
+			self.assertIn(6, supplier_search_statuses())
+			self.assertNotIn(6, buyer_search_statuses()[:-1])
+		finally:
+			frappe.db.set_single_value("eFactura Settings", "load_archived_purchase_efactura", prev_in or 0)
+			frappe.db.set_single_value("eFactura Settings", "load_archived_sales_efactura", prev_out or 0)
+
+	def test_pef_bulk_eligibility(self):
+		from erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura import (
+			_pef_acceptable_skip_reason,
+			_pef_signable_skip_reason,
+			filter_acceptable,
+			filter_signable,
+		)
+
+		self.assertIsNone(_pef_signable_skip_reason(frappe._dict(docstatus=1, ef_status=7)))
+		self.assertIsNone(_pef_signable_skip_reason(frappe._dict(docstatus=1, ef_status=3)))
+		self.assertEqual(
+			_pef_signable_skip_reason(frappe._dict(docstatus=0, ef_status=7)),
+			frappe._("Not submitted"),
+		)
+		self.assertEqual(
+			_pef_signable_skip_reason(frappe._dict(docstatus=1, ef_status=8)),
+			frappe._("Not eligible for signing"),
+		)
+		self.assertIsNone(_pef_acceptable_skip_reason(frappe._dict(docstatus=1, ef_status=1)))
+		self.assertEqual(
+			_pef_acceptable_skip_reason(frappe._dict(docstatus=1, ef_status=3)),
+			frappe._("Not eligible for accepting"),
+		)
+
+		missing = filter_signable(["PEF-DOES-NOT-EXIST", "PEF-DOES-NOT-EXIST"])
+		self.assertEqual(missing["signable"], [])
+		self.assertEqual(len(missing["skipped"]), 1)
+		self.assertEqual(missing["skipped"][0]["reason"], frappe._("Not found"))
+		self.assertEqual(filter_acceptable([])["acceptable"], [])
 
 	def test_normalize_idno(self):
 		self.assertEqual(normalize_idno("1015 608 001 255"), "1015608001255")

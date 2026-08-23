@@ -10,7 +10,11 @@ from frappe.utils import cint, cstr, flt, get_time, now_datetime
 
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient
 from erpnext_moldova_efactura.utils.api_response import as_list, extract_invoices, invoice_status_map, invoice_xml
-from erpnext_moldova_efactura.utils.buyer_status import BUYER_ACTIONABLE_STATUSES, compose_buyer_status
+from erpnext_moldova_efactura.utils.buyer_status import (
+	BUYER_ACTIONABLE_STATUSES,
+	BUYER_SIGNABLE_STATUSES,
+	compose_buyer_status,
+)
 from erpnext_moldova_efactura.utils.buying_rate import (
 	BUYING_RATE_PRECISION,
 	buying_rate_for_row,
@@ -438,6 +442,89 @@ def _require_actionable(doc):
 		)
 
 
+def _require_signable(doc):
+	_require_submitted(doc)
+	try:
+		code = int(doc.ef_status)
+	except (TypeError, ValueError):
+		code = None
+	if code not in BUYER_SIGNABLE_STATUSES:
+		frappe.throw(
+			_("eFactura can be signed only in Sent to Buyer, Signed by Supplier, or Accepted status.")
+		)
+
+
+def _parse_names(names):
+	if isinstance(names, str):
+		names = frappe.parse_json(names)
+	if not names:
+		return []
+	if not isinstance(names, (list, tuple)):
+		names = [names]
+	unique = []
+	seen = set()
+	for name in names:
+		if not name or name in seen:
+			continue
+		seen.add(name)
+		unique.append(name)
+	return unique
+
+
+def _pef_status_code(row):
+	try:
+		return int(row.ef_status)
+	except (TypeError, ValueError):
+		return None
+
+
+def _pef_signable_skip_reason(row):
+	if not row:
+		return _("Not found")
+	if cint(row.docstatus) != 1:
+		return _("Not submitted")
+	if _pef_status_code(row) not in BUYER_SIGNABLE_STATUSES:
+		return _("Not eligible for signing")
+	return None
+
+
+def _pef_acceptable_skip_reason(row):
+	if not row:
+		return _("Not found")
+	if cint(row.docstatus) != 1:
+		return _("Not submitted")
+	if _pef_status_code(row) not in BUYER_ACTIONABLE_STATUSES:
+		return _("Not eligible for accepting")
+	return None
+
+
+def _filter_pef_names(names, skip_reason):
+	names = _parse_names(names)
+	if not names:
+		return {"eligible": [], "skipped": []}
+	rows = frappe.get_all(
+		"Purchase eFactura",
+		filters={"name": ["in", names]},
+		fields=["name", "docstatus", "ef_status", "status"],
+	)
+	by_name = {row.name: row for row in rows}
+	eligible = []
+	skipped = []
+	for name in names:
+		row = by_name.get(name)
+		reason = skip_reason(row)
+		if reason:
+			skipped.append({"name": name, "reason": reason})
+			continue
+		if not frappe.has_permission(
+			"Purchase eFactura", ptype="write", doc=name, raise_exception=False
+		):
+			skipped.append({"name": name, "reason": _("No write permission")})
+			continue
+		eligible.append({"name": name, "status": row.status or ""})
+	return {"eligible": eligible, "skipped": skipped}
+
+
 def _sfs_action_error(resp) -> str | None:
 	if not resp:
 		return _("empty response")
@@ -567,6 +654,20 @@ def download_pdf(name: str):
 
 
 @frappe.whitelist()
+def filter_signable(names=None):
+	"""Return selected Purchase eFactura names that can be signed by the buyer."""
+	result = _filter_pef_names(names, _pef_signable_skip_reason)
+	return {"signable": result["eligible"], "skipped": result["skipped"]}
+
+
+@frappe.whitelist()
+def filter_acceptable(names=None):
+	"""Return selected Purchase eFactura names that can be accepted."""
+	result = _filter_pef_names(names, _pef_acceptable_skip_reason)
+	return {"acceptable": result["eligible"], "skipped": result["skipped"]}
+
+
+@frappe.whitelist()
 def get_xml_for_sign(name: str):
 	"""Return invoice XML + C14N SHA1 hash from SFS for MoldSign (buyer)."""
 	import base64
@@ -575,7 +676,7 @@ def get_xml_for_sign(name: str):
 	from lxml import etree
 
 	doc = _get_purchase_efactura(name)
-	_require_submitted(doc)
+	_require_signable(doc)
 	client = EFacturaAPIClient.from_settings()
 	resp = client.get_invoices_by_seria_number(
 		[{"Seria": doc.ef_series, "Number": doc.ef_number}]
@@ -607,7 +708,7 @@ def process_signed_xml(name: str, signature: str, content: str):
 	import uuid
 
 	doc = _get_purchase_efactura(name)
-	_require_submitted(doc)
+	_require_signable(doc)
 	if not signature:
 		frappe.throw(_("Missing signature."))
 

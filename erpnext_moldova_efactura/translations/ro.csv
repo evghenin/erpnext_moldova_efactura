@@ -11,6 +11,7 @@ Bank name,Denumirea băncii
 Both Issue Date and Delivery Date are required.,Data emiterii și data livrării sunt obligatorii.
 Bulk fiscal status failed for {0}.,Actualizarea în masă a statutului fiscal a eșuat pentru {0}.
 Canceled by Supplier,Anulată de furnizor
+Archived,Arhivată
 Company IDNO field,Câmp IDNO companie
 Connections,Conexiuni
 Currency (MDL),Monedă (MDL)
@@ -71,6 +72,8 @@ Please select a Customer first.,Selectați mai întâi clientul.
 Select Customer first,Selectați mai întâi clientul
 Sales Invoice {0} does not belong to Customer {1},Factura de vânzare {0} nu aparține clientului {1}
 Please select at least one Sales Invoice.,Selectați cel puțin o factură de vânzare.
+Please select at least one Sales eFactura.,Selectați cel puțin o factură eFactura de vânzare.
+Please select at least one Purchase eFactura.,Selectați cel puțin o factură eFactura de cumpărare.
 Please set Currency in eFactura Settings.,Setați moneda în setările eFactura.
 Print Name,Nume pentru tipărire
 Processing {0} of {1},Se procesează {0} din {1}
@@ -81,6 +84,9 @@ Rate at which document currency is converted to eFactura currency,Cursul de conv
 Rate eFactura UOM (eFactura Currency),Tarif UM eFactura (monedă eFactura)
 Register Signed,Înregistrează semnat
 Register Unsigned,Înregistrează nesemnat
+None of the selected documents can be signed. Only submitted Sales eFactura in Pending Registration are eligible.,Niciunul dintre documentele selectate nu poate fi semnat. Sunt eligibile doar facturile eFactura de vânzare confirmate în statutul „În așteptare înregistrare”.
+Sign and register {0} Sales eFactura document(s)?,Semnați și înregistrați {0} facturi eFactura de vânzare?
+"{0} selected document(s) will be skipped (not submitted or not in Pending Registration).","{0} documente selectate vor fi omise (neconfirmate sau nu sunt în statutul „În așteptare înregistrare”)."
 Registered as Draft,Înregistrată ca nouă
 Registering unsigned XML to e-Factura system...,Se înregistrează XML nesemnat în sistemul e-Factura...
 Rejected by Customer,Respins de client
@@ -93,11 +99,44 @@ Select field from Customer used to store IDNO,Selectați câmpul din Client pent
 Select field from Supplier used to store IDNO,Selectați câmpul din Furnizor pentru stocarea IDNO
 Sent to Customer,Trimisă clientului
 Sign,Semnează
+Accept,Acceptă
+Sign {0} Purchase eFactura document(s)?,Semnați {0} facturi eFactura de cumpărare?
+Accept {0} Purchase eFactura document(s)?,Acceptați {0} facturi eFactura de cumpărare?
+"{0} selected document(s) will be skipped (not submitted or not eligible for signing).","{0} documente selectate vor fi omise (neconfirmate sau nu sunt eligibile pentru semnare)."
+"{0} selected document(s) will be skipped (not submitted or not eligible for accepting).","{0} documente selectate vor fi omise (neconfirmate sau nu sunt eligibile pentru acceptare)."
+"None of the selected documents can be signed. Only submitted Purchase eFactura in Sent to Buyer, Signed by Supplier, or Accepted status are eligible.","Niciunul dintre documentele selectate nu poate fi semnat. Sunt eligibile doar facturile eFactura de cumpărare confirmate în statutul Trimisă cumpărătorului, Semnată de furnizor sau Acceptată."
+"None of the selected documents can be accepted. Only submitted Purchase eFactura in Sent to Buyer or Signed by Supplier status are eligible.","Niciunul dintre documentele selectate nu poate fi acceptat. Sunt eligibile doar facturile eFactura de cumpărare confirmate în statutul Trimisă cumpărătorului sau Semnată de furnizor."
+"eFactura can be signed only in Sent to Buyer, Signed by Supplier, or Accepted status.","Factura poate fi semnată doar în statutul Trimisă cumpărătorului, Semnată de furnizor sau Acceptată."
+Not eligible for signing,Nu este eligibilă pentru semnare
+Not eligible for accepting,Nu este eligibilă pentru acceptare
+Accepted: {0},Acceptate: {0}
+Accepting {0} of {1}: {2},Acceptare {0} din {1}: {2}
 Signed by Customer,Semnată de client
 Signed by Supplier,Semnată de furnizor
 Signed successfully,Semnată cu succes
 Signing error,Eroare de semnare
 Signing via MoldSign...,Semnare prin MoldSign...
+Signing {0} of {1}: {2},Semnare {0} din {1}: {2}
+Signing cancelled.,Semnarea a fost anulată.
+Signing cancelled. Remaining documents were not processed.,Semnarea a fost anulată. Documentele rămase nu au fost procesate.
+Signed: {0},Semnate: {0}
+Failed: {0},Eșuate: {0}
+Skipped: {0},Omise: {0}
+Only submitted Sales eFactura documents can be signed.,Pot fi semnate doar facturile eFactura de vânzare confirmate.
+Sales eFactura can be signed only in Pending Registration status.,Factura eFactura de vânzare poate fi semnată doar în statutul „În așteptare înregistrare”.
+The following documents are not eligible and will be skipped:,Următoarele documente nu sunt eligibile și vor fi omise:
+The following Sales eFactura documents will be signed and registered:,Următoarele facturi eFactura de vânzare vor fi semnate și înregistrate:
+The following Sales eFactura documents will be registered without a signature:,Următoarele facturi eFactura de vânzare vor fi înregistrate fără semnătură:
+The following Purchase eFactura documents will be signed:,Următoarele facturi eFactura de cumpărare vor fi semnate:
+The following Purchase eFactura documents will be accepted:,Următoarele facturi eFactura de cumpărare vor fi acceptate:
+None of the selected documents can be registered. Only submitted Sales eFactura in Pending Registration are eligible.,Niciunul dintre documentele selectate nu poate fi înregistrat. Sunt eligibile doar facturile eFactura de vânzare confirmate în statutul „În așteptare înregistrare”.
+Only submitted Sales eFactura documents can be registered.,Pot fi înregistrate doar facturile eFactura de vânzare confirmate.
+Sales eFactura can be registered only in Pending Registration status.,Factura eFactura de vânzare poate fi înregistrată doar în statutul „În așteptare înregistrare”.
+Registering {0} of {1}: {2},Înregistrare {0} din {1}: {2}
+Registered: {0},Înregistrate: {0}
+Not in Pending Registration,Nu este în așteptare înregistrare
+Not found,Nu a fost găsită
+No write permission,Fără drept de modificare
 Starting...,Pornire...
 Successfully sent {0} signed invoice(s) to e-Factura system.,{0} facturi semnate au fost transmise cu succes în e-Factura.
 Successfully sent {0} unsigned invoice(s) to e-Factura system.,{0} facturi nesemnate au fost transmise cu succes în e-Factura.
@@ -269,6 +308,9 @@ Copy Date from Factura,Copiază data din factură
 "If enabled, Purchase Invoice posting date and time and Purchase Order transaction date are copied from the e-Factura issue date.","Dacă este activat, data și ora de înregistrare a facturii de achiziție și data comenzii de achiziție se copiază din data emiterii e-Factura."
 Do Not Create Cancelled Invoices,Nu crea facturi anulate
 "If enabled, incoming invoices already cancelled by the supplier in e-Factura are not created. Existing documents still receive the cancelled status.","Dacă este activat, facturile de intrare deja anulate de furnizor în e-Factura nu se creează. Documentele existente primesc totuși statutul de anulare."
+Load Archived Invoices,Încarcă facturile arhivate
+"If enabled, Fetch and daily sync also load invoices with SFS status Archived (6) into Sales eFactura.","Dacă este activat, încărcarea și sincronizarea zilnică preiau și facturile cu statutul SFS Arhivată (6) în Sales eFactura."
+"If enabled, Fetch and daily sync also load invoices with SFS status Archived (6) into Purchase eFactura.","Dacă este activat, încărcarea și sincronizarea zilnică preiau și facturile cu statutul SFS Arhivată (6) în Purchase eFactura."
 "Found {0}, created {1}, updated {2}, skipped {3}, details {4}, errors {5}","Găsite {0}, create {1}, actualizate {2}, omise {3}, detalii {4}, erori {5}"
 Fetch Supplier Invoices,Încarcă facturi de ieșire
 Fetching supplier invoices...,Se încarcă facturile de ieșire...

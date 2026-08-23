@@ -16,6 +16,7 @@ frappe.listview_settings["Purchase eFactura"] = {
 				Signing: "yellow",
 				Transportation: "yellow",
 				"Canceled by Supplier": "darkgrey",
+				Archived: "darkgrey",
 				"Cancellation Requested": "purple",
 			};
 			const status = String(value).includes(" · ") ? String(value).split(" · ")[0] : String(value);
@@ -33,6 +34,37 @@ frappe.listview_settings["Purchase eFactura"] = {
 		if (!frappe.model.can_write("Purchase eFactura")) {
 			return;
 		}
+
+		const run_bulk = async (fn, errorTitle) => {
+			const selected = listview.get_checked_items();
+			if (!selected.length) {
+				frappe.msgprint(__("Please select at least one Purchase eFactura."));
+				return;
+			}
+			try {
+				const result = await fn(selected.map((d) => d.name));
+				if (result) {
+					listview.refresh();
+				}
+			} catch (e) {
+				frappe.hide_progress();
+				frappe.msgprint({
+					title: errorTitle,
+					indicator: "red",
+					message: e.message || String(e),
+				});
+			}
+		};
+
+		listview.page.add_action_item(__("Sign"), () =>
+			run_bulk(
+				erpnext_moldova_efactura.moldsign.bulk_sign_purchase_efactura,
+				__("Signing error")
+			)
+		);
+		listview.page.add_action_item(__("Accept"), () =>
+			run_bulk(erpnext_moldova_efactura.moldsign.bulk_accept_purchase_efactura, __("Accept"))
+		);
 
 		listview.page.add_inner_button(__("Fetch from e-Factura"), () => {
 			frappe.prompt(

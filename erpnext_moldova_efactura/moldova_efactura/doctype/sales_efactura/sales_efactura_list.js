@@ -12,6 +12,7 @@ frappe.listview_settings["Sales eFactura"] = {
 			"Rejected by Customer": "red",
 			"Accepted by Customer": "yellow",
 			"Canceled by Supplier": "darkgrey",
+			Archived: "darkgrey",
 			"Sent to Customer": "yellow",
 			"Signed by Customer": "green",
 			Transportation: "blue",
@@ -24,6 +25,53 @@ frappe.listview_settings["Sales eFactura"] = {
 		if (!frappe.model.can_write("Sales eFactura")) {
 			return;
 		}
+
+		listview.page.add_action_item(__("Register Signed"), async () => {
+			const selected = listview.get_checked_items();
+			if (!selected.length) {
+				frappe.msgprint(__("Please select at least one Sales eFactura."));
+				return;
+			}
+			try {
+				const result = await erpnext_moldova_efactura.moldsign.bulk_sign_sales_efactura(
+					selected.map((d) => d.name)
+				);
+				if (result) {
+					listview.refresh();
+				}
+			} catch (e) {
+				frappe.hide_progress();
+				frappe.msgprint({
+					title: __("Signing error"),
+					indicator: "red",
+					message: e.message || String(e),
+				});
+			}
+		});
+
+		listview.page.add_action_item(__("Register Unsigned"), async () => {
+			const selected = listview.get_checked_items();
+			if (!selected.length) {
+				frappe.msgprint(__("Please select at least one Sales eFactura."));
+				return;
+			}
+			try {
+				const result =
+					await erpnext_moldova_efactura.moldsign.bulk_register_unsigned_sales_efactura(
+						selected.map((d) => d.name)
+					);
+				if (result) {
+					listview.refresh();
+				}
+			} catch (e) {
+				frappe.hide_progress();
+				frappe.msgprint({
+					title: __("Register Unsigned"),
+					indicator: "red",
+					message: e.message || String(e),
+				});
+			}
+		});
 
 		listview.page.add_inner_button(__("Fetch from e-Factura"), () => {
 			frappe.prompt(

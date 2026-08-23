@@ -10,6 +10,7 @@ Bank name,Название банка
 Both Issue Date and Delivery Date are required.,Дата выписки и дата поставки обязательны.
 Bulk fiscal status failed for {0}.,Массовое обновление фискального статуса не удалось для {0}.
 Canceled by Supplier,Отменена поставщиком
+Archived,Архивная
 Company IDNO field,Поле IDNO компании
 Connections,Подключения
 Currency (MDL),Валюта (MDL)
@@ -67,6 +68,8 @@ Please select a Customer first.,Сначала выберите клиента.
 Select Customer first,Сначала выберите клиента
 Sales Invoice {0} does not belong to Customer {1},Счёт продажи {0} не принадлежит клиенту {1}
 Please select at least one Sales Invoice.,Выберите хотя бы один счёт продажи.
+Please select at least one Sales eFactura.,Выберите хотя бы одну исходящую фактуру.
+Please select at least one Purchase eFactura.,Выберите хотя бы одну входящую фактуру.
 Please set Currency in eFactura Settings.,Укажите валюту в настройках eFactura.
 Print Name,Имя для печати
 Processing {0} of {1},Обработка {0} из {1}
@@ -77,6 +80,9 @@ Rate at which document currency is converted to eFactura currency,Курс ко�
 Rate eFactura UOM (eFactura Currency),Ставка ЕИ eFactura (валюта eFactura)
 Register Signed,Подписать и зарегистрировать
 Register Unsigned,Зарегистрировать без подписи
+None of the selected documents can be signed. Only submitted Sales eFactura in Pending Registration are eligible.,Ни один из выбранных документов нельзя подписать. Подходят только проведённые исходящие фактуры в статусе «Ожидает регистрации».
+Sign and register {0} Sales eFactura document(s)?,Подписать и зарегистрировать исходящих фактур: {0}?
+"{0} selected document(s) will be skipped (not submitted or not in Pending Registration).","{0} выбранных документов будут пропущены (не проведены или не в статусе «Ожидает регистрации»)."
 Registered as Draft,Зарегистрирована как черновик
 Registering unsigned XML to e-Factura system...,Регистрация неподписанного XML в системе e-Factura...
 Rejected by Customer,Отклонена клиентом
@@ -88,11 +94,44 @@ Select field from Customer used to store IDNO,Выберите поле клие
 Select field from Supplier used to store IDNO,Выберите поле поставщика для хранения IDNO
 Sent to Customer,Отправлена клиенту
 Sign,Подписать
+Accept,Принять
+Sign {0} Purchase eFactura document(s)?,Подписать входящих фактур: {0}?
+Accept {0} Purchase eFactura document(s)?,Принять входящих фактур: {0}?
+"{0} selected document(s) will be skipped (not submitted or not eligible for signing).","{0} выбранных документов будут пропущены (не проведены или не подходят для подписи)."
+"{0} selected document(s) will be skipped (not submitted or not eligible for accepting).","{0} выбранных документов будут пропущены (не проведены или не подходят для принятия)."
+"None of the selected documents can be signed. Only submitted Purchase eFactura in Sent to Buyer, Signed by Supplier, or Accepted status are eligible.","Ни один из выбранных документов нельзя подписать. Подходят только проведённые входящие фактуры в статусах «Отправлена покупателю», «Подписана поставщиком» или «Принята»."
+"None of the selected documents can be accepted. Only submitted Purchase eFactura in Sent to Buyer or Signed by Supplier status are eligible.","Ни один из выбранных документов нельзя принять. Подходят только проведённые входящие фактуры в статусах «Отправлена покупателю» или «Подписана поставщиком»."
+"eFactura can be signed only in Sent to Buyer, Signed by Supplier, or Accepted status.","Подписать можно только фактуры в статусах «Отправлена покупателю», «Подписана поставщиком» или «Принята»."
+Not eligible for signing,Не подходит для подписи
+Not eligible for accepting,Не подходит для принятия
+Accepted: {0},Принято: {0}
+Accepting {0} of {1}: {2},Принятие {0} из {1}: {2}
 Signed by Customer,Подписана клиентом
 Signed by Supplier,Подписана поставщиком
 Signed successfully,Успешно подписана
 Signing error,Ошибка подписания
 Signing via MoldSign...,Подписание через MoldSign...
+Signing {0} of {1}: {2},Подписание {0} из {1}: {2}
+Signing cancelled.,Подписание отменено.
+Signing cancelled. Remaining documents were not processed.,Подписание отменено. Остальные документы не обработаны.
+Signed: {0},Подписано: {0}
+Failed: {0},Ошибки: {0}
+Skipped: {0},Пропущено: {0}
+Only submitted Sales eFactura documents can be signed.,Подписать можно только проведённые исходящие фактуры.
+Sales eFactura can be signed only in Pending Registration status.,Исходящую фактуру можно подписать только в статусе «Ожидает регистрации».
+The following documents are not eligible and will be skipped:,Следующие документы не подходят и будут пропущены:
+The following Sales eFactura documents will be signed and registered:,Будут подписаны и зарегистрированы следующие исходящие фактуры:
+The following Sales eFactura documents will be registered without a signature:,Будут зарегистрированы без подписи следующие исходящие фактуры:
+The following Purchase eFactura documents will be signed:,Будут подписаны следующие входящие фактуры:
+The following Purchase eFactura documents will be accepted:,Будут приняты следующие входящие фактуры:
+None of the selected documents can be registered. Only submitted Sales eFactura in Pending Registration are eligible.,Ни один из выбранных документов нельзя зарегистрировать. Подходят только проведённые исходящие фактуры в статусе «Ожидает регистрации».
+Only submitted Sales eFactura documents can be registered.,Зарегистрировать можно только проведённые исходящие фактуры.
+Sales eFactura can be registered only in Pending Registration status.,Исходящую фактуру можно зарегистрировать только в статусе «Ожидает регистрации».
+Registering {0} of {1}: {2},Регистрация {0} из {1}: {2}
+Registered: {0},Зарегистрировано: {0}
+Not in Pending Registration,Не в статусе «Ожидает регистрации»
+Not found,Не найдена
+No write permission,Нет права на изменение
 Starting...,Запуск...
 Successfully sent {0} signed invoice(s) to e-Factura system.,Успешно отправлено подписанных счетов: {0}.
 Successfully sent {0} unsigned invoice(s) to e-Factura system.,Успешно отправлено неподписанных счетов: {0}.
@@ -261,6 +300,9 @@ Copy Date from Factura,Копировать дату из фактуры
 "If enabled, Purchase Invoice posting date and time and Purchase Order transaction date are copied from the e-Factura issue date.","Если включено, дата и время проведения счёта покупки и дата заказа поставщику берутся из даты выписки e-Factura."
 Do Not Create Cancelled Invoices,Не создавать аннулированные фактуры
 "If enabled, incoming invoices already cancelled by the supplier in e-Factura are not created. Existing documents still receive the cancelled status.","Если включено, входящие фактуры, уже аннулированные поставщиком в e-Factura, не создаются. У уже загруженных документов статус отмены всё равно обновляется."
+Load Archived Invoices,Загружать архивные фактуры
+"If enabled, Fetch and daily sync also load invoices with SFS status Archived (6) into Sales eFactura.","Если включено, загрузка и ежедневная синхронизация также получают фактуры со статусом SFS «Архивная» (6) в исходящие Sales eFactura."
+"If enabled, Fetch and daily sync also load invoices with SFS status Archived (6) into Purchase eFactura.","Если включено, загрузка и ежедневная синхронизация также получают фактуры со статусом SFS «Архивная» (6) во входящие Purchase eFactura."
 "Found {0}, created {1}, updated {2}, skipped {3}, details {4}, errors {5}","Найдено {0}, создано {1}, обновлено {2}, пропущено {3}, детали {4}, ошибок {5}"
 Fetch Supplier Invoices,Загрузить исходящие фактуры
 Fetching supplier invoices...,Загрузка исходящих фактур...

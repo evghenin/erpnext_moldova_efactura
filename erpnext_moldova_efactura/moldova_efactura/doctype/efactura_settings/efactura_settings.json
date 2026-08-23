@@ -21,6 +21,8 @@
   "api_username",
   "api_password",
   "tab_outgoing",
+  "outgoing_sync_section",
+  "load_archived_sales_efactura",
   "outgoing_qty_section",
   "block_submit_on_si_qty_overage",
   "exclude_failed_efactura_from_qty_quota",
@@ -32,6 +34,7 @@
   "tab_incoming",
   "copy_date_from_factura",
   "do_not_create_cancelled_invoices",
+  "load_archived_purchase_efactura",
   "buying_tax_section",
   "company_settings",
   "uom_section",
@@ -86,6 +89,18 @@
    "fieldname": "tab_outgoing",
    "fieldtype": "Tab Break",
    "label": "Outgoing"
+  },
+  {
+   "fieldname": "outgoing_sync_section",
+   "fieldtype": "Section Break",
+   "label": "Sync"
+  },
+  {
+   "default": "0",
+   "description": "If enabled, Fetch and daily sync also load invoices with SFS status Archived (6) into Sales eFactura.",
+   "fieldname": "load_archived_sales_efactura",
+   "fieldtype": "Check",
+   "label": "Load Archived Invoices"
   },
   {
    "fieldname": "outgoing_qty_section",
@@ -210,6 +225,13 @@
    "label": "Do Not Create Cancelled Invoices"
   },
   {
+   "default": "0",
+   "description": "If enabled, Fetch and daily sync also load invoices with SFS status Archived (6) into Purchase eFactura.",
+   "fieldname": "load_archived_purchase_efactura",
+   "fieldtype": "Check",
+   "label": "Load Archived Invoices"
+  },
+  {
    "fieldname": "buying_tax_section",
    "fieldtype": "Section Break",
    "label": "Purchase Tax Settings"
@@ -243,7 +265,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-08-23 15:45:00.000000",
+ "modified": "2026-08-23 18:10:00.000000",
  "modified_by": "Administrator",
  "module": "Moldova eFactura",
  "name": "eFactura Settings",

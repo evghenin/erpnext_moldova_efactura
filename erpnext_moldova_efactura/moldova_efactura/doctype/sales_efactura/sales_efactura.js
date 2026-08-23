@@ -233,7 +233,7 @@ frappe.ui.form.on('Sales eFactura', {
             );
 
             frm.add_custom_button(
-                __("Register Signed"), 
+                __("Register Signed"),
                 async () => {
                     await sign_xml_moldsign(frm);
                 },
@@ -268,7 +268,14 @@ frappe.ui.form.on('Sales eFactura', {
             );
         }
 
-        if (!frm.is_new() && frm.doc.docstatus !== 2 && (frm.doc.items || []).length && frm.has_perm("write")) {
+        const invoiceLinked = !!frm.doc.sales_invoice;
+        if (
+            !frm.is_new() &&
+            frm.doc.docstatus !== 2 &&
+            !(frm.doc.docstatus === 1 && invoiceLinked) &&
+            (frm.doc.items || []).length &&
+            frm.has_perm("write")
+        ) {
             const createMenu = __("Create");
             if (frappe.model.can_create("Sales Order")) {
                 frm.add_custom_button(
@@ -281,7 +288,7 @@ frappe.ui.form.on('Sales eFactura', {
                     createMenu
                 );
             }
-            if (frappe.model.can_create("Sales Invoice") && !frm.doc.sales_invoice) {
+            if (frappe.model.can_create("Sales Invoice") && !invoiceLinked) {
                 frm.add_custom_button(
                     __("Sales Invoice"),
                     () => create_selling_doc_from_sef(
@@ -1281,228 +1288,17 @@ function create_selling_doc_from_sef(frm, actionLabel, method) {
     return open();
 }
 
-// -----------------------------
-// eFactura XML Signing (MoldSign)
-// -----------------------------
-const MOLDSIGN_BASE = "http://localhost:8999";
-
-async function ms_fetch(urlOrPath, options = {}) {
-  const url = urlOrPath.startsWith("http") ? urlOrPath : `${MOLDSIGN_BASE}${urlOrPath}`;
-
-  const resp = await fetch(url, {
-    method: options.method || "GET",
-    headers: options.headers || {},
-    body: options.body,
-    mode: "cors"
-  });
-
-  const text = await resp.text();
-  const contentType = resp.headers.get("content-type") || "";
-
-  let data = null;
-  if (text && contentType.includes("application/json")) {
-    try { data = JSON.parse(text); } catch (e) {}
-  }
-
-  return { resp, text, data };
-}
-
-async function ms_ping() {
-  // Minimal check: certificates endpoint.
-  const { resp, text } = await ms_fetch("/certificates?private_only=true", {
-    headers: { "Accept": "application/json" }
-  });
-
-  if (!resp.ok) {
-    throw new Error(`MoldSign not available: HTTP ${resp.status} ${text || ""}`.trim());
-  }
-}
-
-async function ms_get_private_certs() {
-  const { resp, data, text } = await ms_fetch("/certificates?private_only=true", {
-    headers: { "Accept": "application/json" }
-  });
-
-  if (!resp.ok) {
-    throw new Error(`MoldSign certificates error: HTTP ${resp.status} ${text || ""}`.trim());
-  }
-
-  const list = data?.certificateModel || [];
-  return list.filter(c => c.privateKeyPresent);
-}
-
-async function ms_start_sign_session({ hash_base64, certificate }) {
-  const payload = {
-    algorithm: "SHA-1",
-    signatureType: "Embedded", //"Detached",
-    signFormat: "XAdES-T", //"XAdES-BES",
-    contentType: "Text",
-    data: hash_base64,
-    certificate: certificate
-  };
-
-  const { resp, text } = await ms_fetch("/sign/data", {
-    method: "POST",
-    headers: {
-      "Accept": "application/json",
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(payload)
-  });
-
-  if (resp.status !== 201) {
-    throw new Error(`MoldSign start sign error: HTTP ${resp.status} ${text || ""}`.trim());
-  }
-
-  const location = resp.headers.get("location");
-
-  if (!location) {
-    throw new Error("MoldSign start sign error: Missing Location header.");
-  }
-
-  return location;
-}
-
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function ms_poll_result(location, { timeout_ms = 120000, interval_ms = 800 } = {}) {
-  const started = Date.now();
-
-  while (true) {
-    if (Date.now() - started > timeout_ms) {
-      throw new Error("MoldSign signing timeout.");
-    }
-
-    const { resp, data, text } = await ms_fetch(location, {
-      headers: { "Accept": "application/json" }
-    });
-
-    if (resp.ok) {
-      // Success - return raw.
-      return {
-        status: resp.status,
-        headers: {
-          error: resp.headers.get("error"),
-          sessionId: resp.headers.get("sessionId"),
-          location: resp.headers.get("Location")
-        },
-        data: data,
-        text: text
-      };
-    }
-
-    // Cancel / wrong PIN / user closed dialog usually returns 4xx.
-    if (resp.status >= 400 && resp.status < 500) {
-      const errHeader = resp.headers.get("error");
-      const msg = errHeader || text || `HTTP ${resp.status}`;
-      throw new Error(`MoldSign signing failed: ${msg}`.trim());
-    }
-
-    // For 5xx or transient - keep trying.
-    await sleep(interval_ms);
-  }
-}
-
-async function choose_certificate_dialog(certs) {
-  const options = certs.map(c => ({
-    label: c.certificateName,
-    value: c.certificateId
-  }));
-
-  return new Promise((resolve, reject) => {
-    const d = new frappe.ui.Dialog({
-      title: __("Select certificate"),
-      fields: [{
-        fieldname: "cert",
-        fieldtype: "Select",
-        label: __("Certificate"),
-        options: options,
-        default: options[0]?.value || null,
-        reqd: 1
-      }],
-      primary_action_label: __("Sign"),
-      primary_action: () => {
-        const certId = d.get_value("cert");
-        d.hide();
-        const selected = certs.find(c => c.certificateId === certId) || certs[0];
-        resolve(selected);
-      }
-    });
-
-    d.set_secondary_action(() => {
-      d.hide();
-      reject(new Error("Signing cancelled."));
-    });
-
-    d.show();
-  });
-}
-
 async function sign_xml_moldsign(frm) {
-  try {
-    frappe.dom.freeze(__("Signing via MoldSign..."));
-
-    // 0) Check MoldSign is reachable
-    await ms_ping();
-
-    // 1) Fetch XML from backend
-    const r1 = await frappe.call({
-      method: "erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.get_for_sign",
-      args: { efactura_name: frm.doc.name }
-    });
-
-    const xml_base64 = r1.message?.xml_base64;
-    const hash_base64 = r1.message?.hash_base64;
-    if (!xml_base64 || !hash_base64) {
-      throw new Error("Backend did not return XML properties.");
+    try {
+        await erpnext_moldova_efactura.moldsign.sign_sales_efactura(frm.doc.name);
+        frm.reload_doc();
+    } catch (e) {
+        frappe.msgprint({
+            title: __("Signing error"),
+            indicator: "red",
+            message: e.message || String(e),
+        });
     }
-
-    // 2) Select certificate
-    const certs = await ms_get_private_certs();
-    if (!certs.length) {
-      throw new Error("No private certificates found in MoldSign.");
-    }
-
-    frappe.dom.unfreeze();
-    const selected_cert = await choose_certificate_dialog(certs);
-    frappe.dom.freeze(__("Signing via MoldSign..."));
-
-    // 3) Start session
-    const location = await ms_start_sign_session({
-      hash_base64: hash_base64,
-      certificate: selected_cert,
-    });
-
-    // 4) Poll for result (user will be prompted by MoldSign)
-    const result = await ms_poll_result(location);
-    if (result && result.data && result.data.base64File) {
-        frappe.show_alert({ message: __("Signed successfully"), indicator: "green" });
-    }
-
-    // 5) Save result on backend (new method you add below)
-    const result2 = await frappe.call({
-      method: "erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.process_signed_xml",
-      args: {
-        name: frm.doc.name,
-        signature: result.data.base64File,
-        content: xml_base64,
-      }
-    });
-
-    frappe.show_alert({ message: result2.message.message, indicator: "green" });
-    frm.reload_doc();
-
-  } catch (e) {
-    frappe.msgprint({
-      title: __("Signing error"),
-      indicator: "red",
-      message: e.message || String(e)
-    });
-  } finally {
-    frappe.dom.unfreeze();
-  }
 }
 
 function show_si_qty_overage_dialog(frm, data) {

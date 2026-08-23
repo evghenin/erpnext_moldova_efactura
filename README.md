@@ -10,6 +10,8 @@ Version **2.0**. Requires ERPNext / Frappe v15.
 
 - Create e-Factura from a Sales Invoice (Transfer / Non-Transfer).
 - Sign, send, and track SFS status (`ef_status` + document status).
+- Optional **Load Archived Invoices** in eFactura Settings (Outgoing; off by default) includes SFS status Archived (6) in Fetch / daily sync.
+- Bulk **Register Signed** and **Register Unsigned** from the Sales eFactura list. A confirmation lists ineligible documents (skipped) and eligible documents that will be processed.
 - Multi-currency: document currency vs eFactura currency (`MDL`) with `ef_conversion_rate`.
 - Quantity guards against the linked Sales Invoice (block submit, exclude failed documents, warn on draft save).
 - 0% VAT lines are included in document totals (`net_total` / `total`); XML line amounts stay in sync.
@@ -17,7 +19,9 @@ Version **2.0**. Requires ERPNext / Frappe v15.
 #### Incoming — Purchase eFactura
 
 - Fetch buyer invoices from SFS (cannot be created manually).
+- Optional **Load Archived Invoices** in eFactura Settings (Incoming; off by default) includes SFS status Archived (6).
 - Accept, reject (with comment), PDF, and refresh status.
+- Bulk **Sign** and **Accept** from the Purchase eFactura list. A confirmation lists ineligible documents (skipped) and eligible documents that will be processed.
 - Map supplier items → Item, supplier UOM → eFactura UOM / purchase UOM.
 - **UOM conversion factors** are stored on the row at mapping time, so a later change of Item UOM does not rewrite qty.
 - Create Purchase Order and/or Purchase Invoice, or link an existing PI (qty allocation; submit requires full allocation).

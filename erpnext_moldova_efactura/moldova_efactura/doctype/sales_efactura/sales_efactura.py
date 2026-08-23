@@ -26,6 +26,41 @@ def _get_sales_efactura(name, ptype="write"):
     doc.check_permission(ptype)
     return doc
 
+
+def _parse_names(names):
+    if isinstance(names, str):
+        names = frappe.parse_json(names)
+    if not names:
+        return []
+    if not isinstance(names, (list, tuple)):
+        names = [names]
+    unique = []
+    seen = set()
+    for name in names:
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        unique.append(name)
+    return unique
+
+
+def _signable_skip_reason(row):
+    if not row:
+        return _("Not found")
+    if cint(row.docstatus) != 1:
+        return _("Not submitted")
+    if cint(row.ef_status) != -1:
+        return _("Not in Pending Registration")
+    return None
+
+
+def _assert_can_register_signed(ef):
+    if cint(ef.docstatus) != 1:
+        frappe.throw(_("Only submitted Sales eFactura documents can be registered."))
+    if cint(ef.ef_status) != -1:
+        frappe.throw(_("Sales eFactura can be registered only in Pending Registration status."))
+
+
 class SaleseFactura(Document):
     def onload(self):
         if self.docstatus == 0:
@@ -141,6 +176,7 @@ class SaleseFactura(Document):
         Rejected by Customer   |     1     |     2     | Rejected by Customer
         Accepted by Customer   |     1     |     3     | Accepted by Customer
         Canceled by Supplier   |     1     |     5     | Canceled by Supplier
+        Archived               |     1     |     6     | Archived
         Sent to Customer       |     1     |   7,9     | Sent to Customer
         Signed by Customer     |     1     |     8     | Signed by Customer
         Transportation         |     1     |    10     | Transportation
@@ -162,6 +198,7 @@ class SaleseFactura(Document):
             2:  "Rejected by Customer",
             3:  "Accepted by Customer",
             5:  "Canceled by Supplier",
+            6:  "Archived",
             7:  "Sent to Customer",
             8:  "Signed by Customer",
             9:  "Sent to Customer",
@@ -764,8 +801,39 @@ def download_pdf(efactura_name):
 
 
 @frappe.whitelist()
+def filter_signable(names=None):
+    """Return selected Sales eFactura names that can be signed (submitted, pending)."""
+    names = _parse_names(names)
+    if not names:
+        return {"signable": [], "skipped": []}
+
+    rows = frappe.get_all(
+        "Sales eFactura",
+        filters={"name": ["in", names]},
+        fields=["name", "docstatus", "ef_status", "status"],
+    )
+    by_name = {row.name: row for row in rows}
+    signable = []
+    skipped = []
+    for name in names:
+        row = by_name.get(name)
+        reason = _signable_skip_reason(row)
+        if reason:
+            skipped.append({"name": name, "reason": reason})
+            continue
+        if not frappe.has_permission(
+            "Sales eFactura", ptype="write", doc=name, raise_exception=False
+        ):
+            skipped.append({"name": name, "reason": _("No write permission")})
+            continue
+        signable.append({"name": name, "status": row.status or ""})
+    return {"signable": signable, "skipped": skipped}
+
+
+@frappe.whitelist()
 def get_for_sign(efactura_name):
-    efactura = _get_sales_efactura(efactura_name) 
+    efactura = _get_sales_efactura(efactura_name)
+    _assert_can_register_signed(efactura)
     ef_lang = frappe.db.get_single_value("eFactura Settings", "language")
 
     if not efactura.ef_series or not efactura.ef_number:
@@ -815,6 +883,7 @@ def get_for_sign(efactura_name):
 @frappe.whitelist()
 def send_unsigned(efactura_name):
     efactura = _get_sales_efactura(efactura_name)
+    _assert_can_register_signed(efactura)
     ef_lang = frappe.db.get_single_value("eFactura Settings", "language")
 
     client = EFacturaAPIClient.from_settings()
@@ -945,6 +1014,7 @@ def process_signed_xml(name, signature, content):
     )
 
     ef = _get_sales_efactura(name)
+    _assert_can_register_signed(ef)
 
     # Send signed XML via PostInvoices
     client = EFacturaAPIClient.from_settings()

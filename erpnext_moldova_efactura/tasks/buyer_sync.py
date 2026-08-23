@@ -9,7 +9,7 @@ from frappe.utils import add_days, cint, now_datetime
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient
 from erpnext_moldova_efactura.utils.api_response import extract_invoices, invoice_status_map, invoice_xml
 from erpnext_moldova_efactura.utils.buyer_status import (
-	BUYER_SEARCH_STATUSES,
+	buyer_search_statuses,
 	do_not_create_cancelled_invoices,
 	is_canceled_by_supplier,
 	status_label,
@@ -32,7 +32,7 @@ def sync_buyer_invoices(lookback_days: int | None = None, company: str | None = 
 	date_to = now_datetime()
 
 	seen: dict[tuple[str, str], int] = {}
-	for st in BUYER_SEARCH_STATUSES:
+	for st in buyer_search_statuses():
 		params = {
 			"InvoiceStatus": st,
 			"IssuedOn": {"StartDate": date_from, "EndDate": date_to},

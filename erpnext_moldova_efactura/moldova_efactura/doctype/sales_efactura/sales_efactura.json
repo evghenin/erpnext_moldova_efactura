@@ -563,7 +563,7 @@
    "hidden": 1,
    "label": "Status",
    "no_copy": 1,
-   "options": "Draft\nCancelled\nPending Registration\nRegistered as Draft\nSigned by Supplier\nRejected by Customer\nAccepted by Customer\nCanceled by Supplier\nSent to Customer\nSigned by Customer\nTransportation\nCancellation Requested"
+   "options": "Draft\nCancelled\nPending Registration\nRegistered as Draft\nSigned by Supplier\nRejected by Customer\nAccepted by Customer\nCanceled by Supplier\nArchived\nSent to Customer\nSigned by Customer\nTransportation\nCancellation Requested"
   },
   {
    "fieldname": "ef_series",
@@ -653,7 +653,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-08-23 02:45:00.757218",
+ "modified": "2026-08-23 18:10:00.000000",
  "modified_by": "Administrator",
  "module": "Moldova eFactura",
  "name": "Sales eFactura",

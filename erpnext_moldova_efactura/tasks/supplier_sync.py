@@ -9,8 +9,10 @@ from frappe.utils import add_days, cint, flt, now_datetime
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient
 from erpnext_moldova_efactura.utils.api_response import extract_invoices, invoice_xml
 from erpnext_moldova_efactura.utils.buyer_status import (
+	SFS_ARCHIVED,
 	do_not_create_cancelled_invoices,
 	is_canceled_by_supplier,
+	load_archived_sales_efactura,
 )
 from erpnext_moldova_efactura.utils.invoice_xml import parse_invoice_xml
 from erpnext_moldova_efactura.utils.party import find_customer_by_idno, get_default_company
@@ -18,8 +20,14 @@ from erpnext_moldova_efactura.utils.party import find_customer_by_idno, get_defa
 DEFAULT_LOOKBACK_DAYS = 180
 BATCH_DETAIL = 100
 
-# Draft through Cancellation Requested (supplier inbox).
+# Draft through Cancellation Requested (supplier inbox). Archived (6) is optional.
 SUPPLIER_SEARCH_STATUSES = (0, 1, 2, 3, 5, 7, 8, 9, 10, 11)
+
+
+def supplier_search_statuses() -> tuple[int, ...]:
+	if load_archived_sales_efactura():
+		return SUPPLIER_SEARCH_STATUSES + (SFS_ARCHIVED,)
+	return SUPPLIER_SEARCH_STATUSES
 
 
 def sync_supplier_invoices(lookback_days: int | None = None, company: str | None = None) -> dict:
@@ -34,7 +42,7 @@ def sync_supplier_invoices(lookback_days: int | None = None, company: str | None
 	date_to = now_datetime()
 
 	seen: dict[tuple[str, str], int] = {}
-	for st in SUPPLIER_SEARCH_STATUSES:
+	for st in supplier_search_statuses():
 		params = {
 			"InvoiceStatus": st,
 			"IssuedOn": {"StartDate": date_from, "EndDate": date_to},

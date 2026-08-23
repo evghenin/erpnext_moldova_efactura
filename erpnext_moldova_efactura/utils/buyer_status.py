@@ -12,6 +12,7 @@ BUYER_STATUS_MAP = {
 	3: "Accepted",
 	4: "Signing",
 	5: "Canceled by Supplier",
+	6: "Archived",
 	7: "Sent to Buyer",
 	8: "Signed by Buyer",
 	9: "Sent to Buyer",
@@ -20,6 +21,7 @@ BUYER_STATUS_MAP = {
 }
 
 SFS_CANCELED_BY_SUPPLIER = 5
+SFS_ARCHIVED = 6
 
 # Statuses that typically appear in buyer inbox and should be fetched
 BUYER_SEARCH_STATUSES = (7, 9, 1, 8, 3, 2, 10, 5, 11)
@@ -66,14 +68,34 @@ def is_canceled_by_supplier(ef_status) -> bool:
 		return False
 
 
+def _setting_flag(fieldname: str, default: bool) -> bool:
+	if not frappe.get_meta("eFactura Settings").has_field(fieldname):
+		return default
+	val = frappe.db.get_single_value("eFactura Settings", fieldname)
+	if val is None:
+		return default
+	return bool(cint(val))
+
+
 def do_not_create_cancelled_invoices() -> bool:
 	"""Default on: skip inserting new PEF for invoices already cancelled in SFS."""
-	if not frappe.get_meta("eFactura Settings").has_field("do_not_create_cancelled_invoices"):
-		return True
-	val = frappe.db.get_single_value("eFactura Settings", "do_not_create_cancelled_invoices")
-	if val is None:
-		return True
-	return bool(cint(val))
+	return _setting_flag("do_not_create_cancelled_invoices", True)
+
+
+def load_archived_purchase_efactura() -> bool:
+	"""Default off: SearchInvoices does not fetch SFS status Archived (6) for PEF."""
+	return _setting_flag("load_archived_purchase_efactura", False)
+
+
+def load_archived_sales_efactura() -> bool:
+	"""Default off: SearchInvoices does not fetch SFS status Archived (6) for SEF."""
+	return _setting_flag("load_archived_sales_efactura", False)
+
+
+def buyer_search_statuses() -> tuple[int, ...]:
+	if load_archived_purchase_efactura():
+		return BUYER_SEARCH_STATUSES + (SFS_ARCHIVED,)
+	return BUYER_SEARCH_STATUSES
 
 
 def should_create_incoming(ef_status) -> bool:

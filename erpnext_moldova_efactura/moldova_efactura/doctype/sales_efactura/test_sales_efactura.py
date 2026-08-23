@@ -368,3 +368,45 @@ class TestSaleseFactura(FrappeTestCase):
 		self.assertEqual(defaults.get("customer_name"), "HOTEL LIFE SRL")
 		self.assertEqual(defaults.get(field), "1024600026571")
 		self.assertEqual(defaults.get("customer_type"), "Company")
+
+	def test_signable_skip_reason(self):
+		from erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura import (
+			_signable_skip_reason,
+		)
+
+		self.assertIsNone(_signable_skip_reason(frappe._dict(docstatus=1, ef_status=-1)))
+		self.assertEqual(_signable_skip_reason(None), frappe._("Not found"))
+		self.assertEqual(
+			_signable_skip_reason(frappe._dict(docstatus=0, ef_status=-1)),
+			frappe._("Not submitted"),
+		)
+		self.assertEqual(
+			_signable_skip_reason(frappe._dict(docstatus=1, ef_status=0)),
+			frappe._("Not in Pending Registration"),
+		)
+
+	def test_filter_signable_missing_and_empty(self):
+		from erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura import (
+			filter_signable,
+		)
+
+		empty = filter_signable([])
+		self.assertEqual(empty["signable"], [])
+		self.assertEqual(empty["skipped"], [])
+
+		missing = filter_signable(["SEF-DOES-NOT-EXIST", "SEF-DOES-NOT-EXIST"])
+		self.assertEqual(missing["signable"], [])
+		self.assertEqual(len(missing["skipped"]), 1)
+		self.assertEqual(missing["skipped"][0]["name"], "SEF-DOES-NOT-EXIST")
+		self.assertEqual(missing["skipped"][0]["reason"], frappe._("Not found"))
+
+	def test_assert_can_register_signed(self):
+		from erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura import (
+			_assert_can_register_signed,
+		)
+
+		_assert_can_register_signed(frappe._dict(docstatus=1, ef_status=-1))
+		with self.assertRaises(frappe.ValidationError):
+			_assert_can_register_signed(frappe._dict(docstatus=0, ef_status=-1))
+		with self.assertRaises(frappe.ValidationError):
+			_assert_can_register_signed(frappe._dict(docstatus=1, ef_status=1))
