@@ -422,3 +422,38 @@ class TestSaleseFactura(FrappeTestCase):
 			_assert_can_register_signed(frappe._dict(docstatus=0, ef_status=-1))
 		with self.assertRaises(frappe.ValidationError):
 			_assert_can_register_signed(frappe._dict(docstatus=1, ef_status=1))
+
+	def test_supplier_bank_comes_from_company_bank_account(self):
+		from erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura import (
+			_ensure_supplier_bank_details,
+			_party_bank_link_field,
+		)
+
+		self.assertEqual(_party_bank_link_field("supplier"), "company_bank_account")
+		self.assertEqual(_party_bank_link_field("customer"), "customer_bank_account")
+
+		company = frappe.db.get_single_value("Global Defaults", "default_company") or frappe.db.get_value(
+			"Company", {}, "name"
+		)
+		bank = frappe.db.get_value("Bank Account", {"company": company, "is_company_account": 1}, "name")
+		if not company or not bank:
+			self.skipTest("Need Company and Company Bank Account")
+		iban = frappe.db.get_value("Bank Account", bank, "iban")
+		account_no = frappe.db.get_value("Bank Account", bank, "bank_account_no")
+		account = (iban or account_no or "").strip()
+		if not account:
+			self.skipTest("Company Bank Account has no IBAN")
+
+		doc = frappe.get_doc(
+			{
+				"doctype": "Sales eFactura",
+				"company": company,
+				"company_bank_account": bank,
+			}
+		)
+		_ensure_supplier_bank_details(doc)
+		self.assertEqual(doc.ef_supplier_bank_account, account)
+
+		doc.ef_supplier_bank_account = "KEEP-ME"
+		_ensure_supplier_bank_details(doc)
+		self.assertEqual(doc.ef_supplier_bank_account, "KEEP-ME")

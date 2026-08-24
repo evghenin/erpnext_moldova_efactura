@@ -665,38 +665,43 @@ class SaleseFactura(Document):
             self.db_set(f"ef_{prefix}_taxpayer_type", taxpayer_type, update_modified=False)
             self.db_set(f"ef_{prefix}_is_user", is_user, update_modified=False)
 
-        # 2) GetBankAccountInfo (only if we already have bank account in doc)
-        ba_field = f"{prefix}_bank_account"
+        # 2) GetBankAccountInfo when the form has a Bank Account link
+        # (supplier uses company_bank_account after the v2 rename).
+        ba_field = _party_bank_link_field(prefix)
+        if ba_field not in self.get_valid_columns():
+            return
 
-        if ba_field in self.get_valid_columns():
-            ba_name = getattr(self, ba_field, None) or ""
+        ba_name = getattr(self, ba_field, None) or ""
+        if not ba_name:
+            return
 
-            if ba_name:
-                ba = frappe.get_doc("Bank Account", ba_name)
+        bank_account, bank_name, bank_code = _local_bank_details(ba_name)
+        if not bank_account:
+            return
 
-                if ba.iban and ba.iban != getattr(self, f"ef_{prefix}_bank_account", None):
-                    bank_resp = client.get_bank_account_info(
-                        idno=party_idno, account_number=ba.iban
-                    )
-                    bank_accounts = (bank_resp.get("Results") or {}).get("BankAccount") or []
+        current_account = getattr(self, f"ef_{prefix}_bank_account", None) or ""
+        if bank_account and (
+            bank_account != current_account
+            or not getattr(self, f"ef_{prefix}_bank_name", None)
+            or not getattr(self, f"ef_{prefix}_bank_code", None)
+        ):
+            try:
+                bank_resp = client.get_bank_account_info(
+                    idno=party_idno, account_number=bank_account
+                )
+                for bank in (bank_resp.get("Results") or {}).get("BankAccount") or []:
+                    if bank.get("AccountNumber") == bank_account:
+                        bank_name = unescape_sfs_text(bank.get("BranchTitle") or "") or bank_name
+                        bank_code = bank.get("BranchCode") or bank_code
+                        break
+            except Exception:
+                frappe.log_error(
+                    frappe.get_traceback(), "eFactura: GetBankAccountInfo failed"
+                )
 
-                    for bank in bank_accounts or []:
-                        if bank.get("AccountNumber") == ba.iban:
-                            bank_account = bank.get("AccountNumber") or ""
-                            bank_name = unescape_sfs_text(bank.get("BranchTitle") or "")
-                            bank_code = bank.get("BranchCode") or ""
-                else:
-                    bank_account = getattr(self, f"ef_{prefix}_bank_account", "")
-                    bank_name = getattr(self, f"ef_{prefix}_bank_name", "")
-                    bank_code = getattr(self, f"ef_{prefix}_bank_code", "")
-            else:
-                bank_account = ""
-                bank_name = ""
-                bank_code = ""
-
-            self.db_set(f"ef_{prefix}_bank_account", bank_account, update_modified=False)
-            self.db_set(f"ef_{prefix}_bank_name", bank_name, update_modified=False)
-            self.db_set(f"ef_{prefix}_bank_code", bank_code, update_modified=False)
+        self.db_set(f"ef_{prefix}_bank_account", bank_account, update_modified=False)
+        self.db_set(f"ef_{prefix}_bank_name", bank_name, update_modified=False)
+        self.db_set(f"ef_{prefix}_bank_code", bank_code, update_modified=False)
 
 @frappe.whitelist()
 def download_xml(efactura_name):
@@ -1495,6 +1500,55 @@ def _get_vat_rate_from_item_tax_template(template_name, cache):
     return rate
 
 
+def _party_bank_link_field(prefix: str) -> str:
+    """Form Link field that holds the Bank Account for an e-Factura party block."""
+    if prefix == "supplier":
+        return "company_bank_account"
+    return f"{prefix}_bank_account"
+
+
+def _local_bank_details(ba_name: str) -> tuple[str, str, str]:
+    """IBAN, bank title and branch code from a Bank Account, without calling SFS."""
+    if not ba_name:
+        return "", "", ""
+    ba = frappe.get_doc("Bank Account", ba_name)
+    account = (ba.iban or ba.bank_account_no or "").strip()
+    branch_code = (ba.branch_code or "").strip()
+    bank_name = ""
+    if ba.bank:
+        bank_name = (frappe.db.get_value("Bank", ba.bank, "bank_name") or ba.bank or "").strip()
+    return account, bank_name, branch_code
+
+
+def _ensure_supplier_bank_details(efactura):
+    """Copy Company Bank Account onto hidden eF supplier bank fields when they are empty."""
+    if efactura.get("ef_supplier_bank_account"):
+        return
+    ba_name = efactura.get("company_bank_account")
+    if not ba_name:
+        return
+    account, bank_name, bank_code = _local_bank_details(ba_name)
+    if not account:
+        frappe.throw(
+            _("e-Factura XML Error: Company Bank Account {0} has no IBAN").format(ba_name)
+        )
+    efactura.ef_supplier_bank_account = account
+    if not efactura.get("ef_supplier_bank_name"):
+        efactura.ef_supplier_bank_name = bank_name
+    if not efactura.get("ef_supplier_bank_code"):
+        efactura.ef_supplier_bank_code = bank_code
+    if efactura.name and not efactura.is_new():
+        efactura.db_set("ef_supplier_bank_account", account, update_modified=False)
+        if efactura.ef_supplier_bank_name:
+            efactura.db_set(
+                "ef_supplier_bank_name", efactura.ef_supplier_bank_name, update_modified=False
+            )
+        if efactura.ef_supplier_bank_code:
+            efactura.db_set(
+                "ef_supplier_bank_code", efactura.ef_supplier_bank_code, update_modified=False
+            )
+
+
 def _generate_invoice_xml(
     efactura, language, save_to_file=False, file_path="output.xml", document=True, declaration=True
 ):
@@ -1519,15 +1573,16 @@ def _generate_invoice_xml(
         efactura.delivery_date, datetime.min.time()
     ).isoformat()
 
-    # Validate required fields
+    _ensure_supplier_bank_details(efactura)
+
+    # Validate required fields. Bank name/code may be empty in SFS XML;
+    # IBAN is filled from Company Bank Account when the hidden eF field is blank.
     required_fields = [
         "ef_supplier_idno",
         "ef_supplier_name",
         "ef_supplier_address",
         "ef_supplier_taxpayer_type",
         "ef_supplier_bank_account",
-        "ef_supplier_bank_name",
-        "ef_supplier_bank_code",
         "ef_customer_idno",
         "ef_customer_name",
         "ef_customer_address",
