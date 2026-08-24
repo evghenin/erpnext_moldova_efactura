@@ -8,7 +8,11 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt
 
-from erpnext_moldova_efactura.utils.buying_rate import implied_unit_rate
+from erpnext_moldova_efactura.utils.buying_rate import (
+	BUYING_RATE_PRECISION,
+	buying_rate_for_row,
+	implied_unit_rate,
+)
 
 
 def money_precision(currency: str | None = None) -> int:
@@ -76,15 +80,31 @@ def qty_matches(buyer_row, pi_row, qprec: int) -> bool:
 
 def rate_matches(buyer_row, pi_row, mprec: int) -> bool:
 	pi_rate = flt(pi_row.rate)
-	expected = expected_buyer_rate(buyer_row)
 	alts = {
-		expected,
+		expected_buyer_rate(buyer_row),
 		flt(buyer_row.rate),
 		flt(buyer_row.rate_with_vat),
 		implied_unit_rate(buyer_row, vat_included=False),
 		implied_unit_rate(buyer_row, vat_included=True),
+		buying_rate_for_row(buyer_row, False),
+		buying_rate_for_row(buyer_row, True),
 	}
-	return any(eq(pi_rate, alt, mprec) for alt in alts if alt or alt == 0)
+	if any(
+		eq(pi_rate, alt, mprec) or eq(pi_rate, alt, BUYING_RATE_PRECISION)
+		for alt in alts
+		if alt or alt == 0
+	):
+		return True
+	# Converted UOM (kWh → MWh): compare line extension, not XML unit price.
+	pi_ext = flt(pi_row.qty) * pi_rate
+	if not pi_ext:
+		pi_ext = flt(pi_row.amount)
+	return (
+		amount_close(pi_ext, buyer_row.net_amount, mprec)
+		or amount_close(pi_ext, buyer_row.amount, mprec)
+		or amount_close(flt(pi_row.amount), buyer_row.net_amount, mprec)
+		or amount_close(flt(pi_row.amount), buyer_row.amount, mprec)
+	)
 
 
 def price_matches(buyer_row, pi_row, mprec: int) -> bool:
@@ -99,7 +119,7 @@ def describe_rate_mismatch(buyer_row, pi_row, currency: str, mprec: int) -> str:
 		buyer_row.idx,
 		buyer_line_name(buyer_row),
 		_("rate {0} / net {1} vs Purchase Invoice rate {2} / amount {3} {4}").format(
-			fmt_money(expected_buyer_rate(buyer_row), mprec),
+			fmt_money(buying_rate_for_row(buyer_row, False) or expected_buyer_rate(buyer_row), mprec),
 			fmt_money(buyer_row.net_amount, mprec),
 			fmt_money(pi_row.rate, mprec),
 			fmt_money(pi_row.amount, mprec),
@@ -412,7 +432,7 @@ def validate_existing_allocations(buyer, pi, submit: bool = True) -> None:
 					prow.uom or _("empty"),
 				)
 			)
-		if not rate_matches(brow, prow, mprec):
+		if not price_matches(brow, prow, mprec):
 			errors.append(describe_rate_mismatch(brow, prow, currency, mprec))
 		if not qty_matches(brow, prow, qprec):
 			errors.append(describe_line_mismatch(brow, prow, currency, qprec, mprec))

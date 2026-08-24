@@ -2087,6 +2087,37 @@ class TestEFacturaBuyerPIMatch(FrappeTestCase):
 		pi.items[0].amount = 4870.23
 		self.assertTrue(rate_matches(buyer.items[0], pi.items[0], 2))
 
+	def test_rate_matches_converted_booking_uom(self):
+		from erpnext_moldova_efactura.utils.pi_match import price_matches, rate_matches, validate_existing_allocations
+
+		buyer, pi = self._pair()
+		brow = buyer.items[0]
+		brow.ef_qty = 205.83
+		brow.ef_uom = "kWh"
+		brow.qty = 0.20583
+		brow.uom = "MWh"
+		brow.rate = 4.6455
+		brow.rate_with_vat = 5.5746
+		brow.net_amount = 956.21
+		brow.amount = 1147.45
+		brow.item_code = "ITEM-A"
+		brow.purchase_invoice = pi.name
+		brow.pi_detail = "PII-1"
+		buyer.total = 1147.45
+		buyer.vat_total = 191.24
+		buyer.net_total = 956.21
+		pi.grand_total = 1147.45
+		pi.total_taxes_and_charges = 191.24
+		prow = pi.items[0]
+		prow.name = "PII-1"
+		prow.qty = 0.20583
+		prow.uom = "MWh"
+		prow.rate = 4645.5467
+		prow.amount = 1147.45
+		self.assertTrue(rate_matches(brow, prow, 2))
+		self.assertTrue(price_matches(brow, prow, 2))
+		validate_existing_allocations(buyer, pi, submit=True)
+
 	def test_grand_total_one_bani_tolerance(self):
 		from erpnext_moldova_efactura.utils.pi_match import collect_totals_and_line_errors
 
