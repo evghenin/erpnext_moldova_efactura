@@ -529,6 +529,7 @@ function wrap_item_code_grid_controls(frm) {
 		return;
 	}
 	(grid.grid_rows || []).forEach((row) => {
+		patch_row_make_control(row);
 		const control =
 			(row.on_grid_fields_dict && row.on_grid_fields_dict.item_code) ||
 			(row.grid_form && row.grid_form.fields_dict && row.grid_form.fields_dict.item_code);
@@ -536,6 +537,22 @@ function wrap_item_code_grid_controls(frm) {
 			item_title_from_row((link && link.doc) || row.doc)
 		);
 	});
+}
+
+function patch_row_make_control(row) {
+	if (!row || row._ef_make_control_patched || typeof row.make_control !== "function") {
+		return;
+	}
+	row._ef_make_control_patched = true;
+	const original = row.make_control.bind(row);
+	row.make_control = function (column) {
+		original(column);
+		if (column && column.df && column.df.fieldname === "item_code" && column.field) {
+			wrap_item_link_new_doc(column.field, (link) =>
+				item_title_from_row((link && link.doc) || row.doc)
+			);
+		}
+	};
 }
 
 function setup_new_supplier_from_factura(frm) {
@@ -669,54 +686,108 @@ function recalc_buyer_item_qtys(frm, cdt, cdn, opts) {
 	});
 }
 
+function ensure_pef_items_grid_style() {
+	if (document.getElementById("ef-pef-items-grid-css")) {
+		return;
+	}
+	const style = document.createElement("style");
+	style.id = "ef-pef-items-grid-css";
+	style.textContent = `
+		.ef-pef-items-grid .row-check {
+			display: none !important;
+		}
+		.ef-pef-items-grid .grid-add-row,
+		.ef-pef-items-grid .grid-add-multiple-rows,
+		.ef-pef-items-grid .grid-remove-rows,
+		.ef-pef-items-grid .grid-remove-all-rows {
+			display: none !important;
+		}
+	`;
+	document.head.appendChild(style);
+}
+
+function hook_items_grid(frm, grid) {
+	if (grid._ef_buyer_grid_hooked) {
+		return;
+	}
+	grid._ef_buyer_grid_hooked = true;
+	const original_refresh = grid.refresh.bind(grid);
+	grid.refresh = function (...args) {
+		const result = original_refresh(...args);
+		after_items_grid_refresh(frm, grid);
+		return result;
+	};
+	// Grid constructor bound debounced_refresh to the original refresh.
+	grid.debounced_refresh = frappe.utils.debounce(function (...args) {
+		return grid.refresh(...args);
+	}, 100);
+}
+
+function set_pef_item_field_read_only(df, docstatus) {
+	if (!df || !df.fieldname) {
+		return;
+	}
+	const editable = df.fieldname === "item_code" || df.fieldname === "ef_uom" || df.fieldname === "uom";
+	df.read_only = docstatus !== 0 || !editable ? 1 : 0;
+}
+
+function apply_items_read_only(frm, grid) {
+	const docstatus = frm.doc.docstatus;
+	(grid.docfields || []).forEach((df) => set_pef_item_field_read_only(df, docstatus));
+	(grid.user_defined_columns || []).forEach((df) => set_pef_item_field_read_only(df, docstatus));
+	(grid.visible_columns || []).forEach((col) => set_pef_item_field_read_only(col && col[0], docstatus));
+	(grid.grid_rows || []).forEach((row) => {
+		if (!row) {
+			return;
+		}
+		(row.docfields || []).forEach((df) => set_pef_item_field_read_only(df, docstatus));
+		Object.values(row.columns || {}).forEach((column) => {
+			set_pef_item_field_read_only(column && column.df, docstatus);
+		});
+	});
+}
+
+function neutralize_header_focus_trap(grid) {
+	if (!grid || !grid.wrapper) {
+		return;
+	}
+	// Frappe puts tabindex=0 on the first heading cell so keyboard focus
+	// jumps to the last row. That also steals the first click on item_code.
+	grid.wrapper.find(".grid-heading-row .grid-static-col[tabindex]").removeAttr("tabindex");
+}
+
+function after_items_grid_refresh(frm, grid) {
+	if (!grid || !grid.wrapper) {
+		return;
+	}
+	ensure_pef_items_grid_style();
+	grid.wrapper.addClass("ef-pef-items-grid");
+	neutralize_header_focus_trap(grid);
+	wrap_item_code_grid_controls(frm);
+}
+
 function lock_items_grid(frm) {
 	const grid = frm.fields_dict.items && frm.fields_dict.items.grid;
 	if (!grid) {
 		return;
 	}
+	hook_items_grid(frm, grid);
+
 	grid.cannot_add_rows = true;
 	grid.cannot_delete_rows = true;
 	grid.only_sortable = false;
-	frm.set_df_property("items", "cannot_add_rows", 1);
-	frm.set_df_property("items", "cannot_delete_rows", 1);
 	if (grid.df) {
+		grid.df.cannot_add_rows = 1;
 		grid.df.cannot_delete_rows = 1;
 	}
-
-	if (!grid._ef_buyer_checkbox_hooked) {
-		grid._ef_buyer_checkbox_hooked = true;
-		const original_refresh = grid.refresh.bind(grid);
-		grid.refresh = function (...args) {
-			const result = original_refresh(...args);
-			hide_items_checkboxes(grid);
-			wrap_item_code_grid_controls(frm);
-			return result;
-		};
+	const table_df = frm.get_docfield("items");
+	if (table_df) {
+		table_df.cannot_add_rows = 1;
+		table_df.cannot_delete_rows = 1;
 	}
 
-	// Draft: map item + eFactura UOM (if auto-match missed) + PI UOM
-	const editable = new Set(["item_code", "ef_uom", "uom"]);
-	(grid.grid_rows || []).forEach((row) => {
-		if (!row || !row.docfields) {
-			return;
-		}
-		row.docfields.forEach((df) => {
-			if (frm.doc.docstatus !== 0) {
-				df.read_only = 1;
-			} else {
-				df.read_only = editable.has(df.fieldname) ? 0 : 1;
-			}
-		});
-	});
-	grid.refresh();
-}
-
-function hide_items_checkboxes(grid) {
-	if (!grid || !grid.wrapper) {
-		return;
-	}
-	grid.wrapper.find(".row-check").addClass("hidden").hide();
-	grid.wrapper.find(".grid-row-check").closest("div").hide();
+	apply_items_read_only(frm, grid);
+	after_items_grid_refresh(frm, grid);
 }
 
 function open_map_dialog(frm) {
