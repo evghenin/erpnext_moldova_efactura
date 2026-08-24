@@ -1025,7 +1025,7 @@ def process_signed_xml(name, signature, content):
     _assert_can_register_signed(ef)
 
     # Send signed XML via PostInvoices
-    client = EFacturaAPIClient.from_settings(company=efactura.company)
+    client = EFacturaAPIClient.from_settings(company=ef.company)
 
     # NOTE:
     # - send_unsigned() uses invoices_xml_status=0 (unsigned)
