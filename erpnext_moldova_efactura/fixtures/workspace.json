@@ -418,7 +418,7 @@
     "parenttype": "Workspace",
     "report_ref_doctype": null,
     "restrict_to_domain": null,
-    "stats_filter": "[[\"Sales eFactura\", \"status\", \"not in\", [\"Cancelled\", \"Canceled by Supplier\"]]]",
+    "stats_filter": "[[\"Sales eFactura\", \"status\", \"not in\", [\"Cancelled\"]], [\"Sales eFactura\", \"ef_status\", \"not in\", [\"Canceled by Supplier\"]]]",
     "type": "DocType",
     "url": null
    },
@@ -452,7 +452,7 @@
     "parenttype": "Workspace",
     "report_ref_doctype": null,
     "restrict_to_domain": null,
-    "stats_filter": "[[\"Sales eFactura\", \"status\", \"in\", [\"Draft\", \"Pending Registration\", \"Registered as Draft\"]]]",
+    "stats_filter": "[[\"Sales eFactura\", \"status\", \"not in\", [\"Cancelled\"]], [\"Sales eFactura\", \"ef_status\", \"in\", [\"Pending Registration\", \"Registered as Draft\"]]]",
     "type": "DocType",
     "url": null
    },
@@ -469,7 +469,7 @@
     "parenttype": "Workspace",
     "report_ref_doctype": null,
     "restrict_to_domain": null,
-    "stats_filter": "[[\"Sales eFactura\", \"status\", \"in\", [\"Signed by Supplier\", \"Sent to Customer\", \"Accepted by Customer\"]]]",
+    "stats_filter": "[[\"Sales eFactura\", \"ef_status\", \"in\", [\"Signed by Supplier\", \"Sent to Customer\", \"Accepted by Customer\"]]]",
     "type": "DocType",
     "url": null
    },
@@ -486,7 +486,7 @@
     "parenttype": "Workspace",
     "report_ref_doctype": null,
     "restrict_to_domain": null,
-    "stats_filter": "[[\"Sales eFactura\", \"status\", \"=\", \"Rejected by Customer\"]]",
+    "stats_filter": "[[\"Sales eFactura\", \"ef_status\", \"=\", \"Rejected by Customer\"]]",
     "type": "DocType",
     "url": null
    },
@@ -503,7 +503,7 @@
     "parenttype": "Workspace",
     "report_ref_doctype": null,
     "restrict_to_domain": null,
-    "stats_filter": "[[\"Sales eFactura\", \"status\", \"=\", \"Cancellation Requested\"]]",
+    "stats_filter": "[[\"Sales eFactura\", \"ef_status\", \"=\", \"Cancellation Requested\"]]",
     "type": "DocType",
     "url": null
    }
@@ -621,7 +621,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2026-08-14 19:30:00.000000",
+  "modified": "2026-08-25 21:50:00.000000",
   "module": "Moldova eFactura",
   "name": "eFactura Purchase",
   "number_cards": [
@@ -711,7 +711,7 @@
     "parenttype": "Workspace",
     "report_ref_doctype": null,
     "restrict_to_domain": null,
-    "stats_filter": "[[\"Purchase eFactura\", \"status\", \"not in\", [\"Canceled by Supplier\"]]]",
+    "stats_filter": "[[\"Purchase eFactura\", \"status\", \"not in\", [\"Cancelled\"]], [\"Purchase eFactura\", \"ef_status\", \"not in\", [\"Canceled by Supplier\"]]]",
     "type": "DocType",
     "url": null
    },
@@ -728,7 +728,7 @@
     "parenttype": "Workspace",
     "report_ref_doctype": null,
     "restrict_to_domain": null,
-    "stats_filter": "[[\"Purchase eFactura\", \"ef_status\", \"in\", [1, 7, 9]]]",
+    "stats_filter": "[[\"Purchase eFactura\", \"ef_status\", \"in\", [\"Signed by Supplier\", \"Sent to Buyer\"]]]",
     "type": "DocType",
     "url": null
    },
@@ -745,7 +745,7 @@
     "parenttype": "Workspace",
     "report_ref_doctype": null,
     "restrict_to_domain": null,
-    "stats_filter": "[[\"Purchase eFactura\", \"supplier\", \"is\", \"not set\"]]",
+    "stats_filter": "[[\"Purchase eFactura\", \"supplier_party\", \"is\", \"not set\"]]",
     "type": "DocType",
     "url": null
    },
@@ -762,7 +762,7 @@
     "parenttype": "Workspace",
     "report_ref_doctype": null,
     "restrict_to_domain": null,
-    "stats_filter": "[[\"Purchase eFactura\", \"status\", \"in\", [\"Accepted\", \"Signed by Buyer\"]], [\"Purchase eFactura Item\", \"purchase_invoice\", \"is\", \"not set\"]]",
+    "stats_filter": "[[\"Purchase eFactura\", \"ef_status\", \"in\", [\"Accepted\", \"Signed by Buyer\"]], [\"Purchase eFactura Item\", \"purchase_invoice\", \"is\", \"not set\"]]",
     "type": "DocType",
     "url": null
    },
@@ -796,7 +796,7 @@
     "parenttype": "Workspace",
     "report_ref_doctype": null,
     "restrict_to_domain": null,
-    "stats_filter": "[[\"Purchase eFactura\", \"status\", \"=\", \"Rejected\"]]",
+    "stats_filter": "[[\"Purchase eFactura\", \"ef_status\", \"=\", \"Rejected\"]]",
     "type": "DocType",
     "url": null
    }

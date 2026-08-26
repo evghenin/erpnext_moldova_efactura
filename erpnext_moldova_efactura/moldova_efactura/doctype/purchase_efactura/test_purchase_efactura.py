@@ -142,7 +142,7 @@ class TestEFacturaBuyerUtils(FrappeTestCase):
 
 		signable_row = frappe.get_all(
 			"Purchase eFactura",
-			filters={"docstatus": 1, "ef_status": ["in", [1, 7, 9, 3]]},
+			filters={"docstatus": 1, "ef_status": ["in", ["Signed by Supplier", "Sent to Buyer"]]},
 			fields=["name", "status"],
 			limit=1,
 		)
@@ -239,6 +239,56 @@ class TestEFacturaBuyerUtils(FrappeTestCase):
 		invs = extract_invoices(resp)
 		self.assertEqual(len(invs), 1)
 		self.assertTrue(invoice_xml(invs[0]).startswith("<?xml"))
+
+	def test_extract_invoices_accepts_list_results_and_soap_envelope(self):
+		listed = extract_invoices(
+			{
+				"Results": [
+					{"Seria": "EBL", "Number": "000550282", "InvoiceStatus": 1},
+					{"Seria": "EBL", "Number": "000550283", "InvoiceStatus": 1},
+				]
+			}
+		)
+		self.assertEqual([inv["Number"] for inv in listed], ["000550282", "000550283"])
+		wrapped = extract_invoices(
+			{
+				"SearchInvoicesResult": {
+					"Results": {"Invoice": {"Seria": "EBL", "Number": "000550282", "InvoiceStatus": 1}}
+				}
+			}
+		)
+		self.assertEqual(wrapped[0]["Number"], "000550282")
+
+	def test_merge_signed_by_supplier_inbox(self):
+		from erpnext_moldova_efactura.tasks.buyer_sync import _merge_signed_by_supplier_inbox
+
+		class _FakeBuyerClient:
+			def search_invoices(self, actor_role, parameters, request_id=None):
+				self.assert_status = parameters.get("InvoiceStatus")
+				return {
+					"Results": [
+						{"Seria": "EBL", "Number": "000550282", "InvoiceStatus": 1},
+					]
+				}
+
+			def get_invoices_for_signing(self, actor_role, order, request_id=None):
+				if order == 2:
+					return {
+						"Results": {
+							"XmlInvoice": {
+								"Seria": "EBL",
+								"Number": "000550299",
+								"InvoiceStatus": 1,
+							}
+						}
+					}
+				return {"Results": {"XmlInvoice": []}}
+
+		seen = {("AAA", "1"): 7}
+		_merge_signed_by_supplier_inbox(_FakeBuyerClient(), seen, "Test Company")
+		self.assertEqual(seen[("EBL", "000550282")], 1)
+		self.assertEqual(seen[("EBL", "000550299")], 1)
+		self.assertEqual(seen[("AAA", "1")], 7)
 
 	def test_buying_rate_follows_xml_line_total(self):
 		from erpnext_moldova_efactura.utils.buying_rate import buying_rate_for_row
@@ -395,6 +445,10 @@ class TestEFacturaBuyerUtils(FrappeTestCase):
 		defaults = new_supplier_defaults('S.R.L. "PRIM-LOGIST"', "1015608001255")
 		self.assertEqual(defaults.get("supplier_name"), "PRIM-LOGIST SRL")
 		self.assertEqual(defaults.get(field), "1015608001255")
+		if frappe.get_meta("Supplier").has_field("territory"):
+			territory = frappe.db.get_single_value("eFactura Settings", "fiscal_territory")
+			if territory and frappe.db.exists("Territory", territory):
+				self.assertEqual(defaults.get("territory"), territory)
 
 
 class TestEFacturaBuyerUOM(FrappeTestCase):
@@ -664,7 +718,8 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 				"ef_series": "EBJ",
 				"ef_number": "000066612",
 				"ef_status": 8,
-				"supplier": sup,
+				"supplier_party_type": "Supplier",
+				"supplier_party": sup,
 			}
 		)
 		doc.fill_from_xml(xml)
@@ -713,7 +768,8 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 					"ef_series": "EBJ",
 					"ef_number": "000066606",
 					"ef_status": 8,
-					"supplier": sup,
+					"supplier_party_type": "Supplier",
+					"supplier_party": sup,
 				}
 			)
 			doc.fill_from_xml(SAMPLE_XML)
@@ -780,7 +836,8 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 					"ef_series": "EBJ",
 					"ef_number": "000066610",
 					"ef_status": 8,
-					"supplier": sup,
+					"supplier_party_type": "Supplier",
+					"supplier_party": sup,
 				}
 			)
 			doc.fill_from_xml(xml)
@@ -862,7 +919,8 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 					"ef_series": "EBJ",
 					"ef_number": "000066607",
 					"ef_status": 8,
-					"supplier": sup,
+					"supplier_party_type": "Supplier",
+					"supplier_party": sup,
 				}
 			)
 			doc.fill_from_xml(xml)
@@ -944,7 +1002,8 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 					"ef_series": "EBJ",
 					"ef_number": "000066608",
 					"ef_status": 8,
-					"supplier": sup,
+					"supplier_party_type": "Supplier",
+					"supplier_party": sup,
 				}
 			)
 			doc.fill_from_xml(xml)
@@ -1011,7 +1070,8 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 					"ef_series": "EBJ",
 					"ef_number": "000066609",
 					"ef_status": 8,
-					"supplier": sup,
+					"supplier_party_type": "Supplier",
+					"supplier_party": sup,
 				}
 			)
 			doc.fill_from_xml(xml)
@@ -1074,7 +1134,8 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 					"ef_series": "EBJ",
 					"ef_number": "000066611",
 					"ef_status": 8,
-					"supplier": sup,
+					"supplier_party_type": "Supplier",
+					"supplier_party": sup,
 				}
 			)
 			doc.fill_from_xml(xml)
@@ -1148,7 +1209,8 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 		xml = SAMPLE_XML.replace('UnitOfMeasure="buc"', 'UnitOfMeasure="xyz-no-such-uom"')
 		doc.fill_from_xml(xml)
 		doc.insert()
-		self.assertEqual(doc.status, "Signed by Buyer")
+		self.assertEqual(doc.status, "Draft")
+		self.assertEqual(doc.ef_status, "Signed by Buyer")
 		self.assertEqual(len(doc.items), 1)
 		self.assertEqual(doc.ef_supplier_idno, "1015608001255")
 		self.assertEqual(flt(doc.ef_total), 118)
@@ -1205,7 +1267,7 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 		doc.flags.ignore_links = True
 		doc.submit()
 		self.assertEqual(doc.docstatus, 1)
-		self.assertEqual(doc.efactura_status, doc.status)
+		self.assertEqual(doc.ef_status, "Signed by Buyer")
 
 	def _delete_buyer(self, series: str, number: str):
 		name = frappe.db.exists(
@@ -1232,6 +1294,12 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 		self._delete_buyer("EBJ", "000066701")
 		frappe.db.delete("eFactura Supplier Item Map", {"supplier": sup, "supplier_item_name": "Item A"})
 
+		# Keep party empty through insert: otherwise IDNO auto-resolve fills Supplier.
+		if self._idno_field and self._idno_supplier:
+			frappe.db.set_value(
+				"Supplier", self._idno_supplier, self._idno_field, "0000000000000", update_modified=False
+			)
+
 		doc = frappe.get_doc(
 			{
 				"doctype": "Purchase eFactura",
@@ -1245,6 +1313,7 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 		doc.fill_from_xml(SAMPLE_XML)
 		doc.supplier = None
 		doc.insert()
+		self.assertFalse(doc.supplier)
 		save_item_mappings(doc.name, [{"idx": 1, "item_code": item.name}])
 		self.assertFalse(
 			frappe.db.exists(
@@ -1252,6 +1321,15 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 				{"supplier": sup, "supplier_item_name": "Item A"},
 			)
 		)
+
+		if self._idno_field and self._idno_supplier:
+			frappe.db.set_value(
+				"Supplier",
+				self._idno_supplier,
+				self._idno_field,
+				self.SAMPLE_SUPPLIER_IDNO,
+				update_modified=False,
+			)
 
 		doc.reload()
 		doc.supplier = sup
@@ -1287,7 +1365,8 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 				"ef_series": "EBJ",
 				"ef_number": "000066702",
 				"ef_status": 8,
-				"supplier": sup,
+				"supplier_party_type": "Supplier",
+				"supplier_party": sup,
 			}
 		)
 		doc.fill_from_xml(SAMPLE_XML)
@@ -1322,7 +1401,8 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 				"ef_series": "EBJ",
 				"ef_number": "000066704",
 				"ef_status": 8,
-				"supplier": sup,
+				"supplier_party_type": "Supplier",
+				"supplier_party": sup,
 			}
 		)
 		doc.fill_from_xml(SAMPLE_XML.replace("000066606", "000066704"))
@@ -1374,7 +1454,8 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 				"ef_series": "EBJ",
 				"ef_number": "000066703",
 				"ef_status": 8,
-				"supplier": sup,
+				"supplier_party_type": "Supplier",
+				"supplier_party": sup,
 			}
 		)
 		doc.fill_from_xml(xml)
@@ -1419,7 +1500,8 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 				"ef_series": "EBJ",
 				"ef_number": number,
 				"ef_status": ef_status,
-				"supplier": supplier,
+				"supplier_party_type": "Supplier",
+				"supplier_party": supplier,
 			}
 		)
 		doc.fill_from_xml(xml)
@@ -1428,6 +1510,291 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 		doc.items[0].uom = item.stock_uom
 		doc.insert()
 		return doc
+
+	def _non_livrare_xml(self, number: str) -> str:
+		return SAMPLE_XML.replace("000066606", number).replace(
+			"<DeliveryDate>2026-06-09T10:38:01</DeliveryDate>",
+			"<DeliveryDate>2026-06-09T10:38:01</DeliveryDate>\n    <CreationMotiv>5</CreationMotiv>",
+		)
+
+	def test_fill_from_xml_stores_creation_motiv(self):
+		item = frappe.db.get_value("Item", {"disabled": 0}, ["name", "stock_uom"], as_dict=True)
+		sup = frappe.db.get_value("Supplier", {}, "name")
+		if not item or not sup:
+			self.skipTest("Need Item and Supplier")
+		self._delete_buyer("EBJ", "000067001")
+		doc = frappe.get_doc(
+			{
+				"doctype": "Purchase eFactura",
+				"naming_series": "ACC-PEF-.YYYY.-",
+				"company": self.company,
+				"ef_series": "EBJ",
+				"ef_number": "000067001",
+				"ef_status": 8,
+				"supplier_party_type": "Supplier",
+				"supplier_party": sup,
+			}
+		)
+		doc.fill_from_xml(self._non_livrare_xml("000067001"))
+		doc.items[0].item_code = item.name
+		doc.items[0].ef_uom = item.stock_uom
+		doc.items[0].uom = item.stock_uom
+		doc.insert()
+		self.assertEqual(doc.type, "Non-Transfer")
+		self.assertEqual(cint(doc.is_return), 0)
+		self.assertEqual(doc.supplier_party_type, "Supplier")
+
+	def test_fill_from_xml_resolves_supplier_by_idno(self):
+		item = frappe.db.get_value("Item", {"disabled": 0}, ["name", "stock_uom"], as_dict=True)
+		if not item or not self._idno_field or not self._idno_supplier:
+			self.skipTest("Need Item and Supplier IDNO field")
+		self._delete_buyer("EBJ", "000067011")
+		doc = frappe.get_doc(
+			{
+				"doctype": "Purchase eFactura",
+				"naming_series": "ACC-PEF-.YYYY.-",
+				"company": self.company,
+				"ef_series": "EBJ",
+				"ef_number": "000067011",
+				"ef_status": 8,
+				"supplier_party_type": "Customer",
+			}
+		)
+		doc.fill_from_xml(SAMPLE_XML.replace("000066606", "000067011"))
+		doc.items[0].item_code = item.name
+		doc.items[0].ef_uom = item.stock_uom
+		doc.items[0].uom = item.stock_uom
+		self.assertEqual(doc.supplier_party_type, "Supplier")
+		self.assertEqual(doc.supplier_party, self._idno_supplier)
+		doc.insert()
+		self.assertEqual(doc.supplier_party_type, "Supplier")
+		self.assertEqual(doc.supplier_party, self._idno_supplier)
+
+	def test_non_livrare_blocks_pi_and_requires_pr_on_submit(self):
+		from erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura import (
+			make_purchase_invoice,
+			make_purchase_order,
+		)
+
+		item = frappe.db.get_value("Item", {"disabled": 0}, ["name", "stock_uom"], as_dict=True)
+		sup = frappe.db.get_value("Supplier", {}, "name")
+		if not item or not sup:
+			self.skipTest("Need Item and Supplier")
+		self._delete_buyer("EBJ", "000067002")
+		doc = frappe.get_doc(
+			{
+				"doctype": "Purchase eFactura",
+				"naming_series": "ACC-PEF-.YYYY.-",
+				"company": self.company,
+				"ef_series": "EBJ",
+				"ef_number": "000067002",
+				"ef_status": 8,
+				"supplier_party_type": "Supplier",
+				"supplier_party": sup,
+			}
+		)
+		doc.fill_from_xml(self._non_livrare_xml("000067002"))
+		doc.items[0].item_code = item.name
+		doc.items[0].ef_uom = item.stock_uom
+		doc.items[0].uom = item.stock_uom
+		doc.insert()
+		with self.assertRaises(frappe.ValidationError) as ctx:
+			make_purchase_invoice(doc.name)
+		self.assertIn("Non-Transfer", str(ctx.exception))
+		with self.assertRaises(frappe.ValidationError):
+			make_purchase_order(doc.name)
+		with self.assertRaises(frappe.ValidationError) as submit_ctx:
+			doc.submit()
+		self.assertIn("Purchase Receipt", str(submit_ctx.exception))
+		doc.reload()
+		doc.items[0].purchase_receipt = "PR-DUMMY"
+		doc.items[0].pr_detail = "PR-DUMMY-1"
+		doc.flags.ignore_links = True
+		doc.save()
+		doc.flags.ignore_links = True
+		doc.submit()
+		self.assertEqual(doc.docstatus, 1)
+
+	def test_mark_as_return_sets_customer_and_requires_dn(self):
+		from erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura import (
+			mark_as_return,
+		)
+		from erpnext_moldova_efactura.utils.party import get_customer_idno_field
+
+		item = frappe.db.get_value("Item", {"disabled": 0}, ["name", "stock_uom"], as_dict=True)
+		sup = frappe.db.get_value("Supplier", {}, "name")
+		cust = frappe.db.get_value("Customer", {}, "name")
+		if not item or not sup or not cust:
+			self.skipTest("Need Item, Supplier, and Customer")
+		self._delete_buyer("EBJ", "000067003")
+		idno_field = get_customer_idno_field()
+		prev_idno = None
+		if idno_field:
+			prev_idno = frappe.db.get_value("Customer", cust, idno_field)
+			frappe.db.set_value("Customer", cust, idno_field, self.SAMPLE_SUPPLIER_IDNO, update_modified=False)
+		try:
+			doc = frappe.get_doc(
+				{
+					"doctype": "Purchase eFactura",
+					"naming_series": "ACC-PEF-.YYYY.-",
+					"company": self.company,
+					"ef_series": "EBJ",
+					"ef_number": "000067003",
+					"ef_status": 8,
+					"supplier_party_type": "Supplier",
+					"supplier_party": sup,
+				}
+			)
+			doc.fill_from_xml(self._non_livrare_xml("000067003"))
+			doc.items[0].item_code = item.name
+			doc.items[0].ef_uom = item.stock_uom
+			doc.items[0].uom = item.stock_uom
+			doc.insert()
+			mark_as_return(doc.name)
+			doc.reload()
+			self.assertEqual(cint(doc.is_return), 1)
+			self.assertEqual(doc.supplier_party_type, "Customer")
+			if idno_field:
+				self.assertEqual(doc.supplier_party, cust)
+			with self.assertRaises(frappe.ValidationError) as ctx:
+				doc.submit()
+			self.assertIn("Delivery Note", str(ctx.exception))
+			doc.reload()
+			doc.items[0].delivery_note = "DN-DUMMY"
+			doc.items[0].dn_detail = "DN-DUMMY-1"
+			doc.flags.ignore_links = True
+			doc.save()
+			doc.flags.ignore_links = True
+			doc.submit()
+			self.assertEqual(doc.docstatus, 1)
+			self.assertEqual(doc.status, "Return")
+			self.assertEqual(doc.ef_status, "Signed by Buyer")
+		finally:
+			if idno_field:
+				frappe.db.set_value("Customer", cust, idno_field, prev_idno, update_modified=False)
+
+	def test_mark_as_return_blocked_when_linked(self):
+		from erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura import (
+			mark_as_return,
+		)
+
+		item = frappe.db.get_value("Item", {"disabled": 0}, ["name", "stock_uom"], as_dict=True)
+		sup = frappe.db.get_value("Supplier", {}, "name")
+		if not item or not sup:
+			self.skipTest("Need Item and Supplier")
+		self._delete_buyer("EBJ", "000067004")
+		doc = frappe.get_doc(
+			{
+				"doctype": "Purchase eFactura",
+				"naming_series": "ACC-PEF-.YYYY.-",
+				"company": self.company,
+				"ef_series": "EBJ",
+				"ef_number": "000067004",
+				"ef_status": 8,
+				"supplier_party_type": "Supplier",
+				"supplier_party": sup,
+			}
+		)
+		doc.fill_from_xml(self._non_livrare_xml("000067004"))
+		doc.items[0].item_code = item.name
+		doc.items[0].ef_uom = item.stock_uom
+		doc.items[0].uom = item.stock_uom
+		doc.items[0].purchase_receipt = "PR-DUMMY"
+		doc.items[0].pr_detail = "PR-DUMMY-1"
+		doc.flags.ignore_links = True
+		doc.insert()
+		with self.assertRaises(frappe.ValidationError):
+			mark_as_return(doc.name)
+
+	def test_unmark_as_return_restores_supplier(self):
+		from erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura import (
+			mark_as_return,
+			unmark_as_return,
+		)
+		from erpnext_moldova_efactura.utils.party import get_customer_idno_field
+
+		item = frappe.db.get_value("Item", {"disabled": 0}, ["name", "stock_uom"], as_dict=True)
+		sup = frappe.db.get_value("Supplier", {}, "name")
+		cust = frappe.db.get_value("Customer", {}, "name")
+		if not item or not sup or not cust or not self._idno_field:
+			self.skipTest("Need Item, Supplier, Customer, and Supplier IDNO field")
+		self._delete_buyer("EBJ", "000067012")
+		idno_field = get_customer_idno_field()
+		prev_idno = None
+		if idno_field:
+			prev_idno = frappe.db.get_value("Customer", cust, idno_field)
+			frappe.db.set_value("Customer", cust, idno_field, self.SAMPLE_SUPPLIER_IDNO, update_modified=False)
+		try:
+			doc = frappe.get_doc(
+				{
+					"doctype": "Purchase eFactura",
+					"naming_series": "ACC-PEF-.YYYY.-",
+					"company": self.company,
+					"ef_series": "EBJ",
+					"ef_number": "000067012",
+					"ef_status": 8,
+					"supplier_party_type": "Supplier",
+					"supplier_party": sup,
+				}
+			)
+			doc.fill_from_xml(self._non_livrare_xml("000067012"))
+			doc.items[0].item_code = item.name
+			doc.items[0].ef_uom = item.stock_uom
+			doc.items[0].uom = item.stock_uom
+			doc.insert()
+			mark_as_return(doc.name)
+			doc.reload()
+			self.assertEqual(cint(doc.is_return), 1)
+			self.assertEqual(doc.supplier_party_type, "Customer")
+			self.assertNotEqual(doc.status, "Return")
+			unmark_as_return(doc.name)
+			doc.reload()
+			self.assertEqual(cint(doc.is_return), 0)
+			self.assertEqual(doc.supplier_party_type, "Supplier")
+			self.assertEqual(doc.supplier_party, self._idno_supplier)
+			with self.assertRaises(frappe.ValidationError):
+				unmark_as_return(doc.name)
+		finally:
+			if idno_field:
+				frappe.db.set_value("Customer", cust, idno_field, prev_idno, update_modified=False)
+
+	def test_unmark_as_return_blocked_when_linked(self):
+		from erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura import (
+			mark_as_return,
+			unmark_as_return,
+		)
+
+		item = frappe.db.get_value("Item", {"disabled": 0}, ["name", "stock_uom"], as_dict=True)
+		sup = frappe.db.get_value("Supplier", {}, "name")
+		if not item or not sup:
+			self.skipTest("Need Item and Supplier")
+		self._delete_buyer("EBJ", "000067013")
+		doc = frappe.get_doc(
+			{
+				"doctype": "Purchase eFactura",
+				"naming_series": "ACC-PEF-.YYYY.-",
+				"company": self.company,
+				"ef_series": "EBJ",
+				"ef_number": "000067013",
+				"ef_status": 8,
+				"supplier_party_type": "Supplier",
+				"supplier_party": sup,
+			}
+		)
+		doc.fill_from_xml(self._non_livrare_xml("000067013"))
+		doc.items[0].item_code = item.name
+		doc.items[0].ef_uom = item.stock_uom
+		doc.items[0].uom = item.stock_uom
+		doc.insert()
+		mark_as_return(doc.name)
+		doc.reload()
+		doc.items[0].delivery_note = "DN-DUMMY"
+		doc.items[0].dn_detail = "DN-DUMMY-1"
+		doc.flags.ignore_links = True
+		doc.save()
+		with self.assertRaises(frappe.ValidationError) as ctx:
+			unmark_as_return(doc.name)
+		self.assertIn("linked", str(ctx.exception).lower())
 
 	def test_fill_from_xml_drops_pi_links_on_duplicate_supplier_items(self):
 		item = frappe.db.get_value("Item", {"disabled": 0}, ["name", "stock_uom"], as_dict=True)
@@ -1453,7 +1820,8 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 				"ef_series": "EBJ",
 				"ef_number": number,
 				"ef_status": 8,
-				"supplier": sup,
+				"supplier_party_type": "Supplier",
+				"supplier_party": sup,
 			}
 		)
 		doc.fill_from_xml(xml)
@@ -1524,7 +1892,7 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 			self.skipTest("Need Item and Supplier")
 
 		doc = self._make_buyer("000066801", sup, item, qty=2)
-		doc.db_set("supplier", None)
+		doc.db_set("supplier_party", None)
 		doc.reload()
 		pi = self._make_pi(sup, item.name, 2, item.stock_uom)
 		self.assertRaises(frappe.ValidationError, link_purchase_invoice, doc.name, pi.name)
@@ -1552,6 +1920,129 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 			self.assertNotIn("Linked to PI", doc.status or "")
 		finally:
 			frappe.db.set_single_value("eFactura Settings", "vat_included_in_rate", prev_incl)
+
+	def test_unlink_purchase_invoice_clears_both_sides(self):
+		from erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura import (
+			link_purchase_invoice,
+			unlink_purchase_invoice,
+		)
+
+		item = frappe.db.get_value("Item", {"disabled": 0}, ["name", "stock_uom"], as_dict=True)
+		sup = frappe.db.get_value("Supplier", {}, "name")
+		if not item or not sup:
+			self.skipTest("Need Item and Supplier")
+
+		doc = self._make_buyer("000067021", sup, item, qty=2)
+		prev_incl = frappe.db.get_single_value("eFactura Settings", "vat_included_in_rate")
+		frappe.db.set_single_value("eFactura Settings", "vat_included_in_rate", 0)
+		try:
+			pi = self._make_pi(sup, item.name, 2, item.stock_uom, rate=50)
+			self._align_pi_totals(pi, doc)
+			link_purchase_invoice(doc.name, pi.name)
+			unlink_purchase_invoice(doc.name)
+			doc.reload()
+			self.assertFalse(doc.items[0].purchase_invoice)
+			self.assertFalse(doc.items[0].pi_detail)
+			if frappe.get_meta("Purchase Invoice").has_field("purchase_efactura"):
+				self.assertFalse(frappe.db.get_value("Purchase Invoice", pi.name, "purchase_efactura"))
+		finally:
+			frappe.db.set_single_value("eFactura Settings", "vat_included_in_rate", prev_incl)
+
+	def test_unlink_blocked_after_submit(self):
+		from erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura import (
+			unlink_purchase_invoice,
+		)
+
+		item = frappe.db.get_value("Item", {"disabled": 0}, ["name", "stock_uom"], as_dict=True)
+		sup = frappe.db.get_value("Supplier", {}, "name")
+		if not item or not sup:
+			self.skipTest("Need Item and Supplier")
+
+		doc = self._make_buyer("000067022", sup, item, qty=2)
+		doc.items[0].purchase_invoice = "PINV-DUMMY"
+		doc.items[0].pi_detail = "PINV-DUMMY-1"
+		doc.flags.ignore_links = True
+		doc.save()
+		doc.flags.ignore_links = True
+		doc.submit()
+		with self.assertRaises(frappe.ValidationError) as ctx:
+			unlink_purchase_invoice(doc.name)
+		self.assertIn("before submitting", str(ctx.exception))
+
+	def test_unlink_purchase_receipt_clears_rows(self):
+		from erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura import (
+			unlink_purchase_receipt,
+		)
+
+		item = frappe.db.get_value("Item", {"disabled": 0}, ["name", "stock_uom"], as_dict=True)
+		sup = frappe.db.get_value("Supplier", {}, "name")
+		if not item or not sup:
+			self.skipTest("Need Item and Supplier")
+		self._delete_buyer("EBJ", "000067023")
+		doc = frappe.get_doc(
+			{
+				"doctype": "Purchase eFactura",
+				"naming_series": "ACC-PEF-.YYYY.-",
+				"company": self.company,
+				"ef_series": "EBJ",
+				"ef_number": "000067023",
+				"ef_status": 8,
+				"supplier_party_type": "Supplier",
+				"supplier_party": sup,
+			}
+		)
+		doc.fill_from_xml(self._non_livrare_xml("000067023"))
+		doc.items[0].item_code = item.name
+		doc.items[0].ef_uom = item.stock_uom
+		doc.items[0].uom = item.stock_uom
+		doc.items[0].purchase_receipt = "PR-DUMMY"
+		doc.items[0].pr_detail = "PR-DUMMY-1"
+		doc.flags.ignore_links = True
+		doc.insert()
+		unlink_purchase_receipt(doc.name)
+		doc.reload()
+		self.assertFalse(doc.items[0].purchase_receipt)
+		self.assertFalse(doc.items[0].pr_detail)
+
+	def test_unlink_delivery_note_clears_rows(self):
+		from erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura import (
+			mark_as_return,
+			unlink_delivery_note,
+		)
+
+		item = frappe.db.get_value("Item", {"disabled": 0}, ["name", "stock_uom"], as_dict=True)
+		sup = frappe.db.get_value("Supplier", {}, "name")
+		if not item or not sup:
+			self.skipTest("Need Item and Supplier")
+		self._delete_buyer("EBJ", "000067024")
+		doc = frappe.get_doc(
+			{
+				"doctype": "Purchase eFactura",
+				"naming_series": "ACC-PEF-.YYYY.-",
+				"company": self.company,
+				"ef_series": "EBJ",
+				"ef_number": "000067024",
+				"ef_status": 8,
+				"supplier_party_type": "Supplier",
+				"supplier_party": sup,
+			}
+		)
+		doc.fill_from_xml(self._non_livrare_xml("000067024"))
+		doc.items[0].item_code = item.name
+		doc.items[0].ef_uom = item.stock_uom
+		doc.items[0].uom = item.stock_uom
+		doc.insert()
+		mark_as_return(doc.name)
+		doc.reload()
+		doc.items[0].delivery_note = "DN-DUMMY"
+		doc.items[0].dn_detail = "DN-DUMMY-1"
+		doc.flags.ignore_links = True
+		doc.save()
+		unlink_delivery_note(doc.name)
+		doc.reload()
+		self.assertFalse(doc.items[0].delivery_note)
+		self.assertFalse(doc.items[0].dn_detail)
+		self.assertEqual(cint(doc.is_return), 1)
 
 	def test_linkable_purchase_invoices_hides_fully_covered(self):
 		from erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura import (
@@ -1692,13 +2183,12 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 		doc.save()
 		doc.flags.ignore_links = True
 		doc.submit()
-		self.assertEqual(doc.status, "Accepted")
-		self.assertEqual(doc.efactura_status, doc.status)
+		self.assertEqual(doc.status, "Submitted")
+		self.assertEqual(doc.ef_status, "Accepted")
 		doc.persist_sfs_status(8)
 		doc.reload()
-		self.assertEqual(cint(doc.ef_status), 8)
-		self.assertEqual(doc.status, "Signed by Buyer")
-		self.assertEqual(doc.efactura_status, doc.status)
+		self.assertEqual(doc.ef_status, "Signed by Buyer")
+		self.assertEqual(doc.status, "Submitted")
 		self.assertTrue(doc.last_status_check)
 
 		doc.ef_status = 3
@@ -1707,7 +2197,8 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 		doc.flags.ignore_links = True
 		doc.save()
 		doc.reload()
-		self.assertEqual(doc.status, "Accepted")
+		self.assertEqual(doc.status, "Submitted")
+		self.assertEqual(doc.ef_status, "Accepted")
 
 
 
@@ -2155,6 +2646,9 @@ class TestBuyerStatusSyncOrder(FrappeTestCase):
 			frappe.delete_doc("Purchase eFactura", name, force=True, ignore_permissions=True)
 
 	def _insert(self, number: str, ef_status: int, last_status_check: str):
+		from erpnext_moldova_efactura.utils.buyer_status import status_label
+
+		label = status_label(ef_status)
 		doc = frappe.get_doc(
 			{
 				"doctype": "Purchase eFactura",
@@ -2162,12 +2656,12 @@ class TestBuyerStatusSyncOrder(FrappeTestCase):
 				"company": self.company,
 				"ef_series": self.SERIES,
 				"ef_number": number,
-				"ef_status": ef_status,
+				"ef_status": label,
 			}
 		)
 		doc.flags.from_efactura_sync = True
 		doc.insert(ignore_permissions=True)
-		doc.db_set("ef_status", ef_status, update_modified=False)
+		doc.db_set("ef_status", label, update_modified=False)
 		doc.db_set("last_status_check", last_status_check, update_modified=False)
 		return doc
 

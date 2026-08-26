@@ -7,6 +7,8 @@ frappe.ui.form.on('Sales eFactura', {
             return doc.docstatus == 1 || doc.stock_qty <= doc.available_stock_qty ? "green" : "red";
         });
         ensure_customer_idno_field(frm);
+        ensure_supplier_idno_field(frm);
+        ensure_fiscal_territory(frm);
     },
 
     before_submit(frm) {
@@ -66,14 +68,18 @@ frappe.ui.form.on('Sales eFactura', {
         setup_sales_invoice_query(frm);
         update_company_bank_account(frm);
         update_transporter_party(frm);
-        apply_currency_rules(frm);
+        apply_currency_rules(frm, { fetch_rate: false });
         ef_set_items_grid_currency_labels(frm);
+        sync_sef_party_type(frm);
         autofillEfDetails(frm, "supplier");
         autofillEfDetails(frm, "customer");
         autofillEfDetails(frm, "transporter");
         ensure_customer_idno_field(frm);
-        setup_new_customer_from_factura(frm);
+        ensure_supplier_idno_field(frm);
+        ensure_fiscal_territory(frm);
+        setup_new_party_from_factura(frm);
         setup_new_item_from_factura(frm);
+        update_customer(frm);
 
         if (
 			// !frm.doc.is_return &&
@@ -85,7 +91,7 @@ frappe.ui.form.on('Sales eFactura', {
 			frm.add_custom_button(
 				__("Delivery Note"),
 				function () {
-					if (!frm.doc.customer) {
+					if (!frm.doc.customer_party) {
 						frappe.throw({
 							title: __("Mandatory"),
 							message: __("Please select a Customer first."),
@@ -93,13 +99,10 @@ frappe.ui.form.on('Sales eFactura', {
 					}
 					erpnext.utils.map_current_doc({
 						method: "erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.make_efactura_from_delivery_note",
-						// args: {
-						// 	for_reserved_stock: 1,
-						// },
 						source_doctype: "Delivery Note",
 						target: frm,
 						setters: {
-							customer: frm.doc.customer,
+							customer: frm.doc.customer_party,
 						},
 						get_query_filters: {
 							docstatus: 1,
@@ -133,7 +136,7 @@ frappe.ui.form.on('Sales eFactura', {
         if (
             !frm.is_new() && 
             frm.doc.docstatus === 1 &&
-            frm.doc.ef_status != -1
+            frm.doc.ef_status !== "Pending Registration"
         ) {
             frm.add_custom_button(
                 __("Download PDF"), 
@@ -169,9 +172,63 @@ frappe.ui.form.on('Sales eFactura', {
         }
 
         if (
+            !frm.is_new() &&
+            frm.doc.docstatus === 1 &&
+            frm.has_perm("write") &&
+            frm.doc.ef_series &&
+            frm.doc.ef_number &&
+            [
+                "Signed by Supplier",
+                "Sent to Customer",
+                "Accepted by Customer",
+                "Signed by Customer",
+                "Rejected by Customer",
+                "Transportation",
+            ].includes(frm.doc.ef_status)
+        ) {
+            frm.add_custom_button(
+                __("Cancel"),
+                () => {
+                    frappe.prompt(
+                        [
+                            {
+                                fieldname: "reason",
+                                fieldtype: "Small Text",
+                                label: __("Cancellation Reason"),
+                                reqd: 1,
+                                default: frm.doc.cancellation_reason || "",
+                            },
+                        ],
+                        (values) => {
+                            frappe.call({
+                                method: "erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.cancel_invoice",
+                                args: {
+                                    name: frm.doc.name,
+                                    reason: values.reason,
+                                },
+                                freeze: true,
+                                freeze_message: __("Canceling e-Factura..."),
+                                callback() {
+                                    frappe.show_alert({
+                                        message: __("e-Factura canceled."),
+                                        indicator: "orange",
+                                    });
+                                    frm.reload_doc();
+                                },
+                            });
+                        },
+                        __("Cancel e-Factura"),
+                        __("Cancel")
+                    );
+                },
+                __("eFactura Actions")
+            );
+        }
+
+        if (
             !frm.is_new() && 
             frm.doc.docstatus === 1 && 
-            frm.doc.ef_status == -1 &&
+            frm.doc.ef_status === "Pending Registration" &&
             frm.has_perm("write")
         ) {
             frm.add_custom_button(
@@ -379,11 +436,12 @@ frappe.ui.form.on('Sales eFactura', {
         } else if (frm.doc.type == "Non-Transfer") {
             frm.set_value("naming_series", "ACC-SEF-NT-.YYYY.-");
         }
+        sync_sef_party_type(frm);
     },
 
     async sales_invoice(frm) {
         await validate_sales_invoice_customer(frm);
-        update_customer(frm);
+        update_customer(frm, { sync_from_si: true });
     },
 
     company(frm) {
@@ -392,27 +450,29 @@ frappe.ui.form.on('Sales eFactura', {
 
         if (!frm.doc.company) {
             frm.set_value('company_bank_account', null);
+        } else {
+            set_default_company_bank_account(frm);
         }
         update_company_bank_account(frm);
-        update_transporter_party(frm);
+        update_transporter_party(frm, { apply_defaults: true });
     },
 
-    customer(frm) {
+    customer_party(frm) {
         setup_sales_invoice_query(frm);
     },
 
     currency(frm) {
-        apply_currency_rules(frm);
+        apply_currency_rules(frm, { fetch_rate: true });
         ef_set_items_grid_currency_labels(frm);
     },
 
     ef_currency(frm) {
-        apply_currency_rules(frm);
+        apply_currency_rules(frm, { fetch_rate: true });
         ef_set_items_grid_currency_labels(frm);
     },
 
     issue_date(frm) {
-        apply_currency_rules(frm);
+        apply_currency_rules(frm, { fetch_rate: true });
     },
 
     transporter_party_type(frm) {
@@ -421,7 +481,7 @@ frappe.ui.form.on('Sales eFactura', {
             frm.set_value('transporter_party', null);
         } else {
             // If switched to Company: set transporter_party from company (if available)
-            update_transporter_party(frm);
+            update_transporter_party(frm, { apply_defaults: true });
         }
     },
 
@@ -439,7 +499,7 @@ async function validate_sales_invoice_customer(frm) {
     if (!si) {
         return;
     }
-    if (!frm.doc.customer) {
+    if ((frm.doc.customer_party_type || "Customer") !== "Customer" || !frm.doc.customer_party) {
         await frm.set_value('sales_invoice', null);
         frappe.throw(__('Select Customer first'));
     }
@@ -451,10 +511,10 @@ async function validate_sales_invoice_customer(frm) {
     } catch (e) {
         return;
     }
-    if (si_customer && si_customer !== frm.doc.customer) {
+    if (si_customer && si_customer !== frm.doc.customer_party) {
         await frm.set_value('sales_invoice', null);
         frappe.throw(
-            __('Sales Invoice {0} does not belong to Customer {1}', [si, frm.doc.customer])
+            __('Sales Invoice {0} does not belong to Customer {1}', [si, frm.doc.customer_party])
         );
     }
 }
@@ -468,14 +528,15 @@ function setup_sales_invoice_query(frm) {
         if (frm.doc.company) {
             filters.company = frm.doc.company;
         }
-        if (frm.doc.customer) {
-            filters.customer = frm.doc.customer;
+        if (frm.doc.customer_party_type === "Customer" && frm.doc.customer_party) {
+            filters.customer = frm.doc.customer_party;
         }
         return { filters };
     });
 }
 
-async function apply_currency_rules(frm) {
+async function apply_currency_rules(frm, opts) {
+    const fetch_rate = !!(opts && opts.fetch_rate) || frm.is_new();
     const cur = frm.doc.currency;
     const efCur = frm.doc.ef_currency;
 
@@ -487,8 +548,8 @@ async function apply_currency_rules(frm) {
 
     // Same currency: rate = 1 and read-only
     if (cur === efCur) {
-        if (frm.doc.ef_conversion_rate !== 1) {
-            frm.set_value('ef_conversion_rate', 1);
+        if (fetch_rate && flt(frm.doc.ef_conversion_rate) !== 1) {
+            await frm.set_value('ef_conversion_rate', 1);
         }
         frm.set_df_property('ef_conversion_rate', 'read_only', 1);
         return;
@@ -496,6 +557,9 @@ async function apply_currency_rules(frm) {
 
     // Different currencies: editable
     frm.set_df_property('ef_conversion_rate', 'read_only', 0);
+    if (!fetch_rate) {
+        return;
+    }
 
     // Try to auto-fetch rate by issue_date (fallback to today)
     const date = frm.doc.issue_date || frappe.datetime.get_today();
@@ -511,8 +575,8 @@ async function apply_currency_rules(frm) {
         });
 
         const rate = r && r.message ? flt(r.message) : 0;
-        if (rate && rate > 0) {
-            frm.set_value('ef_conversion_rate', rate);
+        if (rate && rate > 0 && flt(frm.doc.ef_conversion_rate) !== rate) {
+            await frm.set_value('ef_conversion_rate', rate);
         }
     } catch (e) {
         // Leave editable for manual input
@@ -523,7 +587,7 @@ function update_company_bank_account(frm) {
     const company = frm.doc.company;
     frm.toggle_enable('company_bank_account', !!company);
 
-    if (company) {
+    if (company && frm.is_new()) {
         set_default_company_bank_account(frm);
     }
 
@@ -590,14 +654,38 @@ async function set_default_company_bank_account(frm) {
     }
 }
 
-function update_customer(frm) {
+function expected_sef_party_type(frm) {
+    return frm.doc.type === "Non-Transfer" ? "Supplier" : "Customer";
+}
+
+function sync_sef_party_type(frm) {
+    const expected = expected_sef_party_type(frm);
+    if ((frm.doc.customer_party_type || "") !== expected) {
+        frm.doc.customer_party_type = expected;
+        const field = frm.fields_dict.customer_party_type;
+        if (field) {
+            field.last_value = expected;
+            if (typeof field.set_input === "function") {
+                field.set_input(expected);
+            }
+        }
+    }
+    if (frm.fields_dict.customer_party) {
+        frm.set_df_property("customer_party", "hidden", 0);
+        frm.refresh_field("customer_party");
+    }
+}
+
+function update_customer(frm, opts) {
     const hasRefName = !!frm.doc.sales_invoice;
 
-    if (hasRefName) {
-        frm.set_df_property('customer', 'read_only', 1);
-        update_customer_from_reference(frm);
+    if (hasRefName && (frm.doc.customer_party_type || "Customer") === "Customer") {
+        frm.set_df_property('customer_party', 'read_only', 1);
+        if (opts && opts.sync_from_si) {
+            update_customer_from_reference(frm);
+        }
     } else {
-        frm.set_df_property('customer', 'read_only', 0);
+        frm.set_df_property('customer_party', 'read_only', 0);
     }
 }
 
@@ -617,8 +705,8 @@ async function update_customer_from_reference(frm) {
         });
 
         if (r && r.message && r.message.customer) {
-            if (frm.doc.customer !== r.message.customer) {
-                await frm.set_value('customer', r.message.customer);
+            if (frm.doc.customer_party !== r.message.customer) {
+                await frm.set_value('customer_party', r.message.customer);
             }
         }
     } catch (e) {
@@ -633,23 +721,18 @@ async function update_customer_from_reference(frm) {
  * - If company is cleared, transporter_party is NOT cleared and remains editable
  * - If transporter_party_type is not Company, transporter_party is editable (if type selected)
  */
-function update_transporter_party(frm) {
+function update_transporter_party(frm, opts) {
+    const apply_defaults = !!(opts && opts.apply_defaults);
     const isCompanyTransporter = frm.doc.transporter_party_type === 'Company';
     const company = frm.doc.company;
     const hasType = !!frm.doc.transporter_party_type;
-    // const typeWasChanged = frm.doc.transporter_party_type !== frm.fields_dict['transporter_party_type'].last_value;
-
-    // if (typeWasChanged) {
-    //     // If type is unset: clear dependent fields
-    //     frm.set_value('transporter_party', null);
-    // }
 
     // Disable transporter_party if transporter_party_type is not selected
     if (!hasType) {
         frm.set_df_property('transporter_party', 'read_only', 1);
     } else if (isCompanyTransporter) {
         if (company) {
-            if (frm.doc.transporter_party !== company) {
+            if (apply_defaults && frm.doc.transporter_party !== company) {
                 frm.set_value('transporter_party', company);
             }
             frm.set_df_property('transporter_party', 'read_only', 1);
@@ -670,9 +753,9 @@ function update_transporter_party(frm) {
                 filters: { is_transporter: 1 }
             };
             // If transporter is Customer, filter to customer
-        } else if (frm.doc.transporter_party_type === 'Customer' && frm.doc.customer) {
+        } else if (frm.doc.transporter_party_type === 'Customer' && frm.doc.customer_party) {
             return {
-                filters: { name: frm.doc.customer }
+                filters: { name: frm.doc.customer_party }
             };
         } else if (frm.doc.transporter_party_type === 'Company' && frm.doc.company) {
             return {
@@ -722,30 +805,58 @@ function ensure_customer_idno_field(frm) {
     });
 }
 
+function ensure_supplier_idno_field(frm) {
+    if (frm._supplier_idno_field !== undefined) {
+        return;
+    }
+    frappe.db.get_single_value("eFactura Settings", "supplier_idno_field").then((field) => {
+        frm._supplier_idno_field = field;
+    });
+}
+
+function ensure_fiscal_territory(frm) {
+    if (frm._fiscal_territory !== undefined) {
+        return;
+    }
+    frappe.db.get_single_value("eFactura Settings", "fiscal_territory").then((value) => {
+        frm._fiscal_territory = value || "";
+    });
+}
+
 function customer_route_options_from_factura(frm) {
     const opts = {};
-    const customerName = normalize_party_title(frm.doc.ef_customer_name);
-    if (customerName) {
-        opts.name_field = customerName;
-        opts.customer_name = customerName;
+    const partyName = normalize_party_title(frm.doc.ef_customer_name);
+    const ptype = frm.doc.customer_party_type || "Customer";
+    if (partyName) {
+        opts.name_field = partyName;
+        if (ptype === "Supplier") {
+            opts.supplier_name = partyName;
+        } else {
+            opts.customer_name = partyName;
+        }
     }
-    const idnoField = frm._customer_idno_field;
+    const idnoField = ptype === "Supplier" ? frm._supplier_idno_field : frm._customer_idno_field;
     const idno = (frm.doc.ef_customer_idno || "").trim();
     if (idnoField && idno) {
         opts[idnoField] = idno;
     }
     const taxpayerType = frm.doc.ef_customer_taxpayer_type;
-    if (taxpayerType === "Individual") {
-        opts.customer_type = "Individual";
-    } else if (taxpayerType === "Company" || taxpayerType === "Non-Resident") {
-        opts.customer_type = "Company";
+    if (ptype !== "Supplier") {
+        if (taxpayerType === "Individual") {
+            opts.customer_type = "Individual";
+        } else if (taxpayerType === "Company" || taxpayerType === "Non-Resident") {
+            opts.customer_type = "Company";
+        }
+    }
+    if (frm._fiscal_territory) {
+        opts.territory = frm._fiscal_territory;
     }
     return opts;
 }
 
-function setup_new_customer_from_factura(frm) {
-    const field = frm.fields_dict.customer;
-    const df = frm.get_docfield("customer");
+function setup_new_party_from_factura(frm) {
+    const field = frm.fields_dict.customer_party;
+    const df = frm.get_docfield("customer_party");
     if (!field || !df || frm.doc.docstatus !== 0) {
         return;
     }
@@ -985,7 +1096,7 @@ function ef_item_get_conversion_factor(item, uom, stock_uom) {
 }
 
 function ef_is_sfs_sourced(frm) {
-    return cint(frm.doc.ef_status) !== -1 && frm.doc.ef_series && frm.doc.ef_number;
+    return frm.doc.ef_status && frm.doc.ef_status !== "Pending Registration" && frm.doc.ef_series && frm.doc.ef_number;
 }
 
 async function ef_item_apply_vat_rate_from_template(frm, row) {
@@ -1236,7 +1347,7 @@ function describe_unmapped_sef_row(row, currency) {
 }
 
 function assert_sef_ready_to_create(frm, actionLabel) {
-    if (!frm.doc.customer) {
+    if (!frm.doc.customer_party) {
         frappe.throw({
             title: __("Mandatory"),
             message: __("Customer is required to create {0}", [actionLabel]),

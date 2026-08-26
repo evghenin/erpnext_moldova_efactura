@@ -2,7 +2,7 @@
 
 ERPNext integration for Moldovan electronic tax invoices (e-Factura / SFS).
 
-Version **2.0.0**. Requires ERPNext / Frappe v15.
+Version **2.1.0**. Requires ERPNext / Frappe v15.
 
 Outgoing invoices are **Sales eFactura**. Incoming invoices are **Purchase eFactura**. Desk workspaces: **eFactura**, **eFactura Sales**, **eFactura Purchase**.
 
@@ -11,7 +11,8 @@ Outgoing invoices are **Sales eFactura**. Incoming invoices are **Purchase eFact
 #### Sales eFactura
 
 - Create e-Factura from a Sales Invoice (Transfer / Non-Transfer).
-- Sign, send, and track SFS status (`ef_status` + document status).
+- Sign, send, and track SFS status (`ef_status` text labels, separate from document Status).
+- Cancel a submitted invoice in SFS (comment required). Drafts can only be deleted in the SFS portal.
 - Optional **Include Archived Invoices** in eFactura Settings (Sales → Fetch / Sync; off by default) includes SFS status Archived (6) in Fetch / daily sync.
 - Bulk **Register Signed** and **Register Unsigned** from the Sales eFactura list. A confirmation lists ineligible documents (skipped) and eligible documents that will be processed.
 - Multi-currency: document currency vs eFactura currency (`MDL`) with `ef_conversion_rate`.
@@ -20,7 +21,7 @@ Outgoing invoices are **Sales eFactura**. Incoming invoices are **Purchase eFact
 
 #### Purchase eFactura
 
-- Fetch buyer invoices from SFS (cannot be created manually).
+- Fetch buyer invoices from SFS, including **Signed by Supplier** (cannot be created manually).
 - Optional **Include Archived Invoices** in eFactura Settings (Purchase → Fetch / Sync; off by default) includes SFS status Archived (6).
 - Accept, reject (with comment), PDF, and refresh status.
 - Bulk **Sign** and **Accept** from the Purchase eFactura list. A confirmation lists ineligible documents (skipped) and eligible documents that will be processed.
@@ -60,6 +61,12 @@ bench --site $SITE migrate
 ```
 
 Then open **eFactura Settings**, set the API URL, and add a **Company API Accounts** row for each legal entity.
+
+### Upgrade from 2.0
+
+```bash
+bench --site $SITE migrate
+```
 
 ### Upgrade from 1.x
 

@@ -1,25 +1,43 @@
 frappe.listview_settings["Sales eFactura"] = {
 	hide_name_column: false,
-	add_fields: ["status", "total", "customer", "sales_invoice"],
-	filters: [["status", "not in", ["Cancelled", "Canceled by Supplier"]]],
+	add_fields: ["status", "ef_status", "total", "customer_party", "sales_invoice", "is_return"],
+	filters: [
+		["status", "not in", ["Cancelled"]],
+		["ef_status", "not in", ["Canceled by Supplier"]],
+	],
 	get_indicator(doc) {
-		const colors = {
-			Draft: "gray",
-			Cancelled: "darkgrey",
-			"Pending Registration": "orange",
-			"Registered as Draft": "orange",
-			"Signed by Supplier": "blue",
-			"Rejected by Customer": "red",
-			"Accepted by Customer": "yellow",
-			"Canceled by Supplier": "darkgrey",
-			Archived: "darkgrey",
-			"Sent to Customer": "yellow",
-			"Signed by Customer": "green",
-			Transportation: "blue",
-			"Cancellation Requested": "purple",
-		};
-		const status = doc.status || "";
-		return [__(status), colors[status] || "gray", "status,=," + status];
+		if (cint(doc.docstatus) === 1 && cint(doc.is_return) === 1) {
+			return [__("Return"), "gray", "status,=,Return"];
+		}
+		if (cint(doc.docstatus) === 2) {
+			return [__("Cancelled"), "red", "docstatus,=,2"];
+		}
+		if (cint(doc.docstatus) === 1) {
+			return [__("Submitted"), "blue", "docstatus,=,1"];
+		}
+		return [__("Draft"), "red", "docstatus,=,0"];
+	},
+	formatters: {
+		ef_status(value) {
+			if (!value) {
+				return "";
+			}
+			const colors = {
+				"Pending Registration": "orange",
+				"Registered as Draft": "orange",
+				"Signed by Supplier": "blue",
+				"Rejected by Customer": "red",
+				"Accepted by Customer": "yellow",
+				"Canceled by Supplier": "darkgrey",
+				Archived: "darkgrey",
+				"Sent to Customer": "yellow",
+				"Signed by Customer": "green",
+				Transportation: "blue",
+				"Cancellation Requested": "purple",
+			};
+			const color = colors[value] || "gray";
+			return `<span class="indicator-pill no-indicator-dot ${color}">${frappe.utils.escape_html(__(value))}</span>`;
+		},
 	},
 	onload(listview) {
 		if (!frappe.model.can_write("Sales eFactura")) {

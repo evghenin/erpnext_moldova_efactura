@@ -174,6 +174,16 @@ doc_events = {
         "on_cancel": "erpnext_moldova_efactura.overrides.purchase_invoice.on_cancel",
         "on_trash": "erpnext_moldova_efactura.overrides.purchase_invoice.on_trash",
     },
+    "Purchase Receipt": {
+        "before_submit": "erpnext_moldova_efactura.overrides.purchase_receipt.before_submit",
+        "on_cancel": "erpnext_moldova_efactura.overrides.purchase_receipt.on_cancel",
+        "on_trash": "erpnext_moldova_efactura.overrides.purchase_receipt.on_trash",
+    },
+    "Delivery Note": {
+        "before_submit": "erpnext_moldova_efactura.overrides.delivery_note.before_submit",
+        "on_cancel": "erpnext_moldova_efactura.overrides.delivery_note.on_cancel",
+        "on_trash": "erpnext_moldova_efactura.overrides.delivery_note.on_trash",
+    },
 }
 
 # Scheduled Tasks
@@ -239,6 +249,7 @@ override_doctype_dashboards = {
     "Delivery Note": "erpnext_moldova_efactura.overrides.dashboard.get_delivery_note_dashboard",
     "Purchase Invoice": "erpnext_moldova_efactura.overrides.dashboard.get_purchase_invoice_dashboard",
     "Purchase Order": "erpnext_moldova_efactura.overrides.dashboard.get_purchase_order_dashboard",
+    "Purchase Receipt": "erpnext_moldova_efactura.overrides.dashboard.get_purchase_receipt_dashboard",
     "Sales Order": "erpnext_moldova_efactura.overrides.dashboard.get_sales_order_dashboard",
 }
 

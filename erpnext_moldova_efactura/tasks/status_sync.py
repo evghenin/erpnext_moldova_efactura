@@ -6,19 +6,21 @@ from erpnext_moldova_efactura.utils.company_api import get_sync_targets
 from erpnext_moldova_efactura.utils.search_windows import iter_search_invoices
 
 
-CHECKABLE_EF_STATUSES = (
-    0,  # Draft
-    1,  # Signed by Supplier
-    # 2,  # Rejected by Customer
-    3,  # Accepted by Customer
-    # 5,  # Canceled by Supplier
-    7,  # Sent to Customer
-    # 8,  # Signed by Customer
-    9,  # Sent to Customer
-    # 10, # Transported
+from erpnext_moldova_efactura.utils.fiscal_status import (
+    SEF_CANCELED_BY_SUPPLIER,
+    SEF_REGISTERED_AS_DRAFT,
+    sef_status_label,
 )
-DRAFT = 0
-CANCELLED_BY_SUPPLIER = 5
+
+
+CHECKABLE_EF_STATUSES = (
+    "Registered as Draft",
+    "Signed by Supplier",
+    "Accepted by Customer",
+    "Sent to Customer",
+)
+DRAFT = SEF_REGISTERED_AS_DRAFT
+CANCELLED_BY_SUPPLIER = SEF_CANCELED_BY_SUPPLIER
 DEFAULT_LOOKBACK_DAYS = 365
 MAX_RESULTS_PER_RUN = 20000  # safety limit
 BATCH_SIZE = 50
@@ -103,8 +105,9 @@ def sync_efactura_statuses():
 
                 doc = frappe.get_doc("Sales eFactura", row.name)
 
-                if doc.ef_status != new_status:
-                    doc.db_set("ef_status", new_status, update_modified=False)
+                label = sef_status_label(new_status)
+                if doc.ef_status != label:
+                    doc.db_set("ef_status", label, update_modified=False)
                     doc.set_status()
                     updated += 1
                 else:
@@ -250,8 +253,8 @@ def _apply_cancelled_status_to_local_docs(keys: list[tuple[str, str, int]], comp
 
         doc = frappe.get_doc("Sales eFactura", name)
 
-        if int(doc.ef_status or 0) != status:
-            doc.db_set("ef_status", status, update_modified=False)
+        if sef_status_label(doc.ef_status) != sef_status_label(status):
+            doc.db_set("ef_status", sef_status_label(status), update_modified=False)
             doc.set_status()
             updated += 1
 
@@ -264,11 +267,11 @@ def sync_efactura_draft_invoices_by_api_invoice_id():
     """Sync series/number/status for locally Draft invoices using APIInvoiceId.
 
     Use case: invoices were posted to e-Factura as *unsigned* XML, therefore the local
-    document may remain ef_status == 0 (Draft) and without ef_series/ef_number, while
+    document may remain ef_status == Registered as Draft and without ef_series/ef_number, while
     e-Factura may already have assigned a series/number and an updated status.
 
     Strategy:
-    - Select submitted local docs with ef_status == 0 (Draft)
+    - Select submitted local docs with ef_status == Registered as Draft
     - For each doc call SearchInvoices with Parameters.APIInvoiceId == doc.name
     - Expect a single invoice in response; update ef_series, ef_number, ef_status locally
     """
@@ -374,8 +377,8 @@ def sync_efactura_draft_invoices_by_api_invoice_id():
                 changed = True
 
             # Update status if present and different
-            if remote_status_code is not None and int(doc.ef_status or 0) != remote_status_code:
-                doc.db_set("ef_status", remote_status_code, update_modified=False)
+            if remote_status_code is not None and doc.ef_status != sef_status_label(remote_status_code):
+                doc.db_set("ef_status", sef_status_label(remote_status_code), update_modified=False)
                 doc.set_status()
                 changed = True
 

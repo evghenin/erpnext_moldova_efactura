@@ -368,6 +368,64 @@ class TestSaleseFactura(FrappeTestCase):
 		self.assertEqual(defaults.get("customer_name"), "HOTEL LIFE SRL")
 		self.assertEqual(defaults.get(field), "1024600026571")
 		self.assertEqual(defaults.get("customer_type"), "Company")
+		territory = frappe.db.get_single_value("eFactura Settings", "fiscal_territory")
+		if territory and frappe.db.exists("Territory", territory):
+			self.assertEqual(defaults.get("territory"), territory)
+
+	def test_is_sef_cancelable_status(self):
+		from erpnext_moldova_efactura.utils.fiscal_status import is_sef_cancelable_status
+
+		for code in (1, 2, 3, 7, 8, 9, 10):
+			self.assertTrue(is_sef_cancelable_status(code), code)
+		for label in (
+			"Signed by Supplier",
+			"Sent to Customer",
+			"Accepted by Customer",
+			"Signed by Customer",
+			"Rejected by Customer",
+			"Transportation",
+		):
+			self.assertTrue(is_sef_cancelable_status(label), label)
+		for code in (-1, 0, 5, 6, 11, None, ""):
+			self.assertFalse(is_sef_cancelable_status(code), code)
+		for label in (
+			"Pending Registration",
+			"Registered as Draft",
+			"Canceled by Supplier",
+			"Archived",
+			"Cancellation Requested",
+		):
+			self.assertFalse(is_sef_cancelable_status(label), label)
+
+	def test_assert_can_cancel(self):
+		from erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura import (
+			_assert_can_cancel,
+		)
+
+		ok = frappe._dict(
+			docstatus=1,
+			ef_series="AA",
+			ef_number="1",
+			ef_status="Sent to Customer",
+		)
+		_assert_can_cancel(ok)
+		_assert_can_cancel(
+			frappe._dict(docstatus=1, ef_series="AA", ef_number="1", ef_status="Rejected by Customer")
+		)
+		with self.assertRaises(frappe.ValidationError):
+			_assert_can_cancel(frappe._dict(docstatus=0, ef_series="AA", ef_number="1", ef_status=1))
+		with self.assertRaises(frappe.ValidationError):
+			_assert_can_cancel(
+				frappe._dict(docstatus=1, ef_series="", ef_number="", ef_status="Sent to Customer")
+			)
+		with self.assertRaises(frappe.ValidationError):
+			_assert_can_cancel(
+				frappe._dict(docstatus=1, ef_series="AA", ef_number="1", ef_status="Pending Registration")
+			)
+		with self.assertRaises(frappe.ValidationError):
+			_assert_can_cancel(
+				frappe._dict(docstatus=1, ef_series="AA", ef_number="1", ef_status="Registered as Draft")
+			)
 
 	def test_signable_skip_reason(self):
 		from erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura import (
@@ -402,7 +460,7 @@ class TestSaleseFactura(FrappeTestCase):
 
 		pending = frappe.get_all(
 			"Sales eFactura",
-			filters={"docstatus": 1, "ef_status": -1},
+			filters={"docstatus": 1, "ef_status": "Pending Registration"},
 			fields=["name", "status"],
 			limit=1,
 		)
@@ -482,3 +540,25 @@ class TestSaleseFactura(FrappeTestCase):
 			api.from_settings.return_value = client
 			sef.process_signed_xml("ACC-SEF-1", signature, content)
 			api.from_settings.assert_called_once_with(company="Hotel Life")
+
+	def test_sef_workflow_status_maps_return_to_sfs_label(self):
+		from types import SimpleNamespace
+
+		from erpnext_moldova_efactura.utils.fiscal_status import sef_workflow_status
+
+		self.assertEqual(
+			sef_workflow_status(SimpleNamespace(ef_status="Signed by Customer", status="Return")),
+			"Signed by Customer",
+		)
+		self.assertEqual(
+			sef_workflow_status(SimpleNamespace(ef_status=8, status="Return")),
+			"Signed by Customer",
+		)
+		self.assertEqual(
+			sef_workflow_status(SimpleNamespace(status="Signed by Customer")),
+			"Signed by Customer",
+		)
+		self.assertEqual(
+			sef_workflow_status(SimpleNamespace(status="Draft", ef_status=-1)),
+			"Pending Registration",
+		)

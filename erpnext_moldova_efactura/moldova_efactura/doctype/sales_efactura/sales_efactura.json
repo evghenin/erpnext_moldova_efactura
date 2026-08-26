@@ -16,7 +16,6 @@
   "ef_status",
   "si_qty_overage_confirmed",
   "column_break_grhc",
-  "type",
   "delivery_date",
   "issue_date",
   "column_break_dypc",
@@ -26,6 +25,8 @@
   "column_break_muzu",
   "amended_from",
   "sales_invoice",
+  "type",
+  "is_return",
   "section_currency",
   "currency",
   "column_break_hfwb",
@@ -46,7 +47,8 @@
   "ef_supplier_bank_name",
   "ef_supplier_bank_code",
   "section_customer",
-  "customer",
+  "customer_party_type",
+  "customer_party",
   "column_break_dxqc",
   "ef_customer_details",
   "ef_customer_is_user",
@@ -84,6 +86,8 @@
   "column_break_fglh",
   "total",
   "ef_total",
+  "section_meta",
+  "cancellation_reason",
   "connections_tab"
  ],
  "fields": [
@@ -124,7 +128,6 @@
   {
    "fieldname": "company",
    "fieldtype": "Link",
-   "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Company",
    "options": "Company",
@@ -156,15 +159,32 @@
    "set_only_once": 1
   },
   {
+   "allow_on_submit": 1,
+   "default": "0",
+   "fieldname": "is_return",
+   "fieldtype": "Check",
+   "label": "Is Return",
+   "read_only": 1
+  },
+  {
    "fieldname": "column_break_jkzb",
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "customer",
-   "fieldtype": "Link",
+   "default": "Customer",
+   "fieldname": "customer_party_type",
+   "fieldtype": "Select",
+   "label": "Party Type",
+   "options": "Customer\nSupplier",
+   "read_only": 1
+  },
+  {
+   "fieldname": "customer_party",
+   "fieldtype": "Dynamic Link",
    "in_list_view": 1,
-   "label": "Customer",
-   "options": "Customer",
+   "in_standard_filter": 1,
+   "label": "Party",
+   "options": "customer_party_type",
    "reqd": 1
   },
   {
@@ -325,7 +345,6 @@
    "allow_on_submit": 1,
    "fieldname": "sales_invoice",
    "fieldtype": "Link",
-   "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Sales Invoice",
    "options": "Sales Invoice"
@@ -558,12 +577,13 @@
    "read_only": 1
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "status",
-   "fieldtype": "Select",
+   "fieldtype": "Data",
    "hidden": 1,
    "label": "Status",
    "no_copy": 1,
-   "options": "Draft\nCancelled\nPending Registration\nRegistered as Draft\nSigned by Supplier\nRejected by Customer\nAccepted by Customer\nCanceled by Supplier\nArchived\nSent to Customer\nSigned by Customer\nTransportation\nCancellation Requested"
+   "read_only": 1
   },
   {
    "fieldname": "ef_series",
@@ -588,6 +608,20 @@
    "show_dashboard": 1
   },
   {
+   "collapsible": 1,
+   "fieldname": "section_meta",
+   "fieldtype": "Section Break",
+   "label": "Meta"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "cancellation_reason",
+   "fieldtype": "Small Text",
+   "label": "Cancellation Reason",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
    "fieldname": "last_status_check",
    "fieldtype": "Datetime",
    "label": "Last Status Check",
@@ -595,12 +629,15 @@
    "read_only": 1
   },
   {
-   "default": "-1",
+   "allow_on_submit": 1,
+   "default": "Pending Registration",
    "fieldname": "ef_status",
-   "fieldtype": "Int",
-   "hidden": 1,
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "eFactura Status",
    "no_copy": 1,
+   "options": "Pending Registration\nRegistered as Draft\nSigned by Supplier\nRejected by Customer\nAccepted by Customer\nCanceled by Supplier\nArchived\nSent to Customer\nSigned by Customer\nTransportation\nCancellation Requested",
    "read_only": 1
   },
   {
@@ -653,7 +690,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-08-23 18:55:00.000000",
+ "modified": "2026-08-26 21:00:00.000000",
  "modified_by": "Administrator",
  "module": "Moldova eFactura",
  "name": "Sales eFactura",
@@ -766,48 +803,16 @@
    "title": "Draft"
   },
   {
+   "color": "Blue",
+   "title": "Submitted"
+  },
+  {
    "color": "Red",
    "title": "Cancelled"
   },
   {
-   "color": "Orange",
-   "title": "Pending Registration"
-  },
-  {
-   "color": "Orange",
-   "title": "Registered as Draft"
-  },
-  {
-   "color": "Yellow",
-   "title": "Signed by Supplier"
-  },
-  {
-   "color": "Red",
-   "title": "Rejected by Customer"
-  },
-  {
-   "color": "Yellow",
-   "title": "Accepted by Customer"
-  },
-  {
    "color": "Gray",
-   "title": "Canceled by Supplier"
-  },
-  {
-   "color": "Yellow",
-   "title": "Sent to Customer"
-  },
-  {
-   "color": "Green",
-   "title": "Signed by Customer"
-  },
-  {
-   "color": "Yellow",
-   "title": "Transportation"
-  },
-  {
-   "color": "Red",
-   "title": "Cancellation Requested"
+   "title": "Return"
   }
  ],
  "track_changes": 1

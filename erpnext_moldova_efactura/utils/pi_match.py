@@ -69,16 +69,17 @@ def pi_line_name(row) -> str:
 	return (row.item_name or row.item_code or "").strip() or _("row {0}").format(row.idx)
 
 
-def qty_matches(buyer_row, pi_row, qprec: int) -> bool:
-	pi_qty = flt(pi_row.qty)
+def qty_matches(buyer_row, pi_row, qprec: int, abs_qty: bool = False) -> bool:
+	pi_qty = abs(flt(pi_row.qty)) if abs_qty else flt(pi_row.qty)
 	if eq(pi_qty, buyer_row.ef_qty, qprec):
 		return True
-	if flt(buyer_row.qty) and eq(pi_qty, buyer_row.qty, qprec):
+	buyer_qty = abs(flt(buyer_row.qty)) if abs_qty else flt(buyer_row.qty)
+	if buyer_qty and eq(pi_qty, buyer_qty, qprec):
 		return True
 	return False
 
 
-def rate_matches(buyer_row, pi_row, mprec: int) -> bool:
+def rate_matches(buyer_row, pi_row, mprec: int, abs_qty: bool = False) -> bool:
 	pi_rate = flt(pi_row.rate)
 	alts = {
 		expected_buyer_rate(buyer_row),
@@ -96,20 +97,21 @@ def rate_matches(buyer_row, pi_row, mprec: int) -> bool:
 	):
 		return True
 	# Converted UOM (kWh → MWh): compare line extension, not XML unit price.
-	pi_ext = flt(pi_row.qty) * pi_rate
+	pi_ext = abs(flt(pi_row.qty) * pi_rate) if abs_qty else flt(pi_row.qty) * pi_rate
+	pi_amount = abs(flt(pi_row.amount)) if abs_qty else flt(pi_row.amount)
 	if not pi_ext:
-		pi_ext = flt(pi_row.amount)
+		pi_ext = pi_amount
 	return (
 		amount_close(pi_ext, buyer_row.net_amount, mprec)
 		or amount_close(pi_ext, buyer_row.amount, mprec)
-		or amount_close(flt(pi_row.amount), buyer_row.net_amount, mprec)
-		or amount_close(flt(pi_row.amount), buyer_row.amount, mprec)
+		or amount_close(pi_amount, buyer_row.net_amount, mprec)
+		or amount_close(pi_amount, buyer_row.amount, mprec)
 	)
 
 
-def price_matches(buyer_row, pi_row, mprec: int) -> bool:
-	pi_amount = flt(pi_row.amount)
-	rate_ok = rate_matches(buyer_row, pi_row, mprec)
+def price_matches(buyer_row, pi_row, mprec: int, abs_qty: bool = False) -> bool:
+	pi_amount = abs(flt(pi_row.amount)) if abs_qty else flt(pi_row.amount)
+	rate_ok = rate_matches(buyer_row, pi_row, mprec, abs_qty=abs_qty)
 	amount_ok = eq(pi_amount, buyer_row.net_amount, mprec) or eq(pi_amount, buyer_row.amount, mprec)
 	return rate_ok or amount_ok
 
@@ -138,40 +140,56 @@ def uom_matches(buyer_row, pi_row) -> bool:
 	return pi_uom in known
 
 
-def lines_compatible(buyer_row, pi_row, qprec: int, mprec: int) -> bool:
-	return qty_matches(buyer_row, pi_row, qprec) and price_matches(buyer_row, pi_row, mprec) and uom_matches(buyer_row, pi_row)
+def lines_compatible(buyer_row, pi_row, qprec: int, mprec: int, abs_qty: bool = False) -> bool:
+	return (
+		qty_matches(buyer_row, pi_row, qprec, abs_qty=abs_qty)
+		and price_matches(buyer_row, pi_row, mprec, abs_qty=abs_qty)
+		and uom_matches(buyer_row, pi_row)
+	)
 
 
-def describe_line_mismatch(buyer_row, pi_row, currency: str, qprec: int, mprec: int) -> str:
+def describe_line_mismatch(
+	buyer_row,
+	pi_row,
+	currency: str,
+	qprec: int,
+	mprec: int,
+	abs_qty: bool = False,
+	label: str | None = None,
+) -> str:
+	other = label or _("Purchase Invoice")
+	other_qty = abs(flt(pi_row.qty)) if abs_qty else flt(pi_row.qty)
+	other_amount = abs(flt(pi_row.amount)) if abs_qty else flt(pi_row.amount)
 	parts: list[str] = []
-	if not qty_matches(buyer_row, pi_row, qprec):
+	if not qty_matches(buyer_row, pi_row, qprec, abs_qty=abs_qty):
 		parts.append(
-			_("quantity {0} vs Purchase Invoice {1}").format(
+			_("quantity {0} vs {1} {2}").format(
 				fmt_qty(buyer_row.ef_qty if flt(buyer_row.ef_qty) else buyer_row.qty, qprec),
-				fmt_qty(pi_row.qty, qprec),
+				other,
+				fmt_qty(other_qty, qprec),
 			)
 		)
-	if not price_matches(buyer_row, pi_row, mprec):
+	if not price_matches(buyer_row, pi_row, mprec, abs_qty=abs_qty):
 		parts.append(
-			_("rate {0} / net {1} vs Purchase Invoice rate {2} / amount {3} {4}").format(
+			_("rate {0} / net {1} vs {2} rate {3} / amount {4} {5}").format(
 				fmt_money(buyer_row.rate, mprec),
 				fmt_money(buyer_row.net_amount, mprec),
+				other,
 				fmt_money(pi_row.rate, mprec),
-				fmt_money(pi_row.amount, mprec),
+				fmt_money(other_amount, mprec),
 				currency or "",
 			)
 		)
 	if not uom_matches(buyer_row, pi_row):
 		parts.append(
-			_("UOM {0} vs Purchase Invoice {1}").format(
+			_("UOM {0} vs {1} {2}").format(
 				buyer_row.uom or buyer_row.ef_uom or _("empty"),
+				other,
 				pi_row.uom or _("empty"),
 			)
 		)
 	if buyer_row.item_code and pi_row.item_code and buyer_row.item_code != pi_row.item_code:
-		parts.append(
-			_("item {0} vs Purchase Invoice {1}").format(buyer_row.item_code, pi_row.item_code)
-		)
+		parts.append(_("item {0} vs {1} {2}").format(buyer_row.item_code, other, pi_row.item_code))
 	if not parts:
 		parts.append(_("does not match"))
 	return _("e-Factura row {0} «{1}»: {2}.").format(buyer_row.idx, buyer_line_name(buyer_row), "; ".join(parts))
@@ -339,10 +357,13 @@ def collect_document_errors(buyer, pi) -> list[str]:
 	errors: list[str] = []
 	if cint(pi.docstatus) == 2:
 		errors.append(_("Purchase Invoice {0} is cancelled").format(pi.name))
-	if buyer.supplier and pi.supplier and buyer.supplier != pi.supplier:
+	from erpnext_moldova_efactura.utils.pef_mode import pef_supplier
+
+	supplier = pef_supplier(buyer)
+	if supplier and pi.supplier and supplier != pi.supplier:
 		errors.append(
 			_("Supplier mismatch: e-Factura {0}, Purchase Invoice {1}").format(
-				buyer.supplier, pi.supplier
+				supplier, pi.supplier
 			)
 		)
 	if buyer.company and pi.company and buyer.company != pi.company:

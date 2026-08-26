@@ -9,11 +9,16 @@ from frappe.model.document import Document
 from frappe.utils import cint, cstr, flt, get_time, now_datetime
 
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient
-from erpnext_moldova_efactura.utils.api_response import as_list, extract_invoices, invoice_status_map, invoice_xml
+from erpnext_moldova_efactura.utils.api_response import (
+	extract_invoices,
+	invoice_status_map,
+	invoice_xml,
+	sfs_action_error as _sfs_action_error,
+)
 from erpnext_moldova_efactura.utils.buyer_status import (
-	BUYER_ACTIONABLE_STATUSES,
-	BUYER_SIGNABLE_STATUSES,
-	compose_buyer_status,
+	is_buyer_actionable_status,
+	is_buyer_signable_status,
+	status_label,
 )
 from erpnext_moldova_efactura.utils.buying_rate import (
 	BUYING_RATE_PRECISION,
@@ -23,12 +28,21 @@ from erpnext_moldova_efactura.utils.buying_rate import (
 from erpnext_moldova_efactura.utils.buying_taxes import apply_buying_taxes
 from erpnext_moldova_efactura.utils.invoice_xml import parse_invoice_xml, unescape_sfs_text
 from erpnext_moldova_efactura.utils.item_map import resolve_item_code, upsert_item_map
-from erpnext_moldova_efactura.utils.party import find_supplier_by_idno, throw_if_supplier_idno_mismatch
 from erpnext_moldova_efactura.utils.pef_currency import (
 	apply_document_amounts_from_ef,
 	apply_supplier_or_default_currency,
 	remap_xml_item_money,
 	settings_ef_currency,
+)
+from erpnext_moldova_efactura.utils.pef_mode import (
+	has_buying_or_stock_links,
+	is_non_livrare,
+	is_pef_return,
+	pef_customer,
+	pef_supplier,
+	resolve_xml_supplier_party,
+	throw_if_pef_party_idno_mismatch,
+	throw_if_pi_path_blocked,
 )
 from erpnext_moldova_efactura.utils.pi_alloc import (
 	apply_allocations,
@@ -40,6 +54,17 @@ from erpnext_moldova_efactura.utils.pi_alloc import (
 	validate_allocation_qtys,
 )
 from erpnext_moldova_efactura.utils.pi_match import validate_and_match
+from erpnext_moldova_efactura.utils.stock_alloc import (
+	DN_SPEC,
+	PR_SPEC,
+	apply_stock_allocations,
+	clear_stock_buyer_link,
+	has_stock_allocations,
+	set_stock_buyer_link,
+	throw_unallocated_stock,
+	unique_stock_docs,
+	validate_and_match_stock,
+)
 from erpnext_moldova_efactura.utils.timeline import log_event, log_status_change
 from erpnext_moldova_efactura.utils.uom_map import (
 	apply_booking_defaults,
@@ -60,6 +85,18 @@ def _get_purchase_efactura(name: str, ptype: str = "write"):
 
 
 class PurchaseeFactura(Document):
+	@property
+	def supplier(self):
+		"""Linked Supplier when party type is Supplier (PI/PO/PR path)."""
+		return pef_supplier(self)
+
+	@supplier.setter
+	def supplier(self, value):
+		if not self.supplier_party_type:
+			self.supplier_party_type = "Supplier"
+		if (self.supplier_party_type or "Supplier") == "Supplier":
+			self.supplier_party = value
+
 	def onload(self):
 		self._unescape_xml_text_fields(persist=True)
 
@@ -67,8 +104,10 @@ class PurchaseeFactura(Document):
 		self._validate_unique_series_number()
 		self._validate_items_immutable()
 		self._unescape_xml_text_fields()
+		self._lock_return_flag()
+		resolve_xml_supplier_party(self)
 		self._validate_allocations()
-		throw_if_supplier_idno_mismatch(self.supplier, self.ef_supplier_idno)
+		throw_if_pef_party_idno_mismatch(self)
 		if self.docstatus == 0:
 			self.ef_currency = settings_ef_currency()
 			apply_supplier_or_default_currency(self)
@@ -76,6 +115,13 @@ class PurchaseeFactura(Document):
 			self.apply_item_maps()
 			self._persist_learned_maps()
 		self.set_status(update=False, log=False)
+
+	def _lock_return_flag(self):
+		if self.flags.get("allow_mark_as_return") or self.is_new():
+			return
+		prev = self.get_doc_before_save()
+		if prev and cint(prev.is_return) != cint(self.is_return):
+			frappe.throw(_("Is Return cannot be changed manually"))
 
 	def before_insert(self):
 		if not self._is_system_insert_allowed():
@@ -97,7 +143,9 @@ class PurchaseeFactura(Document):
 		return False
 
 	def before_submit(self):
-		if not self.supplier:
+		if not self.supplier_party:
+			if is_pef_return(self):
+				frappe.throw(_("Customer is required before submit"))
 			frappe.throw(_("Supplier is required before submit"))
 		if not self.items:
 			frappe.throw(_("Fetch invoice details from e-Factura before submit"))
@@ -117,11 +165,26 @@ class PurchaseeFactura(Document):
 				frappe.throw(_("UOM is required for row {0}").format(row.idx))
 			if not flt(row.qty):
 				frappe.throw(_("Quantity is required for row {0}").format(row.idx))
-		throw_unallocated_items(
-			self.items,
-			_("Allocate all rows to a Purchase Invoice before submit"),
-			self.currency,
-		)
+		if is_pef_return(self):
+			throw_unallocated_stock(
+				self.items,
+				_("Allocate all rows to a Delivery Note Return before submit"),
+				DN_SPEC,
+				self.currency,
+			)
+		elif is_non_livrare(self):
+			throw_unallocated_stock(
+				self.items,
+				_("Allocate all rows to a Purchase Receipt before submit"),
+				PR_SPEC,
+				self.currency,
+			)
+		else:
+			throw_unallocated_items(
+				self.items,
+				_("Allocate all rows to a Purchase Invoice before submit"),
+				self.currency,
+			)
 		# Also persist on submit (covers manual grid mapping without Map Items dialog)
 		self._persist_learned_maps()
 
@@ -134,12 +197,12 @@ class PurchaseeFactura(Document):
 		for row in self.items or []:
 			if row.supplier_uom and row.ef_uom:
 				ensure_uom_map(row.supplier_uom, row.ef_uom)
-			if not (self.supplier and row.item_code):
+			if not (pef_supplier(self) and row.item_code):
 				continue
 			if not (row.supplier_item_name or row.supplier_item_code):
 				continue
 			upsert_item_map(
-				self.supplier,
+				pef_supplier(self),
 				row.supplier_item_code,
 				row.supplier_item_name or row.supplier_item_code,
 				row.item_code,
@@ -246,14 +309,23 @@ class PurchaseeFactura(Document):
 		save_doc_version(self)
 
 	def set_status(self, update: bool = True, log: bool = True):
-		old_status = self.status
-		label = compose_buyer_status(self.ef_status)
-		self.status = label
-		self.efactura_status = label
+		old_ef = self.ef_status
+		self.ef_status = status_label(self.ef_status) or self.ef_status
+		if cint(self.docstatus) == 0:
+			self.status = "Draft"
+		elif cint(self.docstatus) == 2:
+			self.status = "Cancelled"
+		elif cint(self.docstatus) == 1 and cint(self.is_return) == 1:
+			self.status = "Return"
+		else:
+			self.status = "Submitted"
 		if update and not self.is_new():
-			self.db_set({"status": label, "efactura_status": label}, update_modified=False)
+			self.db_set(
+				{"status": self.status, "ef_status": self.ef_status},
+				update_modified=False,
+			)
 		if log and not self.is_new():
-			log_status_change(self, old_status, label)
+			log_status_change(self, old_ef, self.ef_status)
 		self._sync_linked_pi_fiscal()
 
 	def on_submit(self):
@@ -271,10 +343,9 @@ class PurchaseeFactura(Document):
 	def persist_sfs_status(self, ef_status=None):
 		"""Write SFS status fields without a full save (safe after submit)."""
 		if ef_status is not None:
-			try:
-				self.ef_status = int(ef_status)
-			except (TypeError, ValueError):
-				pass
+			mapped = status_label(ef_status)
+			if mapped:
+				self.ef_status = mapped
 		self.last_status_check = now_datetime()
 		self.set_status(update=False)
 		if self.is_new():
@@ -283,7 +354,6 @@ class PurchaseeFactura(Document):
 			{
 				"ef_status": self.ef_status,
 				"status": self.status,
-				"efactura_status": self.efactura_status,
 				"last_status_check": self.last_status_check,
 			},
 			update_modified=False,
@@ -300,7 +370,7 @@ class PurchaseeFactura(Document):
 		for row in self.items or []:
 			if not row.item_code:
 				mapped = resolve_item_code(
-					self.supplier, row.supplier_item_code, row.supplier_item_name
+					pef_supplier(self), row.supplier_item_code, row.supplier_item_name
 				)
 				if mapped:
 					row.item_code = mapped
@@ -348,12 +418,15 @@ class PurchaseeFactura(Document):
 		self.ef_transporter_name = tr.get("name") or self.ef_transporter_name
 		self.ef_transporter_address = tr.get("address") or self.ef_transporter_address
 
-		if not self.supplier and self.ef_supplier_idno:
-			self.supplier = find_supplier_by_idno(self.ef_supplier_idno)
+		if parsed.get("creation_motiv") not in (None, ""):
+			self.type = "Non-Transfer" if str(parsed["creation_motiv"]) == "5" else "Transfer"
 
-		# Keep Item/UOM maps; drop PI links — amounts may change, and duplicate
-		# supplier lines must not reuse the same pi_detail.
+		resolve_xml_supplier_party(self)
+
+		# Keep Item/UOM maps; drop stock/buy links — amounts may change.
 		linked_invoices = unique_purchase_invoices(self) if preserve_mapped_items else []
+		linked_prs = unique_stock_docs(self, PR_SPEC) if preserve_mapped_items else []
+		linked_dns = unique_stock_docs(self, DN_SPEC) if preserve_mapped_items else []
 		existing_maps: dict[tuple, list] = {}
 		if preserve_mapped_items:
 			for row in self.items or []:
@@ -387,6 +460,10 @@ class PurchaseeFactura(Document):
 
 		for pi_name in linked_invoices:
 			clear_pi_buyer_link(pi_name)
+		for pr_name in linked_prs:
+			clear_stock_buyer_link(pr_name, PR_SPEC)
+		for dn_name in linked_dns:
+			clear_stock_buyer_link(dn_name, DN_SPEC)
 
 		self.ef_currency = settings_ef_currency()
 		apply_supplier_or_default_currency(self, overwrite_company_default=True)
@@ -409,7 +486,7 @@ class PurchaseeFactura(Document):
 
 		inv = invs[0]
 		if inv.get("InvoiceStatus") is not None:
-			self.ef_status = int(inv.get("InvoiceStatus"))
+			self.ef_status = status_label(inv.get("InvoiceStatus"))
 
 		# After submit, SFS remains source of truth for status only — items stay frozen
 		if self.docstatus == 0:
@@ -436,7 +513,10 @@ def _require_not_cancelled(doc):
 
 
 def _require_mapped(doc, action_label: str | None = None):
-	if not doc.supplier:
+	party = pef_customer(doc) if is_pef_return(doc) else pef_supplier(doc)
+	if not party:
+		if is_pef_return(doc):
+			frappe.throw(_("Customer is required to create {0}").format(action_label or _("document")))
 		frappe.throw(_("Supplier is required to create {0}").format(action_label or _("Purchase Invoice")))
 	if not doc.items:
 		frappe.throw(_("No items on Purchase eFactura — fetch details first"))
@@ -451,11 +531,7 @@ def _require_mapped(doc, action_label: str | None = None):
 
 def _require_actionable(doc):
 	_require_submitted(doc)
-	try:
-		code = int(doc.ef_status)
-	except (TypeError, ValueError):
-		code = None
-	if code not in BUYER_ACTIONABLE_STATUSES:
+	if not is_buyer_actionable_status(doc.ef_status):
 		frappe.throw(
 			_("eFactura can be accepted or rejected only in Sent to Buyer or Signed by Supplier status.")
 		)
@@ -463,11 +539,7 @@ def _require_actionable(doc):
 
 def _require_signable(doc):
 	_require_submitted(doc)
-	try:
-		code = int(doc.ef_status)
-	except (TypeError, ValueError):
-		code = None
-	if code not in BUYER_SIGNABLE_STATUSES:
+	if not is_buyer_signable_status(doc.ef_status):
 		frappe.throw(
 			_("eFactura can be signed only in Sent to Buyer, Signed by Supplier, or Accepted status.")
 		)
@@ -490,19 +562,12 @@ def _parse_names(names):
 	return unique
 
 
-def _pef_status_code(row):
-	try:
-		return int(row.ef_status)
-	except (TypeError, ValueError):
-		return None
-
-
 def _pef_signable_skip_reason(row):
 	if not row:
 		return _("Not found")
 	if cint(row.docstatus) != 1:
 		return _("Not submitted")
-	if _pef_status_code(row) not in BUYER_SIGNABLE_STATUSES:
+	if not is_buyer_signable_status(row.ef_status):
 		return _("Not eligible for signing")
 	return None
 
@@ -512,7 +577,7 @@ def _pef_acceptable_skip_reason(row):
 		return _("Not found")
 	if cint(row.docstatus) != 1:
 		return _("Not submitted")
-	if _pef_status_code(row) not in BUYER_ACTIONABLE_STATUSES:
+	if not is_buyer_actionable_status(row.ef_status):
 		return _("Not eligible for accepting")
 	return None
 
@@ -535,39 +600,11 @@ def _filter_pef_names(names, skip_reason):
 		if reason:
 			skipped.append({"name": name, "reason": reason})
 			continue
-		if not frappe.has_permission(
-			"Purchase eFactura", ptype="write", doc=name, raise_exception=False
-		):
+		if not frappe.has_permission("Purchase eFactura", "write", name):
 			skipped.append({"name": name, "reason": _("No write permission")})
 			continue
-		eligible.append({"name": name, "status": row.status or ""})
+		eligible.append({"name": name, "status": row.ef_status or row.status or ""})
 	return {"eligible": eligible, "skipped": skipped}
-
-
-def _sfs_action_error(resp) -> str | None:
-	if not resp:
-		return _("empty response")
-	if resp.get("ErrorMessage"):
-		return resp.get("ErrorMessage")
-	try:
-		if int(resp.get("Status")) == 3:
-			return _("e-Factura request failed")
-	except (TypeError, ValueError):
-		pass
-	results = resp.get("Results") or {}
-	if isinstance(results, list):
-		items = results
-	elif isinstance(results, dict):
-		items = as_list(results.get("InvoiceResult") or results.get("Invoice"))
-	else:
-		items = []
-	for item in items:
-		try:
-			if int(item.get("Status")) == 3:
-				return item.get("Message") or _("e-Factura request failed")
-		except (TypeError, ValueError):
-			continue
-	return None
 
 
 @frappe.whitelist()
@@ -833,6 +870,18 @@ def get_new_supplier_defaults(name: str | None = None, title: str | None = None,
 
 
 @frappe.whitelist()
+def get_new_customer_defaults(name: str | None = None, title: str | None = None, idno: str | None = None):
+	"""Prefill values when creating a Customer from a Non-Transfer Purchase eFactura."""
+	if name:
+		doc = _get_purchase_efactura(name, "read")
+		title = title or doc.ef_supplier_name
+		idno = idno or doc.ef_supplier_idno
+	from erpnext_moldova_efactura.utils.party import new_customer_defaults
+
+	return new_customer_defaults(title, idno)
+
+
+@frappe.whitelist()
 def save_item_mappings(name: str, mappings: str | list | dict):
 	"""mappings: [{idx/row_name, item_code}] or JSON string."""
 	import json
@@ -1026,9 +1075,9 @@ def _apply_pi_item_mapping(doc, allocs):
 			buyer_row.uom = pi_row.uom
 		apply_qty_defaults(buyer_row, force=True)
 		ensure_uom_map(buyer_row.supplier_uom, buyer_row.ef_uom)
-		if doc.supplier and buyer_row.item_code:
+		if pef_supplier(doc) and buyer_row.item_code:
 			upsert_item_map(
-				doc.supplier,
+				pef_supplier(doc),
 				buyer_row.supplier_item_code,
 				buyer_row.supplier_item_name,
 				buyer_row.item_code,
@@ -1046,6 +1095,7 @@ def _save_buyer_links(doc):
 def make_purchase_invoice(source_name: str, target_doc=None):
 	frappe.has_permission("Purchase Invoice", "create", throw=True)
 	source = _get_purchase_efactura(source_name)
+	throw_if_pi_path_blocked(source)
 	_require_not_cancelled(source)
 	_require_mapped(source, _("Purchase Invoice"))
 	if has_allocations(source):
@@ -1053,7 +1103,7 @@ def make_purchase_invoice(source_name: str, target_doc=None):
 
 	pi = frappe.new_doc("Purchase Invoice")
 	pi.company = source.company
-	pi.supplier = source.supplier
+	pi.supplier = pef_supplier(source)
 	pi.currency = source.currency or "MDL"
 	if source.issue_date:
 		pi.bill_date = source.issue_date
@@ -1071,12 +1121,13 @@ def make_purchase_order(source_name: str, target_doc=None):
 
 	frappe.has_permission("Purchase Order", "create", throw=True)
 	source = _get_purchase_efactura(source_name)
+	throw_if_pi_path_blocked(source)
 	_require_not_cancelled(source)
 	_require_mapped(source, _("Purchase Order"))
 
 	po = frappe.new_doc("Purchase Order")
 	po.company = source.company
-	po.supplier = source.supplier
+	po.supplier = pef_supplier(source)
 	po.currency = source.currency or "MDL"
 	po.transaction_date = today()
 	schedule = source.delivery_date or source.issue_date or today()
@@ -1149,9 +1200,10 @@ def linkable_purchase_invoices(doctype, txt, searchfield, start, page_len, filte
 @frappe.whitelist()
 def link_purchase_invoice(name: str, purchase_invoice: str):
 	doc = _get_purchase_efactura(name)
+	throw_if_pi_path_blocked(doc)
 	if doc.docstatus == 2:
 		frappe.throw(_("Cannot link Purchase Invoice to a cancelled e-Factura"))
-	if not doc.supplier:
+	if not pef_supplier(doc):
 		frappe.throw(_("Select a Supplier on the e-Factura first"))
 	if not doc.items:
 		frappe.throw(_("Fetch invoice details from e-Factura before linking a Purchase Invoice"))
@@ -1163,9 +1215,10 @@ def link_purchase_invoice(name: str, purchase_invoice: str):
 		frappe.throw(
 			_("Company mismatch: e-Factura {0}, Purchase Invoice {1}").format(doc.company, pi.company)
 		)
-	if doc.supplier and pi.supplier and doc.supplier != pi.supplier:
+	supplier = pef_supplier(doc)
+	if supplier and pi.supplier and supplier != pi.supplier:
 		frappe.throw(
-			_("Supplier mismatch: e-Factura {0}, Purchase Invoice {1}").format(doc.supplier, pi.supplier)
+			_("Supplier mismatch: e-Factura {0}, Purchase Invoice {1}").format(supplier, pi.supplier)
 		)
 
 	allocs = validate_and_match(doc, pi)
@@ -1183,6 +1236,345 @@ def link_purchase_invoice(name: str, purchase_invoice: str):
 	sync_pi_fiscal_status(purchase_invoice)
 	log_event(doc, _("Linked Purchase Invoice {0}.").format(purchase_invoice))
 	return doc.as_dict()
+
+
+def _apply_stock_item_mapping(doc, allocs):
+	seen: set[str] = set()
+	for alloc in allocs:
+		buyer_row = alloc["buyer_row"]
+		stock_row = alloc["stock_row"]
+		key = buyer_row.name or f"idx-{buyer_row.idx}"
+		if key in seen:
+			continue
+		seen.add(key)
+		buyer_row.item_code = stock_row.item_code
+		if stock_row.uom and frappe.db.exists("UOM", stock_row.uom):
+			buyer_row.uom = stock_row.uom
+		apply_qty_defaults(buyer_row, force=True)
+		ensure_uom_map(buyer_row.supplier_uom, buyer_row.ef_uom)
+		if pef_supplier(doc) and buyer_row.item_code:
+			upsert_item_map(
+				pef_supplier(doc),
+				buyer_row.supplier_item_code,
+				buyer_row.supplier_item_name,
+				buyer_row.item_code,
+				buyer_row.uom,
+			)
+
+
+def _link_stock_document(name: str, target_name: str, spec):
+	doc = _get_purchase_efactura(name)
+	if doc.docstatus == 2:
+		frappe.throw(_("Cannot link {0} to a cancelled e-Factura").format(_(spec.label)))
+	if spec is PR_SPEC:
+		if not is_non_livrare(doc) or is_pef_return(doc):
+			frappe.throw(_("Purchase Receipt can be linked only for Non-Transfer that is not a return"))
+		if not pef_supplier(doc):
+			frappe.throw(_("Select a Supplier on the e-Factura first"))
+	else:
+		if not is_pef_return(doc):
+			frappe.throw(_("Delivery Note Return can be linked only after marking the e-Factura as a return"))
+		if not pef_customer(doc):
+			frappe.throw(_("Select a Customer on the e-Factura first"))
+	if not doc.items:
+		frappe.throw(_("Fetch invoice details from e-Factura before linking {0}").format(_(spec.label)))
+	if not frappe.db.exists(spec.doctype, target_name):
+		frappe.throw(_("{0} {1} not found").format(_(spec.label), target_name))
+
+	target = frappe.get_doc(spec.doctype, target_name)
+	allocs = validate_and_match_stock(doc, target, spec)
+	if doc.docstatus == 0:
+		_apply_stock_item_mapping(doc, allocs)
+	apply_stock_allocations(doc, allocs, target_name, spec)
+	set_stock_buyer_link(target_name, doc.name, spec)
+	doc.set_status(update=False)
+	_save_buyer_links(doc)
+	log_event(doc, _("Linked {0} {1}.").format(_(spec.label), target_name))
+	return doc.as_dict()
+
+
+@frappe.whitelist()
+def link_purchase_receipt(name: str, purchase_receipt: str):
+	return _link_stock_document(name, purchase_receipt, PR_SPEC)
+
+
+@frappe.whitelist()
+def link_delivery_note(name: str, delivery_note: str):
+	return _link_stock_document(name, delivery_note, DN_SPEC)
+
+
+def _require_draft_unlink(doc):
+	if cint(doc.docstatus) != 0:
+		frappe.throw(_("Unlink is allowed only before submitting Purchase eFactura"))
+
+
+def _reverse_linked_docs(doc_name: str, doctype: str) -> list[str]:
+	if not doc_name or not frappe.get_meta(doctype).has_field("purchase_efactura"):
+		return []
+	return frappe.get_all(
+		doctype,
+		filters={"purchase_efactura": doc_name, "docstatus": ["<", 2]},
+		pluck="name",
+	)
+
+
+def _merge_unique(*groups) -> list[str]:
+	names: list[str] = []
+	seen: set[str] = set()
+	for group in groups:
+		for name in group or []:
+			if name and name not in seen:
+				seen.add(name)
+				names.append(name)
+	return names
+
+
+def _clear_item_link_fields(doc, link_field: str, detail_field: str) -> None:
+	for row in doc.items or []:
+		setattr(row, link_field, None)
+		setattr(row, detail_field, None)
+
+
+@frappe.whitelist()
+def unlink_purchase_invoice(name: str):
+	doc = _get_purchase_efactura(name)
+	_require_draft_unlink(doc)
+	invoices = _merge_unique(unique_purchase_invoices(doc), _reverse_linked_docs(doc.name, "Purchase Invoice"))
+	if not invoices:
+		frappe.throw(_("No Purchase Invoice is linked"))
+	_clear_item_link_fields(doc, "purchase_invoice", "pi_detail")
+	_save_buyer_links(doc)
+	from erpnext_moldova_efactura.utils.fiscal_status import sync_pi_fiscal_status
+
+	for pi_name in invoices:
+		clear_pi_buyer_link(pi_name)
+		if frappe.db.exists("Purchase Invoice", pi_name):
+			sync_pi_fiscal_status(pi_name)
+	log_event(doc, _("Unlinked Purchase Invoice."))
+	return doc.as_dict()
+
+
+def _unlink_stock_document(name: str, spec):
+	doc = _get_purchase_efactura(name)
+	_require_draft_unlink(doc)
+	docs = _merge_unique(unique_stock_docs(doc, spec), _reverse_linked_docs(doc.name, spec.doctype))
+	if not docs:
+		frappe.throw(_("No {0} is linked").format(_(spec.label)))
+	_clear_item_link_fields(doc, spec.link_field, spec.detail_field)
+	_save_buyer_links(doc)
+	for doc_name in docs:
+		clear_stock_buyer_link(doc_name, spec)
+	log_event(doc, _("Unlinked {0}.").format(_(spec.label)))
+	return doc.as_dict()
+
+
+@frappe.whitelist()
+def unlink_purchase_receipt(name: str):
+	return _unlink_stock_document(name, PR_SPEC)
+
+
+@frappe.whitelist()
+def unlink_delivery_note(name: str):
+	return _unlink_stock_document(name, DN_SPEC)
+
+
+@frappe.whitelist()
+def unlink_purchase_order(name: str):
+	doc = _get_purchase_efactura(name)
+	_require_draft_unlink(doc)
+	from erpnext_moldova_efactura.utils.po_link import get_linked_purchase_orders, remove_linked_purchase_order
+
+	orders = _merge_unique(get_linked_purchase_orders(doc), _reverse_linked_docs(doc.name, "Purchase Order"))
+	if not orders:
+		frappe.throw(_("No Purchase Order is linked"))
+	for po_name in orders:
+		remove_linked_purchase_order(doc, po_name)
+		if frappe.get_meta("Purchase Order").has_field("purchase_efactura"):
+			if frappe.db.get_value("Purchase Order", po_name, "purchase_efactura") == doc.name:
+				frappe.db.set_value("Purchase Order", po_name, "purchase_efactura", "", update_modified=False)
+	if doc.meta.has_field("purchase_order"):
+		doc.purchase_order = None
+	_save_buyer_links(doc)
+	log_event(doc, _("Unlinked Purchase Order."))
+	return doc.as_dict()
+
+
+def _set_pef_return(name: str, is_return: int):
+	doc = _get_purchase_efactura(name)
+	want_return = cint(is_return)
+	if doc.docstatus == 2:
+		frappe.throw(
+			_("Cannot unmark a cancelled e-Factura as a return")
+			if not want_return
+			else _("Cannot mark a cancelled e-Factura as a return")
+		)
+	if not is_non_livrare(doc):
+		frappe.throw(_("Only Non-Transfer e-Factura can be marked as a return"))
+	if cint(doc.is_return) == want_return:
+		frappe.throw(
+			_("e-Factura is already marked as a return")
+			if want_return
+			else _("e-Factura is not marked as a return")
+		)
+	if has_buying_or_stock_links(doc):
+		frappe.throw(
+			_(
+				"Cannot unmark as return: e-Factura is already linked to a Purchase Order, Invoice, Receipt, or Delivery Note"
+			)
+			if not want_return
+			else _(
+				"Cannot mark as return: e-Factura is already linked to a Purchase Order, Invoice, Receipt, or Delivery Note"
+			)
+		)
+	doc.flags.allow_mark_as_return = True
+	doc.is_return = want_return
+	resolve_xml_supplier_party(doc)
+	_save_buyer_links(doc)
+	log_event(doc, _("Unmarked as return.") if not want_return else _("Marked as return."))
+	return doc.as_dict()
+
+
+@frappe.whitelist()
+def mark_as_return(name: str):
+	return _set_pef_return(name, 1)
+
+
+@frappe.whitelist()
+def unmark_as_return(name: str):
+	return _set_pef_return(name, 0)
+
+
+@frappe.whitelist()
+def make_purchase_receipt(source_name: str, target_doc=None):
+	frappe.has_permission("Purchase Receipt", "create", throw=True)
+	source = _get_purchase_efactura(source_name)
+	if not is_non_livrare(source) or is_pef_return(source):
+		frappe.throw(_("Purchase Receipt can be created only for Non-Transfer that is not a return"))
+	_require_not_cancelled(source)
+	_require_mapped(source, _("Purchase Receipt"))
+	if has_stock_allocations(source, PR_SPEC):
+		frappe.throw(_("e-Factura already has Purchase Receipt allocations"))
+
+	pr = frappe.new_doc("Purchase Receipt")
+	pr.company = source.company
+	pr.supplier = pef_supplier(source)
+	pr.currency = source.currency or "MDL"
+	_apply_posting_from_factura(pr, source)
+	_append_buying_items(pr, source)
+	if pr.meta.has_field("purchase_efactura"):
+		pr.purchase_efactura = source.name
+	_prepare_mapped_buying_doc(pr)
+	return pr
+
+
+@frappe.whitelist()
+def make_delivery_note_return(source_name: str, target_doc=None):
+	frappe.has_permission("Delivery Note", "create", throw=True)
+	source = _get_purchase_efactura(source_name)
+	if not is_pef_return(source):
+		frappe.throw(_("Delivery Note Return can be created only after marking the e-Factura as a return"))
+	_require_not_cancelled(source)
+	_require_mapped(source, _("Delivery Note Return"))
+	if has_stock_allocations(source, DN_SPEC):
+		frappe.throw(_("e-Factura already has Delivery Note allocations"))
+
+	dn = frappe.new_doc("Delivery Note")
+	dn.company = source.company
+	dn.customer = pef_customer(source)
+	dn.currency = source.currency or "MDL"
+	dn.is_return = 1
+	_apply_posting_from_factura(dn, source)
+	_append_return_items(dn, source)
+	if dn.meta.has_field("purchase_efactura"):
+		dn.purchase_efactura = source.name
+	_prepare_mapped_buying_doc(dn)
+	return dn
+
+
+def _append_return_items(target, source):
+	if target.meta.has_field("ignore_pricing_rule"):
+		target.ignore_pricing_rule = 1
+	vat_included = bool(frappe.db.get_single_value("eFactura Settings", "vat_included_in_rate"))
+	schedule = source.delivery_date or source.issue_date
+	for row in source.items:
+		vals = _buying_line_from_buyer(row, vat_included)
+		vals["qty"] = -abs(flt(vals["qty"]))
+		if vals.get("amount"):
+			vals["amount"] = -abs(flt(vals["amount"]))
+		item = target.append("items", {})
+		_apply_buying_line_vals(item, vals, schedule)
+
+
+@frappe.whitelist()
+@frappe.validate_and_sanitize_search_inputs
+def linkable_purchase_receipts(doctype, txt, searchfield, start, page_len, filters):
+	return _linkable_stock_docs(PR_SPEC, txt, searchfield, start, page_len, filters)
+
+
+@frappe.whitelist()
+@frappe.validate_and_sanitize_search_inputs
+def linkable_delivery_notes(doctype, txt, searchfield, start, page_len, filters):
+	return _linkable_stock_docs(DN_SPEC, txt, searchfield, start, page_len, filters)
+
+
+def _linkable_stock_docs(spec, txt, searchfield, start, page_len, filters):
+	from frappe.desk.reportview import get_match_cond
+
+	filters = filters or {}
+	table = f"`tab{spec.doctype}`"
+	item_table = f"`tab{spec.doctype} Item`"
+	conditions = [f"{table}.docstatus < 2"]
+	values = {"txt": f"%{txt or ''}%", "start": start, "page_len": page_len}
+	if filters.get("company"):
+		conditions.append(f"{table}.company = %(company)s")
+		values["company"] = filters["company"]
+	party = filters.get("supplier") or filters.get("customer")
+	if party:
+		conditions.append(f"{table}.{spec.party_field} = %(party)s")
+		values["party"] = party
+	if spec.require_is_return is True:
+		conditions.append(f"{table}.is_return = 1")
+	elif spec.require_is_return is False:
+		conditions.append(f"ifnull({table}.is_return, 0) = 0")
+
+	uncovered = ""
+	if frappe.db.has_column("Purchase eFactura Item", spec.detail_field):
+		uncovered = f"""
+			AND EXISTS (
+				SELECT 1
+				FROM {item_table} si
+				WHERE si.parent = {table}.name
+					AND si.parenttype = '{spec.doctype}'
+					AND ABS(IFNULL(si.qty, 0)) > 0
+					AND NOT EXISTS (
+						SELECT 1
+						FROM `tabPurchase eFactura Item` ei
+						INNER JOIN `tabPurchase eFactura` pe ON pe.name = ei.parent
+						WHERE ei.{spec.detail_field} = si.name
+							AND IFNULL(ei.{spec.detail_field}, '') != ''
+							AND pe.docstatus < 2
+					)
+			)
+		"""
+
+	party_col = spec.party_field
+	return frappe.db.sql(
+		f"""
+		SELECT {table}.name, {table}.{party_col},
+			{table}.posting_date, {table}.grand_total
+		FROM {table}
+		WHERE {" AND ".join(conditions)}
+			AND (
+				{table}.name LIKE %(txt)s
+				OR IFNULL({table}.`{searchfield}`, '') LIKE %(txt)s
+			)
+			{uncovered}
+			{get_match_cond(spec.doctype)}
+		ORDER BY {table}.modified DESC
+		LIMIT %(page_len)s OFFSET %(start)s
+		""",
+		values,
+	)
 
 
 @frappe.whitelist()

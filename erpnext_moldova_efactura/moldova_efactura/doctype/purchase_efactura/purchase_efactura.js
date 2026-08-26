@@ -1,6 +1,8 @@
 frappe.ui.form.on("Purchase eFactura", {
 	setup(frm) {
 		ensure_supplier_idno_field(frm);
+		ensure_customer_idno_field(frm);
+		ensure_fiscal_territory(frm);
 	},
 	onload(frm) {
 		if (frm.is_new()) {
@@ -11,9 +13,18 @@ frappe.ui.form.on("Purchase eFactura", {
 			frappe.set_route("List", "Purchase eFactura");
 		}
 	},
-	supplier(frm) {
-		set_document_currency_from_supplier(frm).then(() => {
-			return validate_supplier_idno(frm);
+	supplier_party_type(frm) {
+		if (!frm.doc.supplier_party_type) {
+			frm.set_value("supplier_party", null);
+			return;
+		}
+		resolve_party_by_idno(frm, { force: true }).then(() => {
+			setup_new_party_from_factura(frm);
+		});
+	},
+	supplier_party(frm) {
+		set_document_currency_from_party(frm).then(() => {
+			return validate_party_idno(frm);
 		}).then((ok) => {
 			if (ok) {
 				persist_maps_when_supplier_set(frm);
@@ -21,7 +32,7 @@ frappe.ui.form.on("Purchase eFactura", {
 		});
 	},
 	company(frm) {
-		if (frm.doc.docstatus !== 0 || frm.doc.supplier || !frm.doc.company) {
+		if (frm.doc.docstatus !== 0 || frm.doc.supplier_party || !frm.doc.company) {
 			return;
 		}
 		frappe.db.get_value("Company", frm.doc.company, "default_currency").then((r) => {
@@ -42,13 +53,15 @@ frappe.ui.form.on("Purchase eFactura", {
 		apply_pef_document_amounts(frm);
 	},
 	before_save(frm) {
-		return validate_supplier_idno(frm);
+		return validate_party_idno(frm);
 	},
 	refresh(frm) {
 		lock_items_grid(frm);
-		setup_new_supplier_from_factura(frm);
+		setup_new_party_from_factura(frm);
 		setup_new_item_from_factura(frm);
 		ensure_supplier_idno_field(frm);
+		ensure_customer_idno_field(frm);
+		ensure_fiscal_territory(frm);
 		autofill_ef_details(frm, "supplier");
 		autofill_ef_details(frm, "customer");
 		autofill_ef_details(frm, "transporter");
@@ -62,13 +75,69 @@ frappe.ui.form.on("Purchase eFactura", {
 
 		const canWrite = frm.has_perm("write");
 		const efActions = __("eFactura Actions");
+		const nonLivrare = frm.doc.type === "Non-Transfer";
+		const isReturn = cint(frm.doc.is_return) === 1;
 
 		if (frm.doc.docstatus === 0 && canWrite) {
 			frm.add_custom_button(__("Map Items"), () => open_map_dialog(frm));
 		}
 
+		if (nonLivrare && canWrite && frm.doc.docstatus !== 2 && !pef_has_stock_or_buy_links(frm)) {
+			if (isReturn) {
+				frm.add_custom_button(__("Unmark as Return"), () => unmark_pef_as_return(frm));
+			} else {
+				frm.add_custom_button(__("Mark as Return"), () => mark_pef_as_return(frm));
+			}
+		}
+
 		if ((frm.doc.items || []).length && frm.doc.docstatus !== 2 && canWrite) {
-			frm.add_custom_button(__("Link Invoice"), () => link_purchase_invoice_dialog(frm));
+			if (nonLivrare && isReturn) {
+				frm.add_custom_button(__("Link Delivery Note Return"), () =>
+					link_delivery_note_dialog(frm)
+				);
+			} else if (nonLivrare && !isReturn) {
+				frm.add_custom_button(__("Link Purchase Receipt"), () =>
+					link_purchase_receipt_dialog(frm)
+				);
+			} else if (!nonLivrare) {
+				frm.add_custom_button(__("Link Purchase Invoice"), () =>
+					link_purchase_invoice_dialog(frm)
+				);
+			}
+		}
+
+		if (frm.doc.docstatus === 0 && canWrite) {
+			const items = frm.doc.items || [];
+			if (items.some((row) => row.purchase_invoice)) {
+				frm.add_custom_button(__("Unlink Purchase Invoice"), () =>
+					unlink_pef_document(
+						frm,
+						"unlink_purchase_invoice",
+						__("Unlink all Purchase Invoice connections from this e-Factura?"),
+						__("Purchase Invoice unlinked.")
+					)
+				);
+			}
+			if (items.some((row) => row.purchase_receipt)) {
+				frm.add_custom_button(__("Unlink Purchase Receipt"), () =>
+					unlink_pef_document(
+						frm,
+						"unlink_purchase_receipt",
+						__("Unlink all Purchase Receipt connections from this e-Factura?"),
+						__("Purchase Receipt unlinked.")
+					)
+				);
+			}
+			if (items.some((row) => row.delivery_note)) {
+				frm.add_custom_button(__("Unlink Delivery Note Return"), () =>
+					unlink_pef_document(
+						frm,
+						"unlink_delivery_note",
+						__("Unlink all Delivery Note Return connections from this e-Factura?"),
+						__("Delivery Note unlinked.")
+					)
+				);
+			}
 		}
 
 		if (frm.doc.docstatus === 0 && canWrite && frm.doc.ef_series && frm.doc.ef_number) {
@@ -101,7 +170,7 @@ frappe.ui.form.on("Purchase eFactura", {
 			);
 		}
 
-		if (frm.doc.docstatus === 1 && cint(frm.doc.ef_status) !== -1 && frm.doc.ef_series && frm.doc.ef_number) {
+		if (frm.doc.docstatus === 1 && frm.doc.ef_status && frm.doc.ef_series && frm.doc.ef_number) {
 			frm.add_custom_button(
 				__("Download PDF"),
 				() => {
@@ -137,8 +206,8 @@ frappe.ui.form.on("Purchase eFactura", {
 		}
 
 		if (frm.doc.docstatus === 1 && canWrite) {
-			const efStatus = cint(frm.doc.ef_status);
-			if ([1, 7, 9].includes(efStatus)) {
+			const efStatus = frm.doc.ef_status;
+			if (["Signed by Supplier", "Sent to Buyer"].includes(efStatus)) {
 				frm.add_custom_button(
 					__("Accept"),
 					() => {
@@ -191,7 +260,7 @@ frappe.ui.form.on("Purchase eFactura", {
 					efActions
 				);
 			}
-			if ([1, 7, 9, 3].includes(efStatus)) {
+			if (["Signed by Supplier", "Sent to Buyer", "Accepted"].includes(efStatus)) {
 				frm.add_custom_button(
 					__("Sign"),
 					() => sign_buyer_xml_moldsign(frm),
@@ -200,35 +269,63 @@ frappe.ui.form.on("Purchase eFactura", {
 			}
 		}
 
-		if (frm.doc.docstatus !== 2 && frm.doc.supplier && (frm.doc.items || []).length && canWrite) {
+		if (frm.doc.docstatus !== 2 && frm.doc.supplier_party && (frm.doc.items || []).length && canWrite) {
 			const createMenu = __("Create");
-			if (frappe.model.can_create("Purchase Order")) {
-				frm.add_custom_button(
-					__("Purchase Order"),
-					() => {
-						frappe.model.open_mapped_doc({
-							method: "erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura.make_purchase_order",
-							frm: frm,
-						});
-					},
-					createMenu
-				);
-			}
+			if (nonLivrare && isReturn) {
+				if (frappe.model.can_create("Delivery Note") && !(frm.doc.items || []).some((row) => row.delivery_note)) {
+					frm.add_custom_button(
+						__("Delivery Note Return"),
+						() => {
+							frappe.model.open_mapped_doc({
+								method: "erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura.make_delivery_note_return",
+								frm: frm,
+							});
+						},
+						createMenu
+					);
+				}
+			} else if (nonLivrare && !isReturn) {
+				if (frappe.model.can_create("Purchase Receipt") && !(frm.doc.items || []).some((row) => row.purchase_receipt)) {
+					frm.add_custom_button(
+						__("Purchase Receipt"),
+						() => {
+							frappe.model.open_mapped_doc({
+								method: "erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura.make_purchase_receipt",
+								frm: frm,
+							});
+						},
+						createMenu
+					);
+				}
+			} else if (!nonLivrare) {
+				if (frappe.model.can_create("Purchase Order")) {
+					frm.add_custom_button(
+						__("Purchase Order"),
+						() => {
+							frappe.model.open_mapped_doc({
+								method: "erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura.make_purchase_order",
+								frm: frm,
+							});
+						},
+						createMenu
+					);
+				}
 
-			if (
-				frappe.model.can_create("Purchase Invoice") &&
-				!(frm.doc.items || []).some((row) => row.purchase_invoice)
-			) {
-				frm.add_custom_button(
-					__("Purchase Invoice"),
-					() => {
-						frappe.model.open_mapped_doc({
-							method: "erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura.make_purchase_invoice",
-							frm: frm,
-						});
-					},
-					createMenu
-				);
+				if (
+					frappe.model.can_create("Purchase Invoice") &&
+					!(frm.doc.items || []).some((row) => row.purchase_invoice)
+				) {
+					frm.add_custom_button(
+						__("Purchase Invoice"),
+						() => {
+							frappe.model.open_mapped_doc({
+								method: "erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura.make_purchase_invoice",
+								frm: frm,
+							});
+						},
+						createMenu
+					);
+				}
 			}
 		}
 	},
@@ -285,7 +382,10 @@ function normalize_supplier_title(name) {
 }
 
 function persist_maps_when_supplier_set(frm) {
-	if (frm.doc.docstatus !== 0 || frm.is_new() || !frm.doc.supplier) {
+	if (frm.doc.docstatus !== 0 || frm.is_new() || !frm.doc.supplier_party) {
+		return;
+	}
+	if ((frm.doc.supplier_party_type || "Supplier") !== "Supplier") {
 		return;
 	}
 	if (!(frm.doc.items || []).some((r) => r.item_code)) {
@@ -342,11 +442,12 @@ function autofill_ef_details(frm, party_type) {
 	frm.set_df_property(`ef_${party_type}_details`, "options", html);
 }
 
-function set_document_currency_from_supplier(frm) {
-	if (frm.doc.docstatus !== 0 || !frm.doc.supplier) {
+function set_document_currency_from_party(frm) {
+	if (frm.doc.docstatus !== 0 || !frm.doc.supplier_party) {
 		return Promise.resolve();
 	}
-	return frappe.db.get_value("Supplier", frm.doc.supplier, "default_currency").then((r) => {
+	const ptype = frm.doc.supplier_party_type || "Supplier";
+	return frappe.db.get_value(ptype, frm.doc.supplier_party, "default_currency").then((r) => {
 		const cur = r.message && r.message.default_currency;
 		if (cur && frm.doc.currency !== cur) {
 			return frm.set_value("currency", cur);
@@ -435,37 +536,117 @@ function normalize_idno(value) {
 	return String(value || "").replace(/\D+/g, "");
 }
 
-function validate_supplier_idno(frm) {
-	if (!frm.doc.supplier || !frm.doc.ef_supplier_idno) {
+function ensure_customer_idno_field(frm) {
+	if (frm._customer_idno_field !== undefined) {
+		return;
+	}
+	frappe.db.get_single_value("eFactura Settings", "customer_idno_field").then((field) => {
+		frm._customer_idno_field = field;
+	});
+}
+
+function ensure_fiscal_territory(frm) {
+	if (frm._fiscal_territory !== undefined) {
+		return;
+	}
+	frappe.db.get_single_value("eFactura Settings", "fiscal_territory").then((value) => {
+		frm._fiscal_territory = value || "";
+	});
+}
+
+function party_idno_cache_key(ptype) {
+	return ptype === "Customer" ? "_customer_idno_field" : "_supplier_idno_field";
+}
+
+function get_party_idno_field(frm, ptype) {
+	const cacheKey = party_idno_cache_key(ptype);
+	if (frm[cacheKey] !== undefined) {
+		return Promise.resolve(frm[cacheKey]);
+	}
+	const settingsField = ptype === "Customer" ? "customer_idno_field" : "supplier_idno_field";
+	return frappe.db.get_single_value("eFactura Settings", settingsField).then((field) => {
+		frm[cacheKey] = field;
+		return field;
+	});
+}
+
+function resolve_party_by_idno(frm, opts) {
+	const force = Boolean(opts && opts.force);
+	const ptype = frm.doc.supplier_party_type || "Supplier";
+	const idno = (frm.doc.ef_supplier_idno || "").trim();
+	if (!force && frm.doc.supplier_party) {
+		return Promise.resolve();
+	}
+	if (!idno) {
+		return force ? frm.set_value("supplier_party", null) : Promise.resolve();
+	}
+	return get_party_idno_field(frm, ptype).then((field) => {
+		if (!field) {
+			return force ? frm.set_value("supplier_party", null) : undefined;
+		}
+		const compact = normalize_idno(idno);
+		const lookup = (value) =>
+			frappe.db.get_value(ptype, { [field]: value }, "name").then((r) => r.message && r.message.name);
+		return lookup(idno)
+			.then((name) => {
+				if (name) {
+					return name;
+				}
+				if (compact && compact !== idno) {
+					return lookup(compact);
+				}
+				return null;
+			})
+			.then((name) => {
+				if (name) {
+					if (frm.doc.supplier_party !== name) {
+						return frm.set_value("supplier_party", name);
+					}
+					return;
+				}
+				if (force) {
+					return frm.set_value("supplier_party", null);
+				}
+			});
+	});
+}
+
+function validate_party_idno(frm) {
+	if (!frm.doc.supplier_party || !frm.doc.ef_supplier_idno) {
 		return Promise.resolve(true);
 	}
 	const expected = normalize_idno(frm.doc.ef_supplier_idno);
 	if (!expected) {
 		return Promise.resolve(true);
 	}
+	const ptype = frm.doc.supplier_party_type || "Supplier";
+	const idnoFieldKey = ptype === "Customer" ? "_customer_idno_field" : "_supplier_idno_field";
+	const settingsField = ptype === "Customer" ? "customer_idno_field" : "supplier_idno_field";
 	const check = (field) => {
 		if (!field) {
 			return Promise.resolve(true);
 		}
-		return frappe.db.get_value("Supplier", frm.doc.supplier, field).then((r) => {
+		return frappe.db.get_value(ptype, frm.doc.supplier_party, field).then((r) => {
 			const raw = (r.message && r.message[field]) || "";
 			if (normalize_idno(raw) === expected) {
 				return true;
 			}
+			const label = ptype === "Customer" ? __("Customer") : __("Supplier");
 			frappe.throw(
-				__("Supplier {0} IDNO ({1}) does not match e-Factura supplier IDNO {2}", [
-					frm.doc.supplier,
+				__("{0} {1} IDNO ({2}) does not match e-Factura supplier IDNO {3}", [
+					label,
+					frm.doc.supplier_party,
 					raw || __("not set"),
 					frm.doc.ef_supplier_idno,
 				])
 			);
 		});
 	};
-	if (frm._supplier_idno_field !== undefined) {
-		return check(frm._supplier_idno_field);
+	if (frm[idnoFieldKey] !== undefined) {
+		return check(frm[idnoFieldKey]);
 	}
-	return frappe.db.get_single_value("eFactura Settings", "supplier_idno_field").then((field) => {
-		frm._supplier_idno_field = field;
+	return frappe.db.get_single_value("eFactura Settings", settingsField).then((field) => {
+		frm[idnoFieldKey] = field;
 		return check(field);
 	});
 }
@@ -555,28 +736,14 @@ function patch_row_make_control(row) {
 	};
 }
 
-function setup_new_supplier_from_factura(frm) {
-	const field = frm.fields_dict.supplier;
-	const df = frm.get_docfield("supplier");
+function setup_new_party_from_factura(frm) {
+	const field = frm.fields_dict.supplier_party;
+	const df = frm.get_docfield("supplier_party");
 	if (!field || !df) {
 		return;
 	}
 
-	df.get_route_options_for_new_doc = () => {
-		const opts = {};
-		const supplierName = normalize_supplier_title(frm.doc.ef_supplier_name);
-		if (supplierName) {
-			// Supplier.supplier_name is no_copy; title is set via name_field in new_doc wrap.
-			opts.name_field = supplierName;
-			opts.supplier_name = supplierName;
-		}
-		const idnoField = frm._supplier_idno_field;
-		const idno = (frm.doc.ef_supplier_idno || "").trim();
-		if (idnoField && idno) {
-			opts[idnoField] = idno;
-		}
-		return opts;
-	};
+	df.get_route_options_for_new_doc = () => party_route_options_from_factura(frm);
 
 	if (field._ef_new_doc_wrapped) {
 		return;
@@ -585,17 +752,94 @@ function setup_new_supplier_from_factura(frm) {
 	const original_new_doc = field.new_doc.bind(field);
 	field.new_doc = function () {
 		const result = original_new_doc();
-		// Link.new_doc overwrites name_field with the typed search text (often empty).
-		const supplierName = normalize_supplier_title(frm.doc.ef_supplier_name);
-		if (supplierName && frappe.route_options) {
-			frappe.route_options.name_field = supplierName;
+		const partyName = normalize_supplier_title(frm.doc.ef_supplier_name);
+		if (frappe.route_options) {
+			Object.assign(frappe.route_options, party_route_options_from_factura(frm));
+			if (partyName) {
+				frappe.route_options.name_field = partyName;
+			}
 		}
 		return result;
 	};
 }
 
+function party_route_options_from_factura(frm) {
+	const opts = {};
+	const partyName = normalize_supplier_title(frm.doc.ef_supplier_name);
+	const ptype = frm.doc.supplier_party_type || "Supplier";
+	if (partyName) {
+		opts.name_field = partyName;
+		if (ptype === "Supplier") {
+			opts.supplier_name = partyName;
+		} else {
+			opts.customer_name = partyName;
+		}
+	}
+	const idnoField = ptype === "Customer" ? frm._customer_idno_field : frm._supplier_idno_field;
+	const idno = (frm.doc.ef_supplier_idno || "").trim();
+	if (idnoField && idno) {
+		opts[idnoField] = idno;
+	}
+	if (frm._fiscal_territory) {
+		opts.territory = frm._fiscal_territory;
+	}
+	return opts;
+}
+
+function pef_has_stock_or_buy_links(frm) {
+	return (frm.doc.items || []).some(
+		(row) => row.purchase_invoice || row.purchase_receipt || row.delivery_note
+	);
+}
+
+function unlink_pef_document(frm, method, confirm_message, success_message) {
+	frappe.confirm(confirm_message, () => {
+		frappe.call({
+			method: `erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura.${method}`,
+			args: { name: frm.doc.name },
+			freeze: true,
+			freeze_message: __("Unlinking..."),
+			callback(r) {
+				if (!r.exc) {
+					frappe.show_alert({
+						message: success_message,
+						indicator: "green",
+					});
+					frm.reload_doc();
+				}
+			},
+		});
+	});
+}
+
+function mark_pef_as_return(frm) {
+	toggle_pef_return(frm, "mark_as_return", __("Marking as return..."), __("Marked as return."));
+}
+
+function unmark_pef_as_return(frm) {
+	toggle_pef_return(frm, "unmark_as_return", __("Unmarking as return..."), __("Unmarked as return."));
+}
+
+function toggle_pef_return(frm, method, freeze_message, success_message) {
+	frappe.call({
+		method: `erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura.${method}`,
+		args: { name: frm.doc.name },
+		freeze: true,
+		freeze_message,
+		callback(r) {
+			if (!r.exc) {
+				frappe.show_alert({
+					message: success_message,
+					indicator: "green",
+				});
+				frm.reload_doc();
+			}
+		},
+	});
+}
+
 function link_purchase_invoice_dialog(frm) {
-	if (!frm.doc.supplier) {
+	if (!frm.doc.supplier_party) {
 		frappe.msgprint({
 			title: __("Select a Supplier"),
 			indicator: "orange",
@@ -616,7 +860,7 @@ function link_purchase_invoice_dialog(frm) {
 					query: "erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura.linkable_purchase_invoices",
 					filters: {
 						company: frm.doc.company,
-						supplier: frm.doc.supplier,
+						supplier: frm.doc.supplier_party,
 					},
 				}),
 			},
@@ -641,7 +885,109 @@ function link_purchase_invoice_dialog(frm) {
 				},
 			});
 		},
-		__("Link Invoice"),
+		__("Link Purchase Invoice"),
+		__("Link")
+	);
+}
+
+function link_purchase_receipt_dialog(frm) {
+	if (!frm.doc.supplier_party) {
+		frappe.msgprint({
+			title: __("Select a Supplier"),
+			indicator: "orange",
+			message: __("Select a Supplier on the e-Factura first"),
+		});
+		return;
+	}
+	frappe.prompt(
+		[
+			{
+				fieldname: "purchase_receipt",
+				fieldtype: "Link",
+				options: "Purchase Receipt",
+				label: __("Purchase Receipt"),
+				reqd: 1,
+				get_query: () => ({
+					query: "erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura.linkable_purchase_receipts",
+					filters: {
+						company: frm.doc.company,
+						supplier: frm.doc.supplier_party,
+					},
+				}),
+			},
+		],
+		(values) => {
+			frappe.call({
+				method: "erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura.link_purchase_receipt",
+				args: {
+					name: frm.doc.name,
+					purchase_receipt: values.purchase_receipt,
+				},
+				freeze: true,
+				freeze_message: __("Matching Purchase Receipt..."),
+				callback(r) {
+					if (!r.exc) {
+						frappe.show_alert({
+							message: __("Purchase Receipt linked."),
+							indicator: "green",
+						});
+						frm.reload_doc();
+					}
+				},
+			});
+		},
+		__("Link Purchase Receipt"),
+		__("Link")
+	);
+}
+
+function link_delivery_note_dialog(frm) {
+	if (!frm.doc.supplier_party) {
+		frappe.msgprint({
+			title: __("Select a Customer"),
+			indicator: "orange",
+			message: __("Select a Customer on the e-Factura first"),
+		});
+		return;
+	}
+	frappe.prompt(
+		[
+			{
+				fieldname: "delivery_note",
+				fieldtype: "Link",
+				options: "Delivery Note",
+				label: __("Delivery Note Return"),
+				reqd: 1,
+				get_query: () => ({
+					query: "erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura.linkable_delivery_notes",
+					filters: {
+						company: frm.doc.company,
+						customer: frm.doc.supplier_party,
+					},
+				}),
+			},
+		],
+		(values) => {
+			frappe.call({
+				method: "erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura.link_delivery_note",
+				args: {
+					name: frm.doc.name,
+					delivery_note: values.delivery_note,
+				},
+				freeze: true,
+				freeze_message: __("Matching Delivery Note..."),
+				callback(r) {
+					if (!r.exc) {
+						frappe.show_alert({
+							message: __("Delivery Note linked."),
+							indicator: "green",
+						});
+						frm.reload_doc();
+					}
+				},
+			});
+		},
+		__("Link Delivery Note Return"),
 		__("Link")
 	);
 }

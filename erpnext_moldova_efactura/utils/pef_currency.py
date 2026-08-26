@@ -36,12 +36,16 @@ def system_default_currency() -> str:
 	)
 
 
-def default_document_currency(supplier: str | None = None, company: str | None = None) -> str:
-	"""Supplier default → company default → system default."""
-	if supplier:
-		cur = frappe.db.get_value("Supplier", supplier, "default_currency")
-		if cur:
-			return cur
+def default_document_currency(
+	supplier: str | None = None, company: str | None = None, party_type: str = "Supplier"
+) -> str:
+	"""Party default → company default → system default."""
+	doctype = party_type if party_type in ("Supplier", "Customer") else "Supplier"
+	if supplier and frappe.db.exists(doctype, supplier):
+		if frappe.get_meta(doctype).has_field("default_currency"):
+			cur = frappe.db.get_value(doctype, supplier, "default_currency")
+			if cur:
+				return cur
 	if company:
 		cur = frappe.db.get_value("Company", company, "default_currency")
 		if cur:
@@ -58,14 +62,18 @@ def settings_ef_currency() -> str:
 
 def apply_supplier_or_default_currency(doc, overwrite_company_default: bool = False) -> None:
 	"""Set document currency on draft. Do not override a user-chosen currency."""
+	from erpnext_moldova_efactura.utils.pef_mode import party_type, pef_customer, pef_supplier
+
 	if cint(getattr(doc, "docstatus", 0)):
 		return
+	ptype = party_type(doc)
+	party = pef_supplier(doc) if ptype == "Supplier" else pef_customer(doc)
 	if not doc.currency:
-		doc.currency = default_document_currency(doc.supplier, doc.company)
+		doc.currency = default_document_currency(party, doc.company, ptype)
 		return
-	if not overwrite_company_default or not doc.supplier:
+	if not overwrite_company_default or not party or ptype != "Supplier":
 		return
-	sup_cur = frappe.db.get_value("Supplier", doc.supplier, "default_currency")
+	sup_cur = frappe.db.get_value("Supplier", party, "default_currency")
 	if not sup_cur:
 		return
 	company_cur = (

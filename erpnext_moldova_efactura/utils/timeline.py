@@ -10,6 +10,7 @@ from __future__ import annotations
 import frappe
 from frappe.core.doctype.version.version import Version
 from frappe.model.document import Document
+from frappe.utils import cstr
 
 VERSION_IGNORE_FIELDS = ("last_status_check",)
 
@@ -26,8 +27,8 @@ def log_event(doc, message: str) -> None:
 
 
 def log_status_change(doc, old_status, new_status) -> None:
-	old_label = (old_status or "").strip()
-	new_label = (new_status or "").strip()
+	old_label = cstr(old_status or "").strip()
+	new_label = cstr(new_status or "").strip()
 	if not new_label or old_label == new_label:
 		return
 	if getattr(doc, "flags", None) and doc.flags.get("in_validate"):

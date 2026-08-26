@@ -369,7 +369,8 @@ Partial (Draft),Частичная (черновик)
 Not Required (Draft),Не требуется (черновик)
 Unknown (Draft),Неизвестно (черновик)
 Please select at least one Purchase Invoice.,Выберите хотя бы один счёт покупки.
-Link Invoice,Связать счёт
+Link Invoice,Связать счёт покупки
+Link Purchase Invoice,Связать счёт покупки
 Select a Supplier,Выберите поставщика
 Select a Supplier on the e-Factura first,Сначала выберите поставщика на e-Factura
 Allocate,Распределить
@@ -438,3 +439,49 @@ Item Tax Templates,Шаблоны налогов номенклатуры
 "Allowed Item Tax Templates when loading a Sales eFactura from SFS. A line with a VAT % gets the first template from this list with the same rate.","Разрешённые Item Tax Template при загрузке Sales eFactura из SFS. Строке с % НДС подставляется первый шаблон из списка с той же ставкой."
 Item Tax Template {0} is listed more than once,Item Tax Template {0} указан больше одного раза
 "Use % as a wildcard to match several e-Factura names (for example Milk%).","Используйте % как маску для нескольких названий из e-Factura (например Молоко%)."
+Creation Motive,Мотив создания
+Is Return,Возврат
+Party Type,Тип стороны
+Party,Сторона
+Mark as Return,Отметить как возврат
+Marked as return.,Отмечено как возврат.
+Unmark as Return,Снять отметку возврата
+Unmarked as return.,Отметка возврата снята.
+Marking as return...,Отметка как возврат...
+Unmarking as return...,Снятие отметки возврата...
+e-Factura is not marked as a return,e-Factura не отмечена как возврат
+Cannot unmark a cancelled e-Factura as a return,Нельзя снять отметку возврата с отменённой e-Factura
+"Cannot unmark as return: e-Factura is already linked to a Purchase Order, Invoice, Receipt, or Delivery Note","Нельзя снять отметку возврата: e-Factura уже связана с заказом, счётом, приходом или накладной"
+Link Purchase Receipt,Связать приход
+Link Delivery Note Return,Связать возвратную накладную
+Unlink Invoice,Отвязать счёт покупки
+Unlink Purchase Invoice,Отвязать счёт покупки
+Unlink Purchase Receipt,Отвязать приход
+Unlink Delivery Note Return,Отвязать возвратную накладную
+Unlink all Purchase Invoice connections from this e-Factura?,Отвязать все связи со счётом покупки у этой e-Factura?
+Unlink all Purchase Receipt connections from this e-Factura?,Отвязать все связи с приходом у этой e-Factura?
+Unlink all Delivery Note Return connections from this e-Factura?,Отвязать все связи с возвратной накладной у этой e-Factura?
+Unlink all Purchase Order connections from this e-Factura?,Отвязать все связи с заказом поставщику у этой e-Factura?
+Purchase Invoice unlinked.,Счёт покупки отвязан.
+Purchase Receipt unlinked.,Приход отвязан.
+Delivery Note unlinked.,Накладная отвязана.
+Purchase Order unlinked.,Заказ поставщику отвязан.
+Unlinking...,Отвязка...
+Unlink is allowed only before submitting Purchase eFactura,Отвязать можно только до проведения Purchase eFactura
+No Purchase Invoice is linked,Счёт покупки не связан
+No Purchase Order is linked,Заказ поставщику не связан
+No {0} is linked,{0} не связан
+Unlinked Purchase Invoice.,Счёт покупки отвязан.
+Unlinked Purchase Order.,Заказ поставщику отвязан.
+Unlinked {0}.,{0} отвязан.
+Delivery Note Return,Возвратная накладная
+Allocate all rows to a Purchase Receipt before submit,Перед проведением распределите все строки на приход
+Allocate all rows to a Delivery Note Return before submit,Перед проведением распределите все строки на возвратную накладную
+Purchase Invoice and Purchase Order are not used for Non-Transfer e-Factura.,Счёт покупки и заказ поставщику не используются для Non-Transfer e-Factura.
+Only Non-Transfer e-Factura can be marked as a return,Как возврат можно отметить только Non-Transfer e-Factura
+"Cannot mark as return: e-Factura is already linked to a Purchase Order, Invoice, Receipt, or Delivery Note","Нельзя отметить как возврат: e-Factura уже связана с заказом, счётом, приходом или накладной"
+Is Return cannot be changed manually,Признак возврата нельзя менять вручную
+Customer is required before submit,Перед проведением укажите клиента
+"Purchase Receipt can be linked only for Non-Transfer that is not a return","Приход можно связать только с Non-Transfer, который не отмечен как возврат"
+Delivery Note Return can be linked only after marking the e-Factura as a return,Возвратную накладную можно связать только после отметки e-Factura как возврат
+

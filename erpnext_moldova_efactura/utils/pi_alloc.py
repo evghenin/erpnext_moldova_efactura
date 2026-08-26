@@ -194,6 +194,19 @@ def find_buyer_by_bill_no(pi) -> str | None:
 
 
 def validate_allocation_qtys(buyer) -> None:
+	from erpnext_moldova_efactura.utils.pef_mode import is_non_livrare, is_pef_return
+	from erpnext_moldova_efactura.utils.stock_alloc import (
+		DN_SPEC,
+		PR_SPEC,
+		validate_stock_allocation_qtys,
+	)
+
+	if is_pef_return(buyer):
+		validate_stock_allocation_qtys(buyer, DN_SPEC)
+		return
+	if is_non_livrare(buyer):
+		validate_stock_allocation_qtys(buyer, PR_SPEC)
+		return
 	seen_details: set[str] = set()
 	for row in _child(buyer, "items"):
 		if not _item_linked(row):

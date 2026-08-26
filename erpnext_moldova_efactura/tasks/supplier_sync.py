@@ -8,6 +8,7 @@ from frappe.utils import add_days, cint, flt, now_datetime
 
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient
 from erpnext_moldova_efactura.utils.api_response import extract_invoices, invoice_xml
+from erpnext_moldova_efactura.utils.fiscal_status import sef_status_label
 from erpnext_moldova_efactura.utils.buyer_status import (
 	SFS_ARCHIVED,
 	do_not_create_cancelled_invoices,
@@ -16,7 +17,7 @@ from erpnext_moldova_efactura.utils.buyer_status import (
 )
 from erpnext_moldova_efactura.utils.invoice_xml import parse_invoice_xml
 from erpnext_moldova_efactura.utils.company_api import get_sync_targets
-from erpnext_moldova_efactura.utils.party import find_customer_by_idno
+from erpnext_moldova_efactura.utils.party import find_customer_by_idno, find_supplier_by_idno
 from erpnext_moldova_efactura.utils.search_windows import iter_search_invoices
 
 DEFAULT_LOOKBACK_DAYS = 180
@@ -90,8 +91,9 @@ def _sync_supplier_invoices_for_company(client, company: str, lookback_days: int
 			)
 			if name:
 				doc = frappe.get_doc("Sales eFactura", name)
-				if cint(doc.ef_status) != cint(ef_status):
-					doc.db_set("ef_status", ef_status, update_modified=False)
+				label = sef_status_label(ef_status)
+				if doc.ef_status != label:
+					doc.db_set("ef_status", label, update_modified=False)
 					doc.set_status()
 					updated += 1
 				doc.db_set("last_status_check", now_datetime(), update_modified=False)
@@ -105,8 +107,14 @@ def _sync_supplier_invoices_for_company(client, company: str, lookback_days: int
 
 			xml = _fetch_xml(client, seria, number)
 			parsed = parse_invoice_xml(xml) if xml else {}
-			customer = find_customer_by_idno((parsed.get("buyer") or {}).get("idno"))
+			buyer_idno = (parsed.get("buyer") or {}).get("idno")
 			doc_type = "Non-Transfer" if str(parsed.get("creation_motiv") or "") == "5" else "Transfer"
+			party_type = "Supplier" if doc_type == "Non-Transfer" else "Customer"
+			party = (
+				find_supplier_by_idno(buyer_idno)
+				if party_type == "Supplier"
+				else find_customer_by_idno(buyer_idno)
+			)
 			doc = frappe.get_doc(
 				{
 					"doctype": "Sales eFactura",
@@ -117,9 +125,10 @@ def _sync_supplier_invoices_for_company(client, company: str, lookback_days: int
 					"type": doc_type,
 					"ef_series": seria,
 					"ef_number": number,
-					"ef_status": ef_status,
+					"ef_status": sef_status_label(ef_status),
 					"company_bank_account": bank,
-					"customer": customer,
+					"customer_party_type": party_type,
+					"customer_party": party,
 					"last_status_check": now_datetime(),
 				}
 			)

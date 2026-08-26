@@ -12,7 +12,6 @@
   "status",
   "ef_series",
   "ef_number",
-  "efactura_status",
   "ef_status",
   "column_main",
   "delivery_date",
@@ -21,13 +20,16 @@
   "last_status_check",
   "column_break_ckxn",
   "company",
+  "type",
+  "is_return",
   "section_currency",
   "currency",
   "column_break_bwnx",
   "ef_currency",
   "ef_conversion_rate",
   "section_supplier",
-  "supplier",
+  "supplier_party_type",
+  "supplier_party",
   "column_supplier",
   "ef_supplier_details",
   "ef_supplier_idno",
@@ -85,7 +87,6 @@
   {
    "fieldname": "company",
    "fieldtype": "Link",
-   "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Company",
    "options": "Company",
@@ -100,18 +101,8 @@
    "read_only": 1
   },
   {
-   "allow_on_submit": 1,
-   "fieldname": "efactura_status",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "eFactura Status",
-   "read_only": 1
-  },
-  {
    "fieldname": "issue_date",
    "fieldtype": "Date",
-   "in_list_view": 1,
    "label": "Issue Date",
    "read_only": 1
   },
@@ -129,7 +120,6 @@
    "bold": 1,
    "fieldname": "ef_series",
    "fieldtype": "Data",
-   "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "eFactura Series",
    "read_only": 1,
@@ -139,7 +129,6 @@
    "bold": 1,
    "fieldname": "ef_number",
    "fieldtype": "Data",
-   "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "eFactura Number",
    "read_only": 1,
@@ -148,9 +137,11 @@
   {
    "allow_on_submit": 1,
    "fieldname": "ef_status",
-   "fieldtype": "Int",
-   "hidden": 1,
-   "label": "eF Status Code",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "eFactura Status",
+   "options": "Signed by Supplier\nRejected\nAccepted\nSigning\nCanceled by Supplier\nArchived\nSent to Buyer\nSigned by Buyer\nTransportation\nCancellation Requested",
    "read_only": 1
   },
   {
@@ -198,12 +189,38 @@
    "label": "Supplier"
   },
   {
-   "fieldname": "supplier",
-   "fieldtype": "Link",
+   "allow_on_submit": 1,
+   "default": "Supplier",
+   "fieldname": "supplier_party_type",
+   "fieldtype": "Select",
+   "label": "Party Type",
+   "options": "Supplier\nCustomer",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "supplier_party",
+   "fieldtype": "Dynamic Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Supplier",
-   "options": "Supplier"
+   "label": "Party",
+   "options": "supplier_party_type"
+  },
+  {
+   "default": "Transfer",
+   "fieldname": "type",
+   "fieldtype": "Select",
+   "label": "Type",
+   "options": "Transfer\nNon-Transfer",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "0",
+   "fieldname": "is_return",
+   "fieldtype": "Check",
+   "label": "Is Return",
+   "read_only": 1
   },
   {
    "fieldname": "column_supplier",
@@ -483,7 +500,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-08-23 18:55:00.000000",
+ "modified": "2026-08-26 09:26:00.000000",
  "modified_by": "Administrator",
  "module": "Moldova eFactura",
  "name": "Purchase eFactura",
@@ -572,6 +589,23 @@
  "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": [],
+ "states": [
+  {
+   "color": "Red",
+   "title": "Draft"
+  },
+  {
+   "color": "Blue",
+   "title": "Submitted"
+  },
+  {
+   "color": "Red",
+   "title": "Cancelled"
+  },
+  {
+   "color": "Gray",
+   "title": "Return"
+  }
+ ],
  "track_changes": 1
 }

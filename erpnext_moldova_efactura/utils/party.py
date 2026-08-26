@@ -116,6 +116,18 @@ def throw_if_customer_idno_mismatch(customer: str | None, factura_idno: str | No
 	)
 
 
+def get_fiscal_territory(doctype: str | None = None) -> str | None:
+	"""Territory from eFactura Settings, if it still exists and the doctype has the field."""
+	territory = frappe.db.get_single_value("eFactura Settings", "fiscal_territory")
+	if not territory:
+		return None
+	if doctype and not frappe.get_meta(doctype).has_field("territory"):
+		return None
+	if not frappe.db.exists("Territory", territory):
+		return None
+	return territory
+
+
 def new_supplier_defaults(title: str | None = None, idno: str | None = None) -> dict:
 	"""Values for a new Supplier created from an incoming e-Factura."""
 	defaults: dict = {}
@@ -127,6 +139,9 @@ def new_supplier_defaults(title: str | None = None, idno: str | None = None) -> 
 	idno = str(idno or "").strip()
 	if fieldname and idno and frappe.get_meta("Supplier").has_field(fieldname):
 		defaults[fieldname] = idno
+	territory = get_fiscal_territory("Supplier")
+	if territory:
+		defaults["territory"] = territory
 	return defaults
 
 
@@ -148,6 +163,9 @@ def new_customer_defaults(
 		defaults["customer_type"] = "Individual"
 	elif taxpayer_type in ("Company", "Non-Resident"):
 		defaults["customer_type"] = "Company"
+	territory = get_fiscal_territory("Customer")
+	if territory:
+		defaults["territory"] = territory
 	return defaults
 
 

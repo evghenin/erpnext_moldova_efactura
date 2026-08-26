@@ -9,7 +9,7 @@ from frappe.utils import add_days, cint, now_datetime
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient
 from erpnext_moldova_efactura.utils.api_response import extract_invoices, invoice_status_map, invoice_xml
 from erpnext_moldova_efactura.utils.buyer_status import (
-	BUYER_ACTIONABLE_STATUSES,
+	BUYER_ACTIONABLE_LABELS,
 	buyer_search_statuses,
 	do_not_create_cancelled_invoices,
 	is_buyer_actionable_status,
@@ -17,7 +17,6 @@ from erpnext_moldova_efactura.utils.buyer_status import (
 	status_label,
 )
 from erpnext_moldova_efactura.utils.company_api import get_sync_targets
-from erpnext_moldova_efactura.utils.party import find_supplier_by_idno
 from erpnext_moldova_efactura.utils.search_windows import iter_search_invoices
 
 DEFAULT_LOOKBACK_DAYS = 180
@@ -60,15 +59,10 @@ def _sync_buyer_invoices_for_company(client, company: str, lookback_days: int) -
 			date_to=date_to,
 			error_title=f"Purchase eFactura SearchInvoices failed status={st} company={company}",
 		):
-			seria = str(inv.get("Seria") or "").strip()
-			number = str(inv.get("Number") or "").strip()
-			if not seria or not number:
-				continue
-			try:
-				code = int(inv.get("InvoiceStatus"))
-			except (TypeError, ValueError):
-				code = st
-			seen[(seria, number)] = code
+			_remember_invoice(seen, inv, default_status=st)
+
+	# IssuedOn search often misses buyer-inbox invoices still at "Signed by Supplier".
+	_merge_signed_by_supplier_inbox(client, seen, company)
 
 	created = updated = skipped = details = errors = 0
 	skip_cancelled = do_not_create_cancelled_invoices()
@@ -88,7 +82,7 @@ def _sync_buyer_invoices_for_company(client, company: str, lookback_days: int) -
 					doc.persist_sfs_status(ef_status)
 					updated += 1
 					continue
-				doc.ef_status = ef_status
+				doc.ef_status = status_label(ef_status)
 				doc.last_status_check = now_datetime()
 				doc.set_status(update=False)
 				doc.save(ignore_permissions=True)
@@ -106,8 +100,8 @@ def _sync_buyer_invoices_for_company(client, company: str, lookback_days: int) -
 						"company": company,
 						"ef_series": seria,
 						"ef_number": number,
-						"ef_status": ef_status,
-						"status": status_label(ef_status),
+						"ef_status": status_label(ef_status),
+						"status": "Draft",
 						"last_status_check": now_datetime(),
 					}
 				)
@@ -145,6 +139,44 @@ def _sync_buyer_invoices_for_company(client, company: str, lookback_days: int) -
 	}
 
 
+def _remember_invoice(seen: dict[tuple[str, str], int], inv: dict, default_status: int | None = None) -> None:
+	seria = str(inv.get("Seria") or "").strip()
+	number = str(inv.get("Number") or "").strip()
+	if not seria or not number:
+		return
+	try:
+		code = int(inv.get("InvoiceStatus"))
+	except (TypeError, ValueError):
+		code = default_status if default_status is not None else 1
+	seen[(seria, number)] = code
+
+
+def _merge_signed_by_supplier_inbox(client: EFacturaAPIClient, seen: dict[tuple[str, str], int], company: str) -> None:
+	"""Buyer invoices at SFS status 1 are visible in the portal but often absent from IssuedOn SearchInvoices."""
+	try:
+		resp = client.search_invoices(actor_role=2, parameters={"InvoiceStatus": 1})
+	except Exception:
+		frappe.log_error(
+			title=f"Purchase eFactura SearchInvoices failed status=1 (no date) company={company}",
+			message=frappe.get_traceback(),
+		)
+	else:
+		for inv in extract_invoices(resp):
+			_remember_invoice(seen, inv, default_status=1)
+
+	for order in (1, 2):
+		try:
+			resp = client.get_invoices_for_signing(actor_role=2, order=order)
+		except Exception:
+			frappe.log_error(
+				title=f"Purchase eFactura GetInvoicesForSigning failed order={order} company={company}",
+				message=frappe.get_traceback(),
+			)
+			continue
+		for inv in extract_invoices(resp):
+			_remember_invoice(seen, inv, default_status=1)
+
+
 def _fill_details(client: EFacturaAPIClient, name: str) -> bool:
 	doc = frappe.get_doc("Purchase eFactura", name)
 	# Never rewrite lines on submitted docs
@@ -160,7 +192,7 @@ def _fill_details(client: EFacturaAPIClient, name: str) -> bool:
 
 	inv = invs[0]
 	if inv.get("InvoiceStatus") is not None:
-		doc.ef_status = int(inv.get("InvoiceStatus"))
+		doc.ef_status = status_label(inv.get("InvoiceStatus"))
 
 	xml = invoice_xml(inv)
 	if not xml:
@@ -169,13 +201,17 @@ def _fill_details(client: EFacturaAPIClient, name: str) -> bool:
 		doc.save(ignore_permissions=True)
 		return False
 
-	preserve_supplier = doc.supplier
+	preserve_party = doc.supplier_party
+	preserve_party_type = doc.supplier_party_type
 	doc.flags.allow_sfs_item_refresh = True
 	doc.fill_from_xml(xml, preserve_mapped_items=True)
-	if preserve_supplier:
-		doc.supplier = preserve_supplier
-	elif doc.ef_supplier_idno and not doc.supplier:
-		doc.supplier = find_supplier_by_idno(doc.ef_supplier_idno)
+	# Party type is derived from is_return; keep a user-chosen party of the same type.
+	if preserve_party and doc.supplier_party_type == (preserve_party_type or doc.supplier_party_type):
+		doc.supplier_party = preserve_party
+	elif doc.ef_supplier_idno and not doc.supplier_party:
+		from erpnext_moldova_efactura.utils.pef_mode import resolve_xml_supplier_party
+
+		resolve_xml_supplier_party(doc)
 
 	doc.last_status_check = now_datetime()
 	doc.set_status(update=False)
@@ -190,7 +226,7 @@ def get_buyer_status_sync_rows(company: str, batch_size: int = 50) -> list[dict]
 	queues stay current even when many accepted/archived docs exist.
 	"""
 	limit = max(int(batch_size or 50), 1)
-	actionable = ",".join(str(code) for code in BUYER_ACTIONABLE_STATUSES)
+	actionable = ", ".join(frappe.db.escape(label) for label in BUYER_ACTIONABLE_LABELS)
 	return frappe.db.sql(
 		f"""
 		SELECT name, ef_series, ef_number, ef_status
@@ -232,7 +268,7 @@ def sync_buyer_statuses(batch_size: int = 50) -> dict:
 			key = (str(row.ef_series), str(row.ef_number))
 			new_status = statuses.get(key)
 			doc = frappe.get_doc("Purchase eFactura", row.name)
-			if new_status is not None and doc.ef_status != new_status:
+			if new_status is not None and doc.ef_status != status_label(new_status):
 				updated += 1
 			doc.persist_sfs_status(new_status)
 		checked += len(rows)

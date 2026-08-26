@@ -377,7 +377,8 @@ Partial (Draft),Parțială (ciornă)
 Not Required (Draft),Nu este necesar (ciornă)
 Unknown (Draft),Necunoscut (ciornă)
 Please select at least one Purchase Invoice.,Selectați cel puțin o factură de achiziție.
-Link Invoice,Leagă factura
+Link Invoice,Asociați factura de cumpărare
+Link Purchase Invoice,Asociați factura de cumpărare
 Select a Supplier,Selectați furnizorul
 Select a Supplier on the e-Factura first,Selectați mai întâi furnizorul pe e-Factura
 Allocate,Alocă
@@ -445,3 +446,49 @@ Item Tax Templates,Șabloane de taxe articol
 "Allowed Item Tax Templates when loading a Sales eFactura from SFS. A line with a VAT % gets the first template from this list with the same rate.","Șabloane Item Tax Template permise la încărcarea Sales eFactura din SFS. Rândului cu % TVA i se pune primul șablon din listă cu aceeași cotă."
 Item Tax Template {0} is listed more than once,Item Tax Template {0} este listat de mai multe ori
 "Use % as a wildcard to match several e-Factura names (for example Milk%).","Folosiți % ca mască pentru mai multe denumiri din e-Factura (de exemplu Lapte%)."
+Creation Motive,Motiv de creare
+Is Return,Retur
+Party Type,Tip parte
+Party,Parte
+Mark as Return,Marcați ca retur
+Marked as return.,Marcat ca retur.
+Unmark as Return,Anulați marcajul de retur
+Unmarked as return.,Marcajul de retur a fost anulat.
+Marking as return...,Se marchează ca retur...
+Unmarking as return...,Se anulează marcajul de retur...
+e-Factura is not marked as a return,e-Factura nu este marcată ca retur
+Cannot unmark a cancelled e-Factura as a return,Nu se poate anula marcajul de retur pentru o e-Factura anulată
+"Cannot unmark as return: e-Factura is already linked to a Purchase Order, Invoice, Receipt, or Delivery Note","Nu se poate anula marcajul de retur: e-Factura este deja asociată cu o comandă, factură, recepție sau aviz"
+Link Purchase Receipt,Asociați recepția
+Link Delivery Note Return,Asociați avizul de retur
+Unlink Invoice,Dezasociați factura de cumpărare
+Unlink Purchase Invoice,Dezasociați factura de cumpărare
+Unlink Purchase Receipt,Dezasociați recepția
+Unlink Delivery Note Return,Dezasociați avizul de retur
+Unlink all Purchase Invoice connections from this e-Factura?,Dezasociați toate legăturile cu factura de cumpărare de la această e-Factura?
+Unlink all Purchase Receipt connections from this e-Factura?,Dezasociați toate legăturile cu recepția de la această e-Factura?
+Unlink all Delivery Note Return connections from this e-Factura?,Dezasociați toate legăturile cu avizul de retur de la această e-Factura?
+Unlink all Purchase Order connections from this e-Factura?,Dezasociați toate legăturile cu comanda de cumpărare de la această e-Factura?
+Purchase Invoice unlinked.,Factura de cumpărare a fost dezasociată.
+Purchase Receipt unlinked.,Recepția a fost dezasociată.
+Delivery Note unlinked.,Avizul a fost dezasociat.
+Purchase Order unlinked.,Comanda de cumpărare a fost dezasociată.
+Unlinking...,Se dezasociază...
+Unlink is allowed only before submitting Purchase eFactura,Dezasocierea este permisă doar înainte de confirmarea Purchase eFactura
+No Purchase Invoice is linked,Nicio factură de cumpărare nu este asociată
+No Purchase Order is linked,Nicio comandă de cumpărare nu este asociată
+No {0} is linked,{0} nu este asociat
+Unlinked Purchase Invoice.,Factura de cumpărare a fost dezasociată.
+Unlinked Purchase Order.,Comanda de cumpărare a fost dezasociată.
+Unlinked {0}.,{0} a fost dezasociat.
+Delivery Note Return,Aviz de retur
+Allocate all rows to a Purchase Receipt before submit,Înainte de confirmare alocați toate rândurile la o recepție
+Allocate all rows to a Delivery Note Return before submit,Înainte de confirmare alocați toate rândurile la un aviz de retur
+Purchase Invoice and Purchase Order are not used for Non-Transfer e-Factura.,Factura și comanda de cumpărare nu se folosesc pentru e-Factura Non-Transfer.
+Only Non-Transfer e-Factura can be marked as a return,Doar e-Factura Non-Transfer poate fi marcată ca retur
+"Cannot mark as return: e-Factura is already linked to a Purchase Order, Invoice, Receipt, or Delivery Note","Nu poate fi marcat ca retur: e-Factura este deja asociată cu o comandă, factură, recepție sau aviz"
+Is Return cannot be changed manually,Indicatorul de retur nu poate fi schimbat manual
+Customer is required before submit,Clientul este obligatoriu înainte de confirmare
+Purchase Receipt can be linked only for Non-Transfer that is not a return,Recepția poate fi asociată doar pentru Non-Transfer care nu este retur
+Delivery Note Return can be linked only after marking the e-Factura as a return,Avizul de retur poate fi asociat doar după marcarea e-Factura ca retur
+

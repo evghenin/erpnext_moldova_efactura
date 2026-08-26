@@ -41,13 +41,18 @@ def warn_on_draft_save_enabled() -> bool:
 
 
 def is_failed_efactura(ef_status=None, status: str | None = None) -> bool:
+	from erpnext_moldova_efactura.utils.fiscal_status import sef_status_label
+
+	label = sef_status_label(ef_status) or (status or "")
+	if label in FAILED_EF_STATUS_LABELS:
+		return True
 	try:
 		if ef_status is not None and ef_status != "":
 			if int(ef_status) in FAILED_EF_STATUS_CODES:
 				return True
 	except (TypeError, ValueError):
 		pass
-	return (status or "") in FAILED_EF_STATUS_LABELS
+	return False
 
 
 def get_quota_efactura_rows(

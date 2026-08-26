@@ -1,13 +1,26 @@
 frappe.listview_settings["Purchase eFactura"] = {
 	hide_name_column: false,
-	add_fields: ["status", "efactura_status", "ef_status", "supplier", "total"],
-	filters: [["status", "not in", ["Canceled by Supplier"]]],
+	add_fields: ["status", "ef_status", "supplier_party", "total", "is_return"],
+	filters: [["status", "not in", ["Cancelled"]], ["ef_status", "not in", ["Canceled by Supplier"]]],
+	get_indicator(doc) {
+		if (cint(doc.docstatus) === 1 && cint(doc.is_return) === 1) {
+			return [__("Return"), "gray", "status,=,Return"];
+		}
+		if (cint(doc.docstatus) === 2) {
+			return [__("Cancelled"), "red", "docstatus,=,2"];
+		}
+		if (cint(doc.docstatus) === 1) {
+			return [__("Submitted"), "blue", "docstatus,=,1"];
+		}
+		return [__("Draft"), "red", "docstatus,=,0"];
+	},
 	formatters: {
-		efactura_status(value) {
+		ef_status(value) {
 			if (!value) {
 				return "";
 			}
 			const colors = {
+				Return: "gray",
 				"Sent to Buyer": "orange",
 				"Signed by Supplier": "orange",
 				Accepted: "yellow",

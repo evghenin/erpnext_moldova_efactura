@@ -72,7 +72,10 @@ def _try_auto_allocate(doc):
 	buyer = frappe.get_doc("Purchase eFactura", buyer_name)
 	if buyer.docstatus == 2:
 		return
-	if buyer.supplier and doc.supplier and buyer.supplier != doc.supplier:
+	from erpnext_moldova_efactura.utils.pef_mode import pef_supplier
+
+	supplier = pef_supplier(buyer)
+	if supplier and doc.supplier and supplier != doc.supplier:
 		return
 	if buyer.company and doc.company and buyer.company != doc.company:
 		return

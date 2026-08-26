@@ -3,7 +3,15 @@
 
 import json, base64, re, frappe, hashlib, uuid
 import xml.etree.ElementTree as ET
-from erpnext_moldova_efactura.utils.fiscal_status import determine_fiscal_status
+from erpnext_moldova_efactura.utils.fiscal_status import (
+    determine_fiscal_status,
+    is_sef_cancelable_status,
+    is_sef_pending,
+    sef_status_label,
+    SEF_CANCELED_BY_SUPPLIER,
+    SEF_PENDING_REGISTRATION,
+    SEF_REGISTERED_AS_DRAFT,
+)
 from erpnext_moldova_efactura.utils.si_link import sales_invoice_of, sync_sales_invoice_links
 
 from datetime import datetime
@@ -12,11 +20,18 @@ from frappe.model.document import Document
 from frappe.model.mapper import get_mapped_doc
 from frappe.utils import cint, flt
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient
+from erpnext_moldova_efactura.utils.api_response import invoice_status_map, sfs_action_error
 from erpnext_moldova_efactura.utils.invoice_xml import unescape_sfs_text
 from erpnext_moldova_efactura.utils.taxpayer_type import taxpayer_type_from_sfs, taxpayer_type_to_sfs
 from erpnext_moldova_efactura.utils.timeline import log_event, log_status_change
 from lxml import etree
-from erpnext_moldova_efactura.tasks.status_sync import _extract_single_invoice_from_search_response, _extract_status_map
+from erpnext_moldova_efactura.utils.sef_mode import (
+    expected_party_type,
+    party_type as sef_party_type,
+    resolve_xml_customer_party,
+    sef_customer,
+    throw_if_sef_party_idno_mismatch,
+)
 
 
 def _get_sales_efactura(name, ptype="write"):
@@ -49,7 +64,7 @@ def _signable_skip_reason(row):
         return _("Not found")
     if cint(row.docstatus) != 1:
         return _("Not submitted")
-    if cint(row.ef_status) != -1:
+    if not is_sef_pending(row.ef_status):
         return _("Not in Pending Registration")
     return None
 
@@ -57,12 +72,29 @@ def _signable_skip_reason(row):
 def _assert_can_register_signed(ef):
     if cint(ef.docstatus) != 1:
         frappe.throw(_("Only submitted Sales eFactura documents can be registered."))
-    if cint(ef.ef_status) != -1:
+    if not is_sef_pending(ef.ef_status):
         frappe.throw(_("Sales eFactura can be registered only in Pending Registration status."))
 
 
 class SaleseFactura(Document):
+    @property
+    def customer(self):
+        """Linked Customer when party type is Customer (SI/SO/DN path)."""
+        return sef_customer(self)
+
+    @customer.setter
+    def customer(self, value):
+        if self.meta.has_field("customer_party"):
+            if not self.get("customer_party_type"):
+                self.customer_party_type = sef_party_type(self)
+            if sef_party_type(self) == "Customer":
+                self.customer_party = value
+            return
+        self.__dict__["customer"] = value
+
     def onload(self):
+        if self.meta.has_field("customer_party_type") and not (self.get("customer_party_type") or "").strip():
+            self.customer_party_type = expected_party_type(self)
         if self.docstatus == 0:
             self.update_items_available_qty()
 
@@ -71,10 +103,10 @@ class SaleseFactura(Document):
         self.set_ef_currency_from_settings()
         self.apply_ef_conversion_rate_rules()
         sync_sales_invoice_links(self)
+        self._sync_is_return_from_sales_invoice()
         self._validate_unique_series_number()
-        from erpnext_moldova_efactura.utils.party import throw_if_customer_idno_mismatch
-
-        throw_if_customer_idno_mismatch(self.customer, self.ef_customer_idno)
+        resolve_xml_customer_party(self)
+        throw_if_sef_party_idno_mismatch(self)
         self._validate_sales_invoice_customer()
         self.update_items_available_qty()
         self.set_status(log=False)
@@ -83,15 +115,24 @@ class SaleseFactura(Document):
     def _validate_sales_invoice_customer(self):
         if not self.sales_invoice:
             return
-        if not self.customer:
+        if sef_party_type(self) != "Customer":
+            frappe.throw(_("Sales Invoice can be linked only when Party Type is Customer"))
+        if not sef_customer(self):
             frappe.throw(_("Select Customer first"))
         si_customer = frappe.db.get_value("Sales Invoice", self.sales_invoice, "customer")
-        if si_customer and si_customer != self.customer:
+        if si_customer and si_customer != sef_customer(self):
             frappe.throw(
                 _("Sales Invoice {0} does not belong to Customer {1}").format(
-                    self.sales_invoice, self.customer
+                    self.sales_invoice, sef_customer(self)
                 )
             )
+
+    def _sync_is_return_from_sales_invoice(self):
+        if not self.meta.has_field("is_return") or not self.sales_invoice:
+            return
+        self.is_return = cint(
+            frappe.db.get_value("Sales Invoice", self.sales_invoice, "is_return") or 0
+        )
 
     def set_naming_series(self):
         if not self.is_new():
@@ -116,8 +157,8 @@ class SaleseFactura(Document):
         enforce_si_qty_on_submit(self)
 
     def _validate_ready_to_submit(self):
-        if not self.customer:
-            frappe.throw(_("Customer is required before submit"))
+        if not (sef_customer(self) or self.get("customer_party") or self.get("customer")):
+            frappe.throw(_("Party is required before submit"))
         if not self.company_bank_account:
             frappe.throw(_("Company Bank Account is required before submit"))
         if not self.issue_date:
@@ -127,10 +168,9 @@ class SaleseFactura(Document):
         if not self.items:
             frappe.throw(_("Add or fetch invoice items before submit"))
 
-        from erpnext_moldova_efactura.utils.party import throw_if_customer_idno_mismatch
         from erpnext_moldova_efactura.utils.pi_match import throw_unmapped_items
 
-        throw_if_customer_idno_mismatch(self.customer, self.ef_customer_idno)
+        throw_if_sef_party_idno_mismatch(self)
         throw_unmapped_items(self.items, _("Map all items before submit"), self.currency)
         for row in self.items:
             if not row.uom:
@@ -146,7 +186,7 @@ class SaleseFactura(Document):
         self.set_status(log=False)
 
     def on_cancel(self):
-        if self.ef_status != -1 and self.ef_status != 5:
+        if not is_sef_pending(self.ef_status) and self.ef_status != SEF_CANCELED_BY_SUPPLIER:
             frappe.throw(
                 _("eFactura can be cancelled only in Pending Registration or Canceled by Supplier status.")
             )
@@ -163,62 +203,34 @@ class SaleseFactura(Document):
         save_doc_version(self)
 
     def set_status(self, log=True):
-        """
-        Map to sync 'status' field:
-
-        status                 | docstatus | ef_status | e-Factura            
-        ------------------------------------------------------------------------
-        Draft                  |     0     |    any    | 
-        Cancelled              |     2     |    any    | 
-        Pending Registration   |     1     |    -1     |
-        Registered as Draft    |     1     |     0     | Draft
-        Signed by Supplier     |     1     |     1     | Signed by Supplier
-        Rejected by Customer   |     1     |     2     | Rejected by Customer
-        Accepted by Customer   |     1     |     3     | Accepted by Customer
-        Canceled by Supplier   |     1     |     5     | Canceled by Supplier
-        Archived               |     1     |     6     | Archived
-        Sent to Customer       |     1     |   7,9     | Sent to Customer
-        Signed by Customer     |     1     |     8     | Signed by Customer
-        Transportation         |     1     |    10     | Transportation
-        Cancellation Requested |     1     |    11     | Cancellation Requested
-
-        """
+        """Document Status (Draft/Submitted/Cancelled/Return) vs SFS eFactura Status text."""
+        self.ef_status = sef_status_label(self.ef_status) or self.ef_status
+        if self.docstatus == 1 and not self.ef_status:
+            self.ef_status = SEF_PENDING_REGISTRATION
+            if not self.is_new():
+                self.db_set("ef_status", self.ef_status, update_modified=False)
 
         if self.docstatus == 0:
             self.status = "Draft"
             if self.is_new():
                 return
-
-        old_status = frappe.db.get_value(self.doctype, self.name, "status")
-
-        ef_status_labels = {
-            -1: "Pending Registration",
-            0:  "Registered as Draft",
-            1:  "Signed by Supplier",
-            2:  "Rejected by Customer",
-            3:  "Accepted by Customer",
-            5:  "Canceled by Supplier",
-            6:  "Archived",
-            7:  "Sent to Customer",
-            8:  "Signed by Customer",
-            9:  "Sent to Customer",
-            10: "Transportation",
-            11: "Cancellation Requested",
-        }
-
-        if self.docstatus == 0:
-            self.status = "Draft"
         elif self.docstatus == 2:
             self.status = "Cancelled"
-        elif self.docstatus == 1:
-            if self.ef_status is None:
-                self.db_set("ef_status", -1, update_modified=False) 
+        elif cint(self.get("is_return")) == 1:
+            self.status = "Return"
+        else:
+            self.status = "Submitted"
 
-            self.status = ef_status_labels.get(self.ef_status)
+        if self.is_new():
+            return
 
-        self.db_set("status", self.status, update_modified=False)
+        old_ef = frappe.db.get_value(self.doctype, self.name, "ef_status")
+        self.db_set(
+            {"status": self.status, "ef_status": self.ef_status},
+            update_modified=False,
+        )
         if log:
-            log_status_change(self, old_status, self.status)
+            log_status_change(self, old_ef, self.ef_status)
 
         # --- Update linked Sales Invoice fiscal status ---
         si_name = sales_invoice_of(self)
@@ -320,10 +332,10 @@ class SaleseFactura(Document):
         if self.flags.get("keep_xml_amounts") or self.flags.get("from_efactura_sync"):
             return True
         try:
-            status = int(self.ef_status)
+            status = sef_status_label(self.ef_status)
         except (TypeError, ValueError):
             return False
-        return status != -1 and bool(self.ef_series and self.ef_number)
+        return status != SEF_PENDING_REGISTRATION and bool(self.ef_series and self.ef_number)
 
     def _apply_sfs_xml_amounts(self):
         """Document amounts = eFactura XML amounts / (doc → ef rate)."""
@@ -432,7 +444,6 @@ class SaleseFactura(Document):
         """Load parties and items from an SFS invoice XML (outgoing invoices issued outside ERP)."""
         from erpnext_moldova_efactura.utils.invoice_xml import parse_invoice_xml
         from erpnext_moldova_efactura.utils.item_tax_template import item_tax_template_for_vat_rate
-        from erpnext_moldova_efactura.utils.party import find_customer_by_idno
         from erpnext_moldova_efactura.utils.uom_map import ensure_uom_map, resolve_uom
 
         parsed = parse_invoice_xml(xml_content)
@@ -444,8 +455,8 @@ class SaleseFactura(Document):
             self.ef_series = parsed["ef_series"]
         if parsed.get("ef_number"):
             self.ef_number = parsed["ef_number"]
-        if cint(self.docstatus) == 0 and str(parsed.get("creation_motiv") or "") == "5":
-            self.type = "Non-Transfer"
+        if parsed.get("creation_motiv") not in (None, ""):
+            self.type = "Non-Transfer" if str(parsed["creation_motiv"]) == "5" else "Transfer"
 
         sup = parsed.get("supplier") or {}
         self.ef_supplier_idno = sup.get("idno") or self.ef_supplier_idno
@@ -467,8 +478,7 @@ class SaleseFactura(Document):
             buy.get("taxpayer_type") or self.ef_customer_taxpayer_type
         )
         self.ef_customer_address = buy.get("address") or self.ef_customer_address
-        if not self.customer and buy.get("idno"):
-            self.customer = find_customer_by_idno(buy.get("idno"))
+        resolve_xml_customer_party(self)
 
         tr = parsed.get("transporter") or {}
         self.ef_transporter_idno = tr.get("idno") or self.ef_transporter_idno
@@ -592,12 +602,13 @@ class SaleseFactura(Document):
                 self.company,
                 idno_fields["Company"],
             )
+            ptype = sef_party_type(self)
             self._autofill_party_block(
                 client,
                 "customer",
-                "Customer",
-                self.customer,
-                idno_fields["Customer"],
+                ptype,
+                sef_customer(self) or self.get("customer_party") or self.get("customer"),
+                idno_fields.get(ptype),
             )
 
             if self.transporter_party_type and self.transporter_party:
@@ -751,7 +762,7 @@ def update_ef_status(efactura_name):
                 assigned = not (efactura.ef_series and efactura.ef_number)
                 efactura.db_set("ef_series", remote_series, update_modified=False)
                 efactura.db_set("ef_number", remote_number, update_modified=False)
-                efactura.db_set("ef_status", remote_status, update_modified=False)
+                efactura.db_set("ef_status", sef_status_label(remote_status), update_modified=False)
                 efactura.set_status()
                 if assigned:
                     log_event(
@@ -776,9 +787,68 @@ def update_ef_status(efactura_name):
         key = (str(efactura.ef_series), str(efactura.ef_number))
         status = statuses.get(key)
 
-        if status is not None and status != efactura.ef_status:
-            efactura.db_set("ef_status", status, update_modified=False)
+        if status is not None and sef_status_label(status) != efactura.ef_status:
+            efactura.db_set("ef_status", sef_status_label(status), update_modified=False)
             efactura.set_status()
+
+
+def _assert_can_cancel(doc):
+    if cint(doc.docstatus) != 1:
+        frappe.throw(_("Submit Sales eFactura before this action"))
+    if not doc.ef_series or not doc.ef_number:
+        frappe.throw(_("eFactura Series/Number is required to cancel in e-Factura"))
+    if not is_sef_cancelable_status(doc.ef_status):
+        frappe.throw(
+            _(
+                "eFactura can be canceled only in Signed by Supplier, Sent to Customer, "
+                "Accepted by Customer, Signed by Customer, Rejected by Customer, or Transportation status."
+            )
+        )
+
+
+def _refresh_sfs_status(doc):
+    client = EFacturaAPIClient.from_settings(company=doc.company)
+    resp = client.check_invoices_status([{"Seria": doc.ef_series, "Number": doc.ef_number}])
+    statuses = invoice_status_map(resp)
+    status = statuses.get((str(doc.ef_series), str(doc.ef_number)))
+    if status is not None and sef_status_label(status) != doc.ef_status:
+        label = sef_status_label(status)
+        doc.db_set("ef_status", label, update_modified=False)
+        doc.ef_status = label
+        doc.set_status()
+
+
+@frappe.whitelist()
+def cancel_invoice(name: str, reason: str | None = None):
+    """Cancel (anulare) a Sales eFactura in SFS, same pattern as Purchase eFactura reject."""
+    doc = _get_sales_efactura(name)
+    _assert_can_cancel(doc)
+    comment = (reason or doc.get("cancellation_reason") or "").strip()
+    if not comment:
+        frappe.throw(_("Cancellation Reason is required"))
+
+    client = EFacturaAPIClient.from_settings(company=doc.company)
+    try:
+        resp = client.post_canceled_invoices(
+            [
+                {
+                    "Seria": doc.ef_series,
+                    "Number": doc.ef_number,
+                    "Comment": comment,
+                }
+            ]
+        )
+    except Exception as e:
+        frappe.throw(_("e-Factura API Error: {0}").format(str(e)))
+    err = sfs_action_error(resp)
+    if err:
+        frappe.throw(_("e-Factura API Error: {0}").format(err))
+
+    doc.db_set("cancellation_reason", comment, update_modified=False)
+    doc.cancellation_reason = comment
+    _refresh_sfs_status(doc)
+    log_event(doc, _("Canceled invoice in e-Factura: {0}").format(comment))
+    return {"status": doc.status, "ef_status": doc.ef_status, "cancellation_reason": comment}
 
 
 @frappe.whitelist()
@@ -829,12 +899,10 @@ def filter_signable(names=None):
         if reason:
             skipped.append({"name": name, "reason": reason})
             continue
-        if not frappe.has_permission(
-            "Sales eFactura", ptype="write", doc=name, raise_exception=False
-        ):
+        if not frappe.has_permission("Sales eFactura", "write", name):
             skipped.append({"name": name, "reason": _("No write permission")})
             continue
-        signable.append({"name": name, "status": row.status or ""})
+        signable.append({"name": name, "status": row.ef_status or row.status or ""})
     return {"signable": signable, "skipped": skipped}
 
 
@@ -916,7 +984,7 @@ def send_unsigned(efactura_name):
         frappe.throw(_("e-Factura API Error: Invoices posted: {0} / {1}").format(posted, total))
 
     else:
-        efactura.db_set("ef_status", 0, update_modified=False)
+        efactura.db_set("ef_status", SEF_REGISTERED_AS_DRAFT, update_modified=False)
         efactura.set_status()
         # series and number are assigned only after signing in eFactura system, 
         # so we need to clear them for unsigned invoices to avoid confusion
@@ -937,7 +1005,7 @@ def update_dates(efactura_name, issue_date, delivery_date):
     if ef.docstatus != 1:
         frappe.throw(_("Dates can be updated only for submitted documents."))
 
-    if ef.ef_status != -1:
+    if not is_sef_pending(ef.ef_status):
         frappe.throw(_("Dates can be updated only in Pending Registration status."))
 
     if not issue_date or not delivery_date:
@@ -1051,7 +1119,7 @@ def process_signed_xml(name, signature, content):
         frappe.throw(_("e-Factura API Error: Invoices posted: {0} / {1}").format(posted, total))
 
     # Update status
-    ef.db_set("ef_status", 1, update_modified=False)
+    ef.db_set("ef_status", sef_status_label(1), update_modified=False)
     ef.set_status()
     log_event(ef, _("Sent signed invoice to e-Factura."))
 
@@ -1075,20 +1143,32 @@ def get_new_customer_defaults(name=None, title=None, idno=None, taxpayer_type=No
     return new_customer_defaults(title, idno, taxpayer_type)
 
 
+@frappe.whitelist()
+def get_new_supplier_defaults(name=None, title=None, idno=None):
+    """Prefill values when creating a Supplier from a Non-Transfer Sales eFactura."""
+    if name:
+        doc = _get_sales_efactura(name, "read")
+        title = title or doc.ef_customer_name
+        idno = idno or doc.ef_customer_idno
+    from erpnext_moldova_efactura.utils.party import new_supplier_defaults
+
+    return new_supplier_defaults(title, idno)
+
+
 def _require_not_cancelled(doc):
     if cint(doc.docstatus) == 2:
         frappe.throw(_("Cannot create documents from a cancelled Sales eFactura"))
 
 
 def _require_mapped(doc, action_label=None):
-    if not doc.customer:
+    if sef_party_type(doc) != "Customer" or not sef_customer(doc):
         frappe.throw(_("Customer is required to create {0}").format(action_label or _("Sales Invoice")))
     if not doc.items:
         frappe.throw(_("No items on Sales eFactura — fetch details first"))
     from erpnext_moldova_efactura.utils.party import throw_if_customer_idno_mismatch
     from erpnext_moldova_efactura.utils.pi_match import throw_unmapped_items
 
-    throw_if_customer_idno_mismatch(doc.customer, doc.ef_customer_idno)
+    throw_if_customer_idno_mismatch(sef_customer(doc), doc.ef_customer_idno)
     throw_unmapped_items(
         doc.items,
         _("Map all items before creating {0}").format(action_label or _("Sales Invoice")),
@@ -1279,7 +1359,7 @@ def make_sales_invoice(source_name, target_doc=None):
 
     si = frappe.new_doc("Sales Invoice")
     si.company = source.company
-    si.customer = source.customer
+    si.customer = sef_customer(source)
     si.currency = source.currency or "MDL"
     if source.delivery_date and si.meta.has_field("delivery_date"):
         si.delivery_date = source.delivery_date
@@ -1301,7 +1381,7 @@ def make_sales_order(source_name, target_doc=None):
 
     so = frappe.new_doc("Sales Order")
     so.company = source.company
-    so.customer = source.customer
+    so.customer = sef_customer(source)
     so.currency = source.currency or "MDL"
     so.transaction_date = today()
     schedule = source.delivery_date or source.issue_date or today()
@@ -1452,16 +1532,20 @@ def _set_missing_values(source, target):
     target.company = source.company
     target.currency = source.currency
 
-    # Optional but usually correct
-    target.customer = source.customer
+    target.customer_party_type = "Customer"
+    target.customer_party = source.customer
 
     # One Sales Invoice per e-Factura (header is denormalized from item links):
     # - eFactura can be issued without any Delivery Note
     # - one SI may be fulfilled by several DNs; DN only supplies items
     if source.doctype == "Sales Invoice":
         target.sales_invoice = source.name
+        if target.meta.has_field("is_return"):
+            target.is_return = cint(source.is_return)
     elif source.doctype == "Delivery Note" and not target.sales_invoice:
         target.sales_invoice = _resolve_sales_invoice_from_delivery_note(source)
+        if target.meta.has_field("is_return"):
+            target.is_return = cint(getattr(source, "is_return", 0))
     sync_sales_invoice_links(target)
 
     target.set_ef_currency_from_settings()

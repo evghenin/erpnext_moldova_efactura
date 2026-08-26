@@ -26,16 +26,39 @@ SFS_ARCHIVED = 6
 # Statuses that typically appear in buyer inbox and should be fetched
 BUYER_SEARCH_STATUSES = (7, 9, 1, 8, 3, 2, 10, 5, 11)
 
-# Buyer still needs to accept/sign
+# Buyer still needs to accept/sign (SFS InvoiceStatus codes — API search only)
 BUYER_ACTIONABLE_STATUSES = (1, 7, 9)
 BUYER_SIGNABLE_STATUSES = (1, 7, 9, 3)
+BUYER_ACTIONABLE_LABELS = ("Signed by Supplier", "Sent to Buyer")
+BUYER_SIGNABLE_LABELS = ("Signed by Supplier", "Sent to Buyer", "Accepted")
+CANCELED_BY_SUPPLIER_LABEL = "Canceled by Supplier"
+
+
+def _status_int(value):
+	if value is None or value == "":
+		return None
+	if isinstance(value, bool):
+		return None
+	if isinstance(value, int):
+		return value
+	text = str(value).strip()
+	if text.lstrip("-").isdigit():
+		return int(text)
+	return None
 
 
 def is_buyer_actionable_status(ef_status) -> bool:
-	try:
-		return int(ef_status) in BUYER_ACTIONABLE_STATUSES
-	except (TypeError, ValueError):
-		return False
+	if status_label(ef_status) in BUYER_ACTIONABLE_LABELS:
+		return True
+	code = _status_int(ef_status)
+	return code in BUYER_ACTIONABLE_STATUSES if code is not None else False
+
+
+def is_buyer_signable_status(ef_status) -> bool:
+	if status_label(ef_status) in BUYER_SIGNABLE_LABELS:
+		return True
+	code = _status_int(ef_status)
+	return code in BUYER_SIGNABLE_STATUSES if code is not None else False
 
 
 # Legacy suffix stripped from stored status; no longer written.
@@ -43,13 +66,13 @@ PI_LINKED_SUFFIX = " · Linked to PI"
 
 
 def status_label(ef_status) -> str:
+	"""Map SFS InvoiceStatus int (or leftover numeric string) to stored text."""
 	if ef_status is None or ef_status == "":
 		return ""
-	try:
-		code = int(ef_status)
-	except (TypeError, ValueError):
-		return ""
-	return BUYER_STATUS_MAP.get(code, "")
+	code = _status_int(ef_status)
+	if code is not None:
+		return BUYER_STATUS_MAP.get(code, "")
+	return base_status(str(ef_status).strip())
 
 
 def compose_buyer_status(ef_status, purchase_invoice: str | None = None) -> str:
@@ -70,6 +93,8 @@ def base_status(status: str | None) -> str:
 
 
 def is_canceled_by_supplier(ef_status) -> bool:
+	if status_label(ef_status) == CANCELED_BY_SUPPLIER_LABEL:
+		return True
 	try:
 		return int(ef_status) == SFS_CANCELED_BY_SUPPLIER
 	except (TypeError, ValueError):
