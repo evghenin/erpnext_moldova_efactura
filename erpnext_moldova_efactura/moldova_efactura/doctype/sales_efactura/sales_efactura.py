@@ -8,7 +8,6 @@ from erpnext_moldova_efactura.utils.fiscal_status import (
     is_sef_cancelable_status,
     is_sef_pending,
     sef_status_label,
-    SEF_CANCELED_BY_SUPPLIER,
     SEF_PENDING_REGISTRATION,
     SEF_REGISTERED_AS_DRAFT,
 )
@@ -186,10 +185,6 @@ class SaleseFactura(Document):
         self.set_status(log=False)
 
     def on_cancel(self):
-        if not is_sef_pending(self.ef_status) and self.ef_status != SEF_CANCELED_BY_SUPPLIER:
-            frappe.throw(
-                _("eFactura can be cancelled only in Pending Registration or Canceled by Supplier status.")
-            )
         self.set_status(log=False)
 
     def on_update(self):

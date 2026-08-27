@@ -13,7 +13,7 @@ Outgoing invoices are **Sales eFactura**. Incoming invoices are **Purchase eFact
 - Create e-Factura from a Sales Invoice, or pull items from a Delivery Note / Sales Order (Transfer / Non-Transfer).
 - **Transfer** uses a Customer; **Non-Transfer** uses a Supplier. Party IDNO must match the XML.
 - Sign, send, and track SFS status (`ef_status` text labels, separate from document Status: Draft / Submitted / Cancelled / Return).
-- Cancel a submitted invoice in SFS (comment required). Drafts can only be deleted in the SFS portal.
+- A submitted Sales eFactura can be cancelled in ERPNext regardless of SFS status (Fetch can restore it from SFS). **Cancel** in SFS (comment required) is still limited to statuses the API accepts. Drafts in SFS can only be deleted in the SFS portal.
 - Optional **Include Archived Invoices** in eFactura Settings (Sales → Fetch / Sync; off by default) includes SFS status Archived (6) in Fetch / daily sync.
 - Bulk **Register Signed** and **Register Unsigned** from the Sales eFactura list. A confirmation lists ineligible documents (skipped) and eligible documents that will be processed.
 - Download XML / PDF, **Update Status**, and **Update Dates** (issue / delivery) while the invoice is still pending registration.
