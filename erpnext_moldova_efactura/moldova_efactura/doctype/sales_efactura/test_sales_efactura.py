@@ -1011,4 +1011,16 @@ class TestSaleseFactura(FrappeTestCase):
 		self.assertTrue(rate_matches(row, pr_row, 2, abs_qty=True))
 		self.assertTrue(lines_compatible(row, pr_row, 3, 2, abs_qty=True))
 
+	def test_sales_efactura_dashboard_includes_purchase_receipt(self):
+		from erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura_dashboard import (
+			get_data,
+		)
+
+		data = get_data()
+		self.assertEqual(data["fieldname"], "sales_efactura")
+		self.assertEqual(data["internal_links"]["Purchase Receipt"], ["items", "purchase_receipt"])
+		self.assertTrue(
+			any("Purchase Receipt" in (group.get("items") or []) for group in data["transactions"])
+		)
+
 
