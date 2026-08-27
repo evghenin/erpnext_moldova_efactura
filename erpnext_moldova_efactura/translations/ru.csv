@@ -487,4 +487,32 @@ Is Return cannot be changed manually,Признак возврата нельз�
 Customer is required before submit,Перед проведением укажите клиента
 "Purchase Receipt can be linked only for Non-Transfer that is not a return","Приход можно связать только с Non-Transfer, который не отмечен как возврат"
 Delivery Note Return can be linked only after marking the e-Factura as a return,Возвратную накладную можно связать только после отметки e-Factura как возврат
+Link Purchase Receipt Return,Связать возвратный приход
+Unlink Purchase Receipt Return,Отвязать возвратный приход
+Return Purchase Receipt,Возвратный приход
+Sales eFactura for return (Non-Transfer),Исходящая eFactura на возврат (Non-Transfer)
+Purchase Receipt Return,Возвратный приход
+Purchase Receipt Return linked.,Возвратный приход связан.
+Purchase Receipt Return unlinked.,Возвратный приход отвязан.
+Unlink all Purchase Receipt Return connections from this e-Factura?,Отвязать все связи с возвратным приходом от этой e-Factura?
+Allocate all rows to a Purchase Receipt Return before submit,Перед проведением распределите все строки на возвратный приход
+Please select a Supplier first.,Сначала выберите поставщика.
+Select a Supplier on the e-Factura first,Сначала выберите поставщика на e-Factura
+Matching Purchase Receipt...,Сопоставление прихода...
+Only a return Purchase Receipt can create a return e-Factura,Возвратную e-Factura можно создать только из возвратного прихода
+Purchase Receipt must be submitted,Приход должен быть проведён
+Purchase Receipt Return {0} must have a Return Against document,У возвратного прихода {0} должен быть документ Return Against
+Cannot mark a submitted e-Factura as a return,Проведённую e-Factura нельзя отметить как возврат
+Cannot unmark a submitted e-Factura as a return,С проведённой e-Factura нельзя снять отметку возврата
+"Cannot mark as return: e-Factura is already linked to a Sales Invoice, Delivery Note, or Purchase Receipt","Нельзя отметить как возврат: e-Factura уже связана со счётом продажи, накладной или приходом"
+"Cannot unmark as return: e-Factura is already linked to a Sales Invoice, Delivery Note, or Purchase Receipt","Нельзя снять отметку возврата: e-Factura уже связана со счётом продажи, накладной или приходом"
+Purchase Receipt Return can be linked only after marking the e-Factura as a return,Возвратный приход можно связать только после отметки e-Factura как возврат
+No Purchase Receipt Return is linked,Возвратный приход не связан
+Unlink is allowed only before submitting Sales eFactura,Отвязать можно только до проведения Sales eFactura
+Cannot cancel or amend Purchase Receipt {0}: Sales eFactura {1} is submitted,Нельзя отменить или изменить приход {0}: исходящая e-Factura {1} проведена
+Quantity exceeds Purchase Receipt Return,Количество превышает возвратный приход
+Fiscal status can be actualized only for submitted receipts.,Фискальный статус можно обновлять только у проведённых приходов.
+Fiscal status updated for {0} receipts.,Фискальный статус обновлён для {0} приходов.
+Please select at least one Purchase Receipt.,Выберите хотя бы один приход.
+Sales Invoice and Sales Order are not used for Non-Transfer e-Factura.,Счёт продажи и заказ клиента не используются для Non-Transfer e-Factura.
 

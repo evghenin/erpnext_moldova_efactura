@@ -26,10 +26,13 @@ from erpnext_moldova_efactura.utils.timeline import log_event, log_status_change
 from lxml import etree
 from erpnext_moldova_efactura.utils.sef_mode import (
     expected_party_type,
+    has_selling_or_stock_links,
     is_non_transfer,
+    is_sef_return,
     party_type as sef_party_type,
     resolve_xml_customer_party,
     sef_customer,
+    sef_supplier,
     throw_if_sef_party_idno_mismatch,
 )
 
@@ -103,6 +106,7 @@ class SaleseFactura(Document):
         self.set_ef_currency_from_settings()
         self.apply_ef_conversion_rate_rules()
         sync_sales_invoice_links(self)
+        self._lock_return_flag()
         self._sync_is_return_from_sales_invoice()
         self._validate_unique_series_number()
         resolve_xml_customer_party(self)
@@ -112,6 +116,15 @@ class SaleseFactura(Document):
         self.update_items_available_qty()
         self.set_status(log=False)
         self.apply_vat()
+
+    def _lock_return_flag(self):
+        if self.flags.get("allow_mark_as_return") or self.is_new():
+            return
+        if not is_non_transfer(self):
+            return
+        prev = self.get_doc_before_save()
+        if prev and cint(prev.is_return) != cint(self.is_return):
+            frappe.throw(_("Is Return cannot be changed manually"))
 
     def _validate_sales_invoice_customer(self):
         if not self.sales_invoice:
@@ -131,6 +144,8 @@ class SaleseFactura(Document):
     def _sync_is_return_from_sales_invoice(self):
         if not self.meta.has_field("is_return") or not self.sales_invoice:
             return
+        if is_non_transfer(self):
+            return
         self.is_return = cint(
             frappe.db.get_value("Sales Invoice", self.sales_invoice, "is_return") or 0
         )
@@ -147,6 +162,8 @@ class SaleseFactura(Document):
 
         if self.flags.get("from_efactura_sync") or self.flags.get("ignore_si_qty_guard"):
             return
+        if is_sef_return(self):
+            return
         enforce_si_qty_on_draft_save(self)
 
     def before_submit(self):
@@ -154,6 +171,11 @@ class SaleseFactura(Document):
         from erpnext_moldova_efactura.utils.qty_guard import enforce_si_qty_on_submit
 
         if self.flags.get("from_efactura_sync") or self.flags.get("ignore_si_qty_guard"):
+            return
+        if is_sef_return(self):
+            from erpnext_moldova_efactura.utils.sef_pr_alloc import enforce_pr_qty_on_submit
+
+            enforce_pr_qty_on_submit(self)
             return
         enforce_si_qty_on_submit(self)
 
@@ -164,7 +186,10 @@ class SaleseFactura(Document):
             frappe.throw(_("Sales Invoice cannot be changed after submit"))
 
     def _validate_ready_to_submit(self):
-        if not (sef_customer(self) or self.get("customer_party") or self.get("customer")):
+        if is_sef_return(self):
+            if not sef_supplier(self):
+                frappe.throw(_("Supplier is required before submit"))
+        elif not (sef_customer(self) or self.get("customer_party") or self.get("customer")):
             frappe.throw(_("Party is required before submit"))
         if not is_non_transfer(self) and not sales_invoice_of(self):
             frappe.throw(_("Sales Invoice is required before submit"))
@@ -190,6 +215,10 @@ class SaleseFactura(Document):
                 frappe.throw(_("eFactura UOM is required for row {0}").format(row.idx))
             if not flt(row.qty):
                 frappe.throw(_("Quantity is required for row {0}").format(row.idx))
+        if is_sef_return(self):
+            from erpnext_moldova_efactura.utils.sef_pr_alloc import throw_unallocated_pr
+
+            throw_unallocated_pr(self.items, self.currency)
 
     def on_submit(self):
         self.set_status(log=False)
@@ -201,6 +230,15 @@ class SaleseFactura(Document):
         # Auto-fill parties data after saving the document (draft included).
         # Use db_set(update_modified=False) to avoid recursive saves.
         self._autofill_parties_from_efactura_api_after_save()
+        self._sync_pr_header_link()
+
+    def _sync_pr_header_link(self):
+        if self.is_new() or not self.name:
+            return
+        from erpnext_moldova_efactura.utils.sef_pr_alloc import set_pr_sef_link, unique_purchase_receipts
+
+        for pr_name in unique_purchase_receipts(self):
+            set_pr_sef_link(pr_name, self.name)
 
     def save_version(self):
         from erpnext_moldova_efactura.utils.timeline import save_doc_version
@@ -244,9 +282,18 @@ class SaleseFactura(Document):
                 si = frappe.get_doc("Sales Invoice", si_name)
                 new_status = determine_fiscal_status(si)
                 si.db_set("fiscal_status", new_status, update_modified=False)
+                from erpnext_moldova_efactura.utils.fiscal_status import sync_prs_for_sales_invoice
+
+                sync_prs_for_sales_invoice(si_name)
             except frappe.ValidationError:
                 # configuration error or blocked state – do not break eFactura flow
                 pass
+
+        from erpnext_moldova_efactura.utils.sef_pr_alloc import unique_purchase_receipts
+        from erpnext_moldova_efactura.utils.fiscal_status import sync_pr_fiscal_status
+
+        for pr_name in unique_purchase_receipts(self):
+            sync_pr_fiscal_status(pr_name)
 
     def _validate_unique_series_number(self):
         if not (self.company and self.ef_series and self.ef_number):
@@ -1165,6 +1212,11 @@ def _require_not_cancelled(doc):
         frappe.throw(_("Cannot create documents from a cancelled Sales eFactura"))
 
 
+def _require_transfer_for_selling(doc):
+    if is_non_transfer(doc):
+        frappe.throw(_("Sales Invoice and Sales Order are not used for Non-Transfer e-Factura."))
+
+
 def _require_mapped(doc, action_label=None):
     if sef_party_type(doc) != "Customer" or not sef_customer(doc):
         frappe.throw(_("Customer is required to create {0}").format(action_label or _("Sales Invoice")))
@@ -1358,6 +1410,7 @@ def make_sales_invoice(source_name, target_doc=None):
     frappe.has_permission("Sales Invoice", "create", throw=True)
     source = _get_sales_efactura(source_name)
     _require_not_cancelled(source)
+    _require_transfer_for_selling(source)
     _require_mapped(source, _("Sales Invoice"))
     if source.sales_invoice:
         frappe.throw(_("e-Factura already has a Sales Invoice"))
@@ -1382,6 +1435,7 @@ def make_sales_order(source_name, target_doc=None):
     frappe.has_permission("Sales Order", "create", throw=True)
     source = _get_sales_efactura(source_name)
     _require_not_cancelled(source)
+    _require_transfer_for_selling(source)
     _require_mapped(source, _("Sales Order"))
 
     so = frappe.new_doc("Sales Order")
@@ -1488,6 +1542,273 @@ def make_efactura_from_sales_invoice(source_name, target_doc=None):
 
     doc.update_items_available_qty()
 
+    return doc
+
+
+def _save_sef_links(doc):
+    doc.flags.ignore_validate_update_after_submit = True
+    doc.save()
+
+
+def _set_sef_return(name: str, is_return: int):
+    doc = _get_sales_efactura(name)
+    want_return = cint(is_return)
+    if cint(doc.docstatus) != 0:
+        frappe.throw(
+            _("Cannot unmark a submitted e-Factura as a return")
+            if not want_return
+            else _("Cannot mark a submitted e-Factura as a return")
+        )
+    if not is_non_transfer(doc):
+        frappe.throw(_("Only Non-Transfer e-Factura can be marked as a return"))
+    if cint(doc.is_return) == want_return:
+        frappe.throw(
+            _("e-Factura is already marked as a return")
+            if want_return
+            else _("e-Factura is not marked as a return")
+        )
+    if has_selling_or_stock_links(doc):
+        frappe.throw(
+            _(
+                "Cannot unmark as return: e-Factura is already linked to a Sales Invoice, Delivery Note, or Purchase Receipt"
+            )
+            if not want_return
+            else _(
+                "Cannot mark as return: e-Factura is already linked to a Sales Invoice, Delivery Note, or Purchase Receipt"
+            )
+        )
+    doc.flags.allow_mark_as_return = True
+    doc.is_return = want_return
+    resolve_xml_customer_party(doc)
+    _save_sef_links(doc)
+    log_event(doc, _("Unmarked as return.") if not want_return else _("Marked as return."))
+    return doc.as_dict()
+
+
+@frappe.whitelist()
+def mark_as_return(name: str):
+    return _set_sef_return(name, 1)
+
+
+@frappe.whitelist()
+def unmark_as_return(name: str):
+    return _set_sef_return(name, 0)
+
+
+def _assert_can_link_pr_return(doc):
+    if cint(doc.docstatus) == 2:
+        frappe.throw(_("Cannot link Purchase Receipt Return to a cancelled e-Factura"))
+    if not is_sef_return(doc):
+        frappe.throw(_("Purchase Receipt Return can be linked only after marking the e-Factura as a return"))
+    if not sef_supplier(doc):
+        frappe.throw(_("Select a Supplier on the e-Factura first"))
+    if not doc.items:
+        frappe.throw(_("Add or fetch invoice items before linking a Purchase Receipt Return"))
+
+
+@frappe.whitelist()
+def link_purchase_receipt_return(name: str, purchase_receipt: str):
+    from erpnext_moldova_efactura.utils.sef_pr_alloc import (
+        apply_pr_allocations,
+        set_pr_sef_link,
+        validate_and_match_pr,
+    )
+
+    doc = _get_sales_efactura(name)
+    _assert_can_link_pr_return(doc)
+    if not frappe.db.exists("Purchase Receipt", purchase_receipt):
+        frappe.throw(_("Purchase Receipt {0} not found").format(purchase_receipt))
+    pr = frappe.get_doc("Purchase Receipt", purchase_receipt)
+    pr.check_permission("read")
+    allocs = validate_and_match_pr(doc, pr)
+    apply_pr_allocations(doc, allocs, purchase_receipt)
+    set_pr_sef_link(purchase_receipt, doc.name)
+    doc.set_status(log=False)
+    _save_sef_links(doc)
+    from erpnext_moldova_efactura.utils.fiscal_status import sync_pr_fiscal_status
+
+    sync_pr_fiscal_status(purchase_receipt)
+    log_event(doc, _("Linked Purchase Receipt Return {0}.").format(purchase_receipt))
+    return doc.as_dict()
+
+
+@frappe.whitelist()
+def unlink_purchase_receipt_return(name: str):
+    from erpnext_moldova_efactura.utils.sef_pr_alloc import (
+        clear_pr_item_links,
+        clear_pr_sef_link,
+        unique_purchase_receipts,
+    )
+
+    doc = _get_sales_efactura(name)
+    if cint(doc.docstatus) != 0:
+        frappe.throw(_("Unlink is allowed only before submitting Sales eFactura"))
+    receipts = unique_purchase_receipts(doc)
+    if not receipts:
+        frappe.throw(_("No Purchase Receipt Return is linked"))
+    clear_pr_item_links(doc)
+    _save_sef_links(doc)
+    for pr_name in receipts:
+        clear_pr_sef_link(pr_name, doc.name)
+        from erpnext_moldova_efactura.utils.fiscal_status import sync_pr_fiscal_status
+
+        sync_pr_fiscal_status(pr_name)
+    log_event(doc, _("Unlinked Purchase Receipt Return."))
+    return doc.as_dict()
+
+
+@frappe.whitelist()
+@frappe.validate_and_sanitize_search_inputs
+def linkable_purchase_receipt_returns(doctype, txt, searchfield, start, page_len, filters):
+    from frappe.desk.reportview import get_match_cond
+
+    filters = filters or {}
+    conditions = [
+        "`tabPurchase Receipt`.docstatus = 1",
+        "`tabPurchase Receipt`.is_return = 1",
+        "ifnull(`tabPurchase Receipt`.return_against, '') != ''",
+    ]
+    values = {"txt": f"%{txt or ''}%", "start": start, "page_len": page_len}
+    if filters.get("company"):
+        conditions.append("`tabPurchase Receipt`.company = %(company)s")
+        values["company"] = filters["company"]
+    if filters.get("supplier"):
+        conditions.append("`tabPurchase Receipt`.supplier = %(supplier)s")
+        values["supplier"] = filters["supplier"]
+    sef_name = filters.get("sales_efactura") or ""
+    if frappe.get_meta("Purchase Receipt").has_field("sales_efactura"):
+        conditions.append(
+            """(
+                ifnull(`tabPurchase Receipt`.sales_efactura, '') = ''
+                OR `tabPurchase Receipt`.sales_efactura = %(sef_name)s
+            )"""
+        )
+        values["sef_name"] = sef_name
+    return frappe.db.sql(
+        f"""
+        SELECT `tabPurchase Receipt`.name, `tabPurchase Receipt`.supplier,
+            `tabPurchase Receipt`.posting_date, `tabPurchase Receipt`.grand_total
+        FROM `tabPurchase Receipt`
+        WHERE {" AND ".join(conditions)}
+            AND (
+                `tabPurchase Receipt`.name LIKE %(txt)s
+                OR IFNULL(`tabPurchase Receipt`.`{searchfield}`, '') LIKE %(txt)s
+            )
+            {get_match_cond("Purchase Receipt")}
+        ORDER BY `tabPurchase Receipt`.modified DESC
+        LIMIT %(page_len)s OFFSET %(start)s
+        """,
+        values,
+    )
+
+
+def _abs_qty_on_sef_items(target):
+    for d in target.items or []:
+        d.qty = abs(flt(d.qty))
+        if d.meta.has_field("stock_qty"):
+            d.stock_qty = abs(flt(d.stock_qty or d.qty))
+        if d.meta.has_field("ef_qty"):
+            d.ef_qty = abs(flt(d.ef_qty or d.qty))
+        if d.meta.has_field("amount"):
+            d.amount = abs(flt(d.amount))
+        if d.meta.has_field("net_amount"):
+            d.net_amount = abs(flt(d.net_amount or 0))
+        if d.meta.has_field("rate"):
+            d.rate = abs(flt(d.rate))
+
+
+def _postprocess_from_pr_return(source, target):
+    target.company = source.company
+    target.currency = source.currency
+    target.type = "Non-Transfer"
+    target.flags.allow_mark_as_return = True
+    target.is_return = 1
+    target.customer_party_type = "Supplier"
+    target.customer_party = source.supplier
+    if source.posting_date:
+        target.issue_date = source.posting_date
+        target.delivery_date = source.posting_date
+    from erpnext_moldova_efactura.utils.party import get_supplier_idno
+
+    target.ef_customer_idno = get_supplier_idno(source.supplier) or target.ef_customer_idno
+    if source.supplier:
+        target.ef_customer_name = (
+            frappe.db.get_value("Supplier", source.supplier, "supplier_name") or source.supplier
+        )
+    _abs_qty_on_sef_items(target)
+    for d in target.items or []:
+        d.purchase_receipt = source.name
+    resolve_xml_customer_party(target)
+    target.set_naming_series()
+    target.set_ef_currency_from_settings()
+    target.apply_ef_conversion_rate_rules()
+    target.apply_vat()
+    for d in target.items or []:
+        d.ef_uom = d.ef_uom or d.uom
+        d.ef_qty = d.ef_qty or d.qty
+
+
+def _assert_pr_return_source(source):
+    frappe.has_permission("Sales eFactura", "create", throw=True)
+    source.check_permission("read")
+    if cint(source.docstatus) != 1:
+        frappe.throw(_("Purchase Receipt must be submitted"))
+    if not cint(source.is_return):
+        frappe.throw(_("Only a return Purchase Receipt can create a return e-Factura"))
+    if not (getattr(source, "return_against", None) or "").strip():
+        frappe.throw(_("Purchase Receipt Return {0} must have a Return Against document").format(source.name))
+    from erpnext_moldova_efactura.utils.sef_pr_alloc import live_sef_for_pr
+
+    other = live_sef_for_pr(source)
+    if other:
+        frappe.throw(
+            _("Purchase Receipt {0} is already linked to Sales eFactura {1}").format(source.name, other)
+        )
+
+
+@frappe.whitelist()
+def live_sales_efactura_for_purchase_receipt(purchase_receipt: str):
+    if not purchase_receipt:
+        return None
+    pr = frappe.get_doc("Purchase Receipt", purchase_receipt)
+    pr.check_permission("read")
+    from erpnext_moldova_efactura.utils.sef_pr_alloc import live_sef_for_pr
+
+    return live_sef_for_pr(pr)
+
+
+@frappe.whitelist()
+def make_efactura_from_purchase_receipt_return(source_name, target_doc=None):
+    source = frappe.get_doc("Purchase Receipt", source_name)
+    _assert_pr_return_source(source)
+
+    doc = get_mapped_doc(
+        "Purchase Receipt",
+        source_name,
+        {
+            "Purchase Receipt": {
+                "doctype": "Sales eFactura",
+                "validation": {"docstatus": ["=", 1]},
+            },
+            "Purchase Receipt Item": {
+                "doctype": "Sales eFactura Item",
+                "field_map": {
+                    "item_code": "item_code",
+                    "item_name": "item_name",
+                    "stock_uom": "stock_uom",
+                    "stock_qty": "stock_qty",
+                    "uom": "uom",
+                    "qty": "qty",
+                    "rate": "rate",
+                    "item_tax_template": "item_tax_template",
+                    "parent": "purchase_receipt",
+                    "name": "pr_detail",
+                },
+            },
+        },
+        target_doc,
+        _postprocess_from_pr_return,
+    )
     return doc
 
 

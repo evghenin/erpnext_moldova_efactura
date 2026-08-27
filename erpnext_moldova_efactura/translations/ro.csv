@@ -494,4 +494,32 @@ Is Return cannot be changed manually,Indicatorul de retur nu poate fi schimbat m
 Customer is required before submit,Clientul este obligatoriu înainte de confirmare
 Purchase Receipt can be linked only for Non-Transfer that is not a return,Recepția poate fi asociată doar pentru Non-Transfer care nu este retur
 Delivery Note Return can be linked only after marking the e-Factura as a return,Avizul de retur poate fi asociat doar după marcarea e-Factura ca retur
+Link Purchase Receipt Return,Asociați recepția de retur
+Unlink Purchase Receipt Return,Dezasociați recepția de retur
+Return Purchase Receipt,Recepție de retur
+Sales eFactura for return (Non-Transfer),e-Factura de vânzare pentru retur (Non-Transfer)
+Purchase Receipt Return,Recepție de retur
+Purchase Receipt Return linked.,Recepția de retur a fost asociată.
+Purchase Receipt Return unlinked.,Recepția de retur a fost dezasociată.
+Unlink all Purchase Receipt Return connections from this e-Factura?,Dezasociați toate legăturile cu recepția de retur de la această e-Factura?
+Allocate all rows to a Purchase Receipt Return before submit,Înainte de confirmare alocați toate rândurile la o recepție de retur
+Please select a Supplier first.,Selectați mai întâi un furnizor.
+Select a Supplier on the e-Factura first,Selectați mai întâi un furnizor pe e-Factura
+Matching Purchase Receipt...,Se potrivește recepția...
+Only a return Purchase Receipt can create a return e-Factura,O e-Factura de retur poate fi creată doar dintr-o recepție de retur
+Purchase Receipt must be submitted,Recepția trebuie să fie confirmată
+Purchase Receipt Return {0} must have a Return Against document,Recepția de retur {0} trebuie să aibă documentul Return Against
+Cannot mark a submitted e-Factura as a return,O e-Factura confirmată nu poate fi marcată ca retur
+Cannot unmark a submitted e-Factura as a return,Marcajul de retur nu poate fi anulat pentru o e-Factura confirmată
+"Cannot mark as return: e-Factura is already linked to a Sales Invoice, Delivery Note, or Purchase Receipt","Nu poate fi marcat ca retur: e-Factura este deja asociată cu o factură de vânzare, aviz sau recepție"
+"Cannot unmark as return: e-Factura is already linked to a Sales Invoice, Delivery Note, or Purchase Receipt","Nu se poate anula marcajul de retur: e-Factura este deja asociată cu o factură de vânzare, aviz sau recepție"
+Purchase Receipt Return can be linked only after marking the e-Factura as a return,Recepția de retur poate fi asociată doar după marcarea e-Factura ca retur
+No Purchase Receipt Return is linked,Nicio recepție de retur nu este asociată
+Unlink is allowed only before submitting Sales eFactura,Dezasocierea este permisă doar înainte de confirmarea Sales eFactura
+Cannot cancel or amend Purchase Receipt {0}: Sales eFactura {1} is submitted,Nu se poate anula sau modifica recepția {0}: e-Factura de vânzare {1} este confirmată
+Quantity exceeds Purchase Receipt Return,Cantitatea depășește recepția de retur
+Fiscal status can be actualized only for submitted receipts.,Statutul fiscal poate fi actualizat doar pentru recepții confirmate.
+Fiscal status updated for {0} receipts.,Statutul fiscal a fost actualizat pentru {0} recepții.
+Please select at least one Purchase Receipt.,Selectați cel puțin o recepție.
+Sales Invoice and Sales Order are not used for Non-Transfer e-Factura.,Factura și comanda de vânzare nu se folosesc pentru e-Factura Non-Transfer.
 

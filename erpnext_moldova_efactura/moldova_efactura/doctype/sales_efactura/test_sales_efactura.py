@@ -3,7 +3,7 @@
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
-from frappe.utils import flt
+from frappe.utils import cint, flt
 
 from erpnext_moldova_efactura.utils.party import new_customer_defaults
 
@@ -278,8 +278,8 @@ class TestSaleseFactura(FrappeTestCase):
 			{
 				"doctype": "Sales eFactura",
 				"type": "Non-Transfer",
-				"customer_party_type": "Supplier",
-				"customer_party": "Supp",
+				"customer_party_type": "Customer",
+				"customer_party": "Cust",
 				"issue_date": "2026-08-20",
 				"delivery_date": "2026-08-20",
 				"company_bank_account": "X",
@@ -298,6 +298,210 @@ class TestSaleseFactura(FrappeTestCase):
 		with self.assertRaises(frappe.ValidationError) as ctx:
 			doc._validate_ready_to_submit()
 		self.assertNotIn("Sales Invoice is required before submit", str(ctx.exception))
+		self.assertNotIn("Purchase Receipt Return", str(ctx.exception))
+
+	def test_expected_party_type_non_transfer_return(self):
+		from types import SimpleNamespace
+
+		from erpnext_moldova_efactura.utils.sef_mode import expected_party_type
+
+		self.assertEqual(expected_party_type(SimpleNamespace(type="Transfer", is_return=0)), "Customer")
+		self.assertEqual(expected_party_type(SimpleNamespace(type="Non-Transfer", is_return=0)), "Customer")
+		self.assertEqual(expected_party_type(SimpleNamespace(type="Non-Transfer", is_return=1)), "Supplier")
+
+	def test_submit_return_non_transfer_requires_pr(self):
+		doc = frappe.get_doc(
+			{
+				"doctype": "Sales eFactura",
+				"type": "Non-Transfer",
+				"is_return": 1,
+				"customer_party_type": "Supplier",
+				"customer_party": "Supp",
+				"issue_date": "2026-08-20",
+				"delivery_date": "2026-08-20",
+				"company_bank_account": "X",
+				"items": [
+					{
+						"item_code": "SKU",
+						"item_name": "Widget",
+						"qty": 1,
+						"uom": "Nos",
+						"stock_uom": "Nos",
+						"ef_uom": "Nos",
+						"rate": 1,
+					}
+				],
+			}
+		)
+		with self.assertRaises(frappe.ValidationError) as ctx:
+			doc._validate_ready_to_submit()
+		self.assertIn("Purchase Receipt Return", str(ctx.exception))
+
+	def test_mark_as_return_sets_supplier_and_unmark_restores_customer(self):
+		from erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura import (
+			mark_as_return,
+			unmark_as_return,
+		)
+		from erpnext_moldova_efactura.utils.party import get_customer_idno_field, get_supplier_idno_field
+
+		item = frappe.db.get_value("Item", {"disabled": 0}, ["name", "stock_uom"], as_dict=True)
+		cust = frappe.db.get_value("Customer", {"disabled": 0}, "name")
+		sup = frappe.db.get_value("Supplier", {"disabled": 0}, "name")
+		company = frappe.db.get_single_value("Global Defaults", "default_company") or frappe.db.get_value(
+			"Company", {}, "name"
+		)
+		bank = frappe.db.get_value("Bank Account", {"company": company, "is_company_account": 1}, "name")
+		if not item or not cust or not sup or not company or not bank:
+			self.skipTest("Need Item, Customer, Supplier, Company Bank Account")
+		idno = "1999999999999"
+		cfield = get_customer_idno_field()
+		sfield = get_supplier_idno_field()
+		prev_c = frappe.db.get_value("Customer", cust, cfield) if cfield else None
+		prev_s = frappe.db.get_value("Supplier", sup, sfield) if sfield else None
+		name = frappe.db.exists("Sales eFactura", {"ef_series": "ZZ", "ef_number": "88001"})
+		if name:
+			frappe.delete_doc("Sales eFactura", name, force=1, ignore_permissions=True)
+		try:
+			if cfield:
+				frappe.db.set_value("Customer", cust, cfield, idno, update_modified=False)
+			if sfield:
+				frappe.db.set_value("Supplier", sup, sfield, idno, update_modified=False)
+			doc = frappe.get_doc(
+				{
+					"doctype": "Sales eFactura",
+					"company": company,
+					"company_bank_account": bank,
+					"type": "Non-Transfer",
+					"customer_party_type": "Customer",
+					"customer_party": cust,
+					"ef_series": "ZZ",
+					"ef_number": "88001",
+					"ef_customer_idno": idno,
+					"ef_conversion_rate": 1,
+					"items": [
+						{
+							"item_code": item.name,
+							"item_name": "Widget",
+							"qty": 1,
+							"uom": item.stock_uom,
+							"stock_uom": item.stock_uom,
+							"ef_uom": item.stock_uom,
+							"rate": 1,
+						}
+					],
+				}
+			)
+			doc.flags.ignore_validate = True
+			doc.insert(ignore_permissions=True, ignore_mandatory=True)
+			mark_as_return(doc.name)
+			doc.reload()
+			self.assertEqual(cint(doc.is_return), 1)
+			self.assertEqual(doc.customer_party_type, "Supplier")
+			if sfield:
+				self.assertEqual(doc.customer_party, sup)
+			unmark_as_return(doc.name)
+			doc.reload()
+			self.assertEqual(cint(doc.is_return), 0)
+			self.assertEqual(doc.customer_party_type, "Customer")
+			if cfield:
+				self.assertEqual(doc.customer_party, cust)
+		finally:
+			if cfield:
+				frappe.db.set_value("Customer", cust, cfield, prev_c, update_modified=False)
+			if sfield:
+				frappe.db.set_value("Supplier", sup, sfield, prev_s, update_modified=False)
+			name = frappe.db.exists("Sales eFactura", {"ef_series": "ZZ", "ef_number": "88001"})
+			if name:
+				frappe.delete_doc("Sales eFactura", name, force=1, ignore_permissions=True)
+
+	def test_mark_as_return_blocked_when_pr_linked(self):
+		from erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura import (
+			mark_as_return,
+		)
+
+		item = frappe.db.get_value("Item", {"disabled": 0}, ["name", "stock_uom"], as_dict=True)
+		company = frappe.db.get_single_value("Global Defaults", "default_company") or frappe.db.get_value(
+			"Company", {}, "name"
+		)
+		if not item or not company:
+			self.skipTest("Need Item and Company")
+		name = frappe.db.exists("Sales eFactura", {"ef_series": "ZZ", "ef_number": "88002"})
+		if name:
+			frappe.delete_doc("Sales eFactura", name, force=1, ignore_permissions=True)
+		doc = frappe.get_doc(
+			{
+				"doctype": "Sales eFactura",
+				"company": company,
+				"type": "Non-Transfer",
+				"ef_series": "ZZ",
+				"ef_number": "88002",
+				"items": [
+					{
+						"item_code": item.name,
+						"item_name": "Widget",
+						"qty": 1,
+						"uom": item.stock_uom,
+						"stock_uom": item.stock_uom,
+						"ef_uom": item.stock_uom,
+						"rate": 1,
+						"purchase_receipt": "PR-DUMMY",
+						"pr_detail": "PR-DUMMY-1",
+					}
+				],
+			}
+		)
+		doc.flags.ignore_validate = True
+		doc.flags.ignore_links = True
+		doc.insert(ignore_permissions=True, ignore_mandatory=True)
+		try:
+			with self.assertRaises(frappe.ValidationError):
+				mark_as_return(doc.name)
+		finally:
+			frappe.delete_doc("Sales eFactura", doc.name, force=1, ignore_permissions=True)
+
+	def test_regular_pr_fiscal_mirrors_sales_invoice_status(self):
+		from types import SimpleNamespace
+		from unittest.mock import patch
+
+		from erpnext_moldova_efactura.utils.fiscal_status import determine_pr_fiscal_status
+
+		pr = SimpleNamespace(name="PR-1", docstatus=1, is_return=0)
+		with patch(
+			"erpnext_moldova_efactura.utils.fiscal_status.sales_invoices_for_purchase_receipt",
+			return_value=[],
+		):
+			self.assertEqual(determine_pr_fiscal_status(pr), "Pending")
+
+		with (
+			patch(
+				"erpnext_moldova_efactura.utils.fiscal_status.sales_invoices_for_purchase_receipt",
+				return_value=["SI-1"],
+			),
+			patch("frappe.db.get_value", return_value="Completed"),
+		):
+			self.assertEqual(determine_pr_fiscal_status(pr), "Completed")
+
+		def mixed_status(dt, name, field=None, **kwargs):
+			return {"SI-1": "Completed", "SI-2": "Failed"}.get(name, "")
+
+		with (
+			patch(
+				"erpnext_moldova_efactura.utils.fiscal_status.sales_invoices_for_purchase_receipt",
+				return_value=["SI-1", "SI-2"],
+			),
+			patch("frappe.db.get_value", side_effect=mixed_status),
+		):
+			self.assertEqual(determine_pr_fiscal_status(pr), "Failed")
+
+	def test_make_sales_invoice_blocked_for_non_transfer(self):
+		from erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura import (
+			_require_transfer_for_selling,
+		)
+
+		doc = frappe.get_doc({"doctype": "Sales eFactura", "type": "Non-Transfer"})
+		with self.assertRaises(frappe.ValidationError) as ctx:
+			_require_transfer_for_selling(doc)
+		self.assertIn("not used for Non-Transfer", str(ctx.exception))
 
 	def test_sales_invoice_cannot_change_after_submit(self):
 		from unittest.mock import patch

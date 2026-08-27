@@ -10,8 +10,9 @@ Outgoing invoices are **Sales eFactura**. Incoming invoices are **Purchase eFact
 
 #### Sales eFactura
 
-- Create e-Factura from a Sales Invoice, or pull items from a Delivery Note / Sales Order (Transfer / Non-Transfer).
-- **Transfer** uses a Customer; **Non-Transfer** uses a Supplier. Party IDNO must match the XML.
+- Create e-Factura from a Sales Invoice, or pull items from a Delivery Note / Sales Order (**Transfer** only).
+- **Transfer** uses a Customer. **Non-Transfer** uses a Customer unless marked as a return (then a Supplier). Party IDNO must match the XML.
+- **Non-Transfer return:** **Mark as Return** / **Unmark as Return** on a Draft. Link a submitted **Purchase Receipt Return** (`is_return`, `return_against`) 1:1; quantities on the e-Factura stay positive. Create **Sales eFactura for return (Non-Transfer)** from that PR. Submit requires full PR coverage. SI / SO / Delivery Note are not used for Non-Transfer.
 - Sign, send, and track SFS status (`ef_status` text labels, separate from document Status: Draft / Submitted / Cancelled / Return).
 - A submitted Sales eFactura can be cancelled in ERPNext regardless of SFS status (Fetch can restore it from SFS). **Cancel** in SFS (comment required) is still limited to statuses the API accepts. Drafts in SFS can only be deleted in the SFS portal.
 - Optional **Include Archived Invoices** in eFactura Settings (Sales → Fetch / Sync; off by default) includes SFS status Archived (6) in Fetch / daily sync.
@@ -46,6 +47,7 @@ Submitted **Sales Invoice** and **Purchase Invoice** show **Fiscalization** (for
 
 - **Sales Invoice:** `Not Required` if the customer is not a Company; `Not Applicable` if the customer Territory is outside **Fiscal Territory** in eFactura Settings (including nested territories). Otherwise `Pending` / `In Progress` / `Partial` / `Completed` / `Failed` from linked Sales eFactura coverage.
 - **Purchase Invoice:** `Not Required` if the supplier is Individual; otherwise coverage from linked Purchase eFactura (`Pending`, `In Progress`, `Partial`, `Completed`). A draft e-Factura adds the `(Draft)` suffix.
+- **Purchase Receipt Return:** same coverage model from the linked return Sales eFactura. A regular Purchase Receipt mirrors fiscalization from related Sales Invoices (sales order / purchase order).
 
 #### Settings
 
@@ -84,6 +86,8 @@ bench --site $SITE migrate
 A 2.1 migrate bug dropped `customer_party` on Sales eFactura. The follow-up patch fills empty **Customer** parties from the linked Sales Invoice (header, item, or `Sales Invoice.sales_efactura`), then by buyer IDNO. **Non-Transfer** parties are filled from Supplier IDNO, not from SI.customer.
 
 The 2.1 rename of Purchase eFactura `supplier` → `supplier_party` left some Party values empty. The follow-up patch fills empty **Supplier** parties from a leftover `supplier` column, linked Purchase Invoice / Receipt / Order, then by supplier IDNO. **Return** parties are filled from the linked Delivery Note or customer IDNO, not from PI.supplier. After submit, Party is read-only.
+
+Non-Transfer Sales eFactura party is **Customer** unless **Is Return**. A migrate patch retargets existing Non-Transfer rows (Supplier stays only on returns).
 
 ### Upgrade from 1.x
 

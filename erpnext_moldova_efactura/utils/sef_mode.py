@@ -20,8 +20,14 @@ def is_non_transfer(doc) -> bool:
 	return (getattr(doc, "type", None) or "").strip() == "Non-Transfer"
 
 
+def is_sef_return(doc) -> bool:
+	from frappe.utils import cint
+
+	return is_non_transfer(doc) and cint(getattr(doc, "is_return", 0))
+
+
 def expected_party_type(doc) -> str:
-	return "Supplier" if is_non_transfer(doc) else "Customer"
+	return "Supplier" if is_sef_return(doc) else "Customer"
 
 
 def _doc_get(doc, field):
@@ -107,3 +113,24 @@ def throw_if_sef_party_idno_mismatch(doc) -> None:
 		),
 		title=_("Supplier IDNO mismatch"),
 	)
+
+
+def has_selling_or_stock_links(doc) -> bool:
+	"""True when SEF is tied to a Sales Invoice, Delivery Note, or Purchase Receipt."""
+	if (getattr(doc, "sales_invoice", None) or "").strip():
+		return True
+	for row in doc.get("items") or []:
+		if (
+			getattr(row, "sales_invoice", None)
+			or getattr(row, "delivery_note", None)
+			or getattr(row, "purchase_receipt", None)
+		):
+			return True
+	name = getattr(doc, "name", None)
+	if not name:
+		return False
+	if frappe.get_meta("Purchase Receipt").has_field("sales_efactura") and frappe.db.exists(
+		"Purchase Receipt", {"sales_efactura": name, "docstatus": ["<", 2]}
+	):
+		return True
+	return False

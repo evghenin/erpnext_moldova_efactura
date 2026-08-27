@@ -23,6 +23,10 @@ def actualize_sales_invoice_fiscal_status(sales_invoice):
 
     si.db_set("fiscal_status", new_status, update_modified=False)
 
+    from erpnext_moldova_efactura.utils.fiscal_status import sync_prs_for_sales_invoice
+
+    sync_prs_for_sales_invoice(sales_invoice)
+
     return {
         "status": new_status,
         "message": _("Fiscal status updated to {0}.").format(new_status or _("empty")),
@@ -63,6 +67,9 @@ def _bulk_si_job(names, user):
             if new_status and si.fiscal_status != new_status:
                 si.db_set("fiscal_status", new_status, update_modified=False)
                 updated += 1
+            from erpnext_moldova_efactura.utils.fiscal_status import sync_prs_for_sales_invoice
+
+            sync_prs_for_sales_invoice(name)
 
         except Exception:
             frappe.log_error(
@@ -163,6 +170,64 @@ def _bulk_pi_job(names, user):
 
 	frappe.publish_realtime(
 		event="bulk_pi_fiscal_status_done",
+		message={"total": total, "updated": updated},
+		user=user,
+	)
+
+
+@frappe.whitelist()
+def actualize_purchase_receipt_fiscal_status(purchase_receipt):
+	from frappe.utils import cint
+	from erpnext_moldova_efactura.utils.fiscal_status import determine_pr_fiscal_status, sync_pr_fiscal_status
+
+	pr = frappe.get_doc("Purchase Receipt", purchase_receipt)
+	if cint(pr.docstatus) != 1:
+		frappe.throw(_("Fiscal status can be actualized only for submitted receipts."))
+	new_status = determine_pr_fiscal_status(pr) or ""
+	sync_pr_fiscal_status(pr.name, pr=pr)
+	return {
+		"status": new_status,
+		"message": _("Fiscal status updated to {0}.").format(new_status or _("empty")),
+	}
+
+
+@frappe.whitelist()
+def start_bulk_pr_job(names):
+	if isinstance(names, str):
+		names = frappe.parse_json(names)
+	frappe.enqueue(
+		method="erpnext_moldova_efactura.api.fiscal_status._bulk_pr_job",
+		queue="long",
+		job_name="Bulk Purchase Receipt Fiscal Status Actualization",
+		names=names,
+		user=frappe.session.user,
+	)
+	return {"started": True}
+
+
+def _bulk_pr_job(names, user):
+	from erpnext_moldova_efactura.utils.fiscal_status import sync_pr_fiscal_status
+
+	total = len(names)
+	updated = 0
+	for idx, name in enumerate(names, start=1):
+		try:
+			prev = frappe.db.get_value("Purchase Receipt", name, "fiscal_status")
+			new_status = sync_pr_fiscal_status(name)
+			if (prev or "") != (new_status or ""):
+				updated += 1
+		except Exception:
+			frappe.log_error(
+				frappe.get_traceback(),
+				_("Bulk fiscal status failed for {0}.").format(name),
+			)
+		frappe.publish_realtime(
+			event="bulk_pr_fiscal_status_progress",
+			message={"current": idx, "total": total},
+			user=user,
+		)
+	frappe.publish_realtime(
+		event="bulk_pr_fiscal_status_done",
 		message={"total": total, "updated": updated},
 		user=user,
 	)

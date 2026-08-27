@@ -57,10 +57,12 @@ doctype_js = {
     "Purchase Invoice": "public/js/purchase_invoice.js",
     "Purchase Order": "public/js/purchase_order.js",
     "Sales Order": "public/js/sales_order.js",
+    "Purchase Receipt": "public/js/purchase_receipt.js",
 }
 doctype_list_js = {
     "Sales Invoice": "public/js/sales_invoice_list.js",
     "Purchase Invoice": "public/js/purchase_invoice_list.js",
+    "Purchase Receipt": "public/js/purchase_receipt_list.js",
 }
 
 # Svg Icons
@@ -176,6 +178,8 @@ doc_events = {
     },
     "Purchase Receipt": {
         "before_submit": "erpnext_moldova_efactura.overrides.purchase_receipt.before_submit",
+        "on_submit": "erpnext_moldova_efactura.overrides.purchase_receipt.on_submit",
+        "before_cancel": "erpnext_moldova_efactura.overrides.purchase_receipt.before_cancel",
         "on_cancel": "erpnext_moldova_efactura.overrides.purchase_receipt.on_cancel",
         "on_trash": "erpnext_moldova_efactura.overrides.purchase_receipt.on_trash",
     },

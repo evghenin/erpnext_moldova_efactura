@@ -28,11 +28,16 @@ def on_submit(doc, method=None):
     status = determine_fiscal_status(doc)
 
     doc.db_set("fiscal_status", status, update_modified=False)
+    from erpnext_moldova_efactura.utils.fiscal_status import sync_prs_for_sales_invoice
+
+    sync_prs_for_sales_invoice(doc.name)
 
 
 def on_cancel(doc, method=None):
     from erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura import (
         unlink_created_sales_invoice,
     )
+    from erpnext_moldova_efactura.utils.fiscal_status import sync_prs_for_sales_invoice
 
     unlink_created_sales_invoice(doc)
+    sync_prs_for_sales_invoice(doc.name)

@@ -50,8 +50,10 @@ def get_purchase_order_dashboard(data):
 def get_purchase_receipt_dashboard(data):
     data.setdefault("internal_links", {})
     data["internal_links"]["Purchase eFactura"] = "purchase_efactura"
+    data["internal_links"]["Sales eFactura"] = ["items", "purchase_receipt"]
     data.setdefault("transactions", [])
     data["transactions"].append({"label": _("Purchase eFactura"), "items": ["Purchase eFactura"]})
+    data["transactions"].append({"label": _("Sales eFactura"), "items": ["Sales eFactura"]})
     return data
 
 

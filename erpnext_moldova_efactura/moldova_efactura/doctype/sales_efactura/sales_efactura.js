@@ -13,6 +13,10 @@ frappe.ui.form.on('Sales eFactura', {
     },
 
     before_submit(frm) {
+        if (frm.doc.type === "Non-Transfer" && cint(frm.doc.is_return) === 1) {
+            frm._ef_in_submit = true;
+            return;
+        }
         if (cint(frm.doc.si_qty_overage_confirmed)) {
             frm._ef_in_submit = true;
             return;
@@ -41,6 +45,9 @@ frappe.ui.form.on('Sales eFactura', {
 
     before_save(frm) {
         if (cint(frm.doc.docstatus) !== 0 || frm._ef_in_submit) {
+            return;
+        }
+        if (frm.doc.type === "Non-Transfer" && cint(frm.doc.is_return) === 1) {
             return;
         }
         if (cint(frm.doc.si_qty_overage_confirmed)) {
@@ -82,12 +89,16 @@ frappe.ui.form.on('Sales eFactura', {
         setup_new_item_from_factura(frm);
         update_customer(frm);
 
+        const nonTransfer = frm.doc.type === "Non-Transfer";
+        const isReturn = cint(frm.doc.is_return) === 1;
+        const canWrite = frm.has_perm("write");
+
         if (
-			// !frm.doc.is_return &&
 			frm.is_new() &&
-			frm.has_perm("write") &&
+			canWrite &&
 			frappe.model.can_read("Delivery Note") &&
-			frm.doc.docstatus === 0
+			frm.doc.docstatus === 0 &&
+			!nonTransfer
 		) {
 			frm.add_custom_button(
 				__("Delivery Note"),
@@ -118,6 +129,76 @@ frappe.ui.form.on('Sales eFactura', {
 					});
 				},
 				__("Get Items From")
+			);
+		}
+
+		if (
+			nonTransfer &&
+			isReturn &&
+			canWrite &&
+			frm.doc.docstatus === 0 &&
+			frappe.model.can_read("Purchase Receipt") &&
+			!(frm.doc.items || []).length
+		) {
+			frm.add_custom_button(
+				__("Return Purchase Receipt"),
+				function () {
+					if (!frm.doc.customer_party) {
+						frappe.throw({
+							title: __("Mandatory"),
+							message: __("Please select a Supplier first."),
+						});
+					}
+					erpnext.utils.map_current_doc({
+						method: "erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.make_efactura_from_purchase_receipt_return",
+						source_doctype: "Purchase Receipt",
+						target: frm,
+						setters: {
+							supplier: frm.doc.customer_party,
+						},
+						get_query_filters: {
+							docstatus: 1,
+							is_return: 1,
+							company: frm.doc.company,
+							supplier: frm.doc.customer_party,
+							return_against: ["is", "set"],
+						},
+						allow_child_item_selection: true,
+						child_fieldname: "items",
+						child_columns: ["item_code", "item_name", "qty", "rate"],
+					});
+				},
+				__("Get Items From")
+			);
+		}
+
+		if (nonTransfer && canWrite && frm.doc.docstatus === 0 && !frm.is_new() && !sef_has_stock_or_sale_links(frm)) {
+			if (isReturn) {
+				frm.add_custom_button(__("Unmark as Return"), () => unmark_sef_as_return(frm));
+			} else {
+				frm.add_custom_button(__("Mark as Return"), () => mark_sef_as_return(frm));
+			}
+		}
+
+		if (
+			nonTransfer &&
+			isReturn &&
+			canWrite &&
+			frm.doc.docstatus !== 2 &&
+			(frm.doc.items || []).length
+		) {
+			frm.add_custom_button(__("Link Purchase Receipt Return"), () =>
+				link_purchase_receipt_return_dialog(frm)
+			);
+		}
+
+		if (
+			frm.doc.docstatus === 0 &&
+			canWrite &&
+			(frm.doc.items || []).some((row) => row.purchase_receipt)
+		) {
+			frm.add_custom_button(__("Unlink Purchase Receipt Return"), () =>
+				unlink_pef_like(frm, "unlink_purchase_receipt_return", __("Unlink all Purchase Receipt Return connections from this e-Factura?"), __("Purchase Receipt Return unlinked."))
 			);
 		}
 
@@ -329,10 +410,11 @@ frappe.ui.form.on('Sales eFactura', {
         const invoiceLinked = !!frm.doc.sales_invoice;
         if (
             !frm.is_new() &&
+            !nonTransfer &&
             frm.doc.docstatus !== 2 &&
             !(frm.doc.docstatus === 1 && invoiceLinked) &&
             (frm.doc.items || []).length &&
-            frm.has_perm("write")
+            canWrite
         ) {
             const createMenu = __("Create");
             if (frappe.model.can_create("Sales Order")) {
@@ -667,7 +749,10 @@ async function set_default_company_bank_account(frm) {
 }
 
 function expected_sef_party_type(frm) {
-    return frm.doc.type === "Non-Transfer" ? "Supplier" : "Customer";
+    if (frm.doc.type === "Non-Transfer" && cint(frm.doc.is_return) === 1) {
+        return "Supplier";
+    }
+    return "Customer";
 }
 
 function sync_sef_party_type(frm) {
@@ -1476,4 +1561,115 @@ function show_si_qty_overage_dialog(frm, data) {
 
         dialog.show();
     });
+}
+
+function sef_has_stock_or_sale_links(frm) {
+    if (frm.doc.sales_invoice) {
+        return true;
+    }
+    return (frm.doc.items || []).some(
+        (row) => row.sales_invoice || row.delivery_note || row.purchase_receipt
+    );
+}
+
+function mark_sef_as_return(frm) {
+    toggle_sef_return(frm, "mark_as_return", __("Marking as return..."), __("Marked as return."));
+}
+
+function unmark_sef_as_return(frm) {
+    toggle_sef_return(frm, "unmark_as_return", __("Unmarking as return..."), __("Unmarked as return."));
+}
+
+function toggle_sef_return(frm, method, freeze_message, success_message) {
+    frappe.call({
+        method: `erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.${method}`,
+        args: { name: frm.doc.name },
+        freeze: true,
+        freeze_message,
+        callback(r) {
+            if (!r.exc) {
+                frappe.show_alert({
+                    message: success_message,
+                    indicator: "green",
+                });
+                frm.reload_doc();
+            }
+        },
+    });
+}
+
+function unlink_pef_like(frm, method, confirm_message, success_message) {
+    unlink_sef_document(frm, method, confirm_message, success_message);
+}
+
+function unlink_sef_document(frm, method, confirm_message, success_message) {
+    frappe.confirm(confirm_message, () => {
+        frappe.call({
+            method: `erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.${method}`,
+            args: { name: frm.doc.name },
+            freeze: true,
+            freeze_message: __("Unlinking..."),
+            callback(r) {
+                if (!r.exc) {
+                    frappe.show_alert({
+                        message: success_message,
+                        indicator: "green",
+                    });
+                    frm.reload_doc();
+                }
+            },
+        });
+    });
+}
+
+function link_purchase_receipt_return_dialog(frm) {
+    if (!frm.doc.customer_party) {
+        frappe.msgprint({
+            title: __("Select a Supplier"),
+            indicator: "orange",
+            message: __("Select a Supplier on the e-Factura first"),
+        });
+        return;
+    }
+    frappe.prompt(
+        [
+            {
+                fieldname: "purchase_receipt",
+                fieldtype: "Link",
+                options: "Purchase Receipt",
+                label: __("Purchase Receipt Return"),
+                reqd: 1,
+                get_query: () => ({
+                    query: "erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.linkable_purchase_receipt_returns",
+                    filters: {
+                        company: frm.doc.company,
+                        supplier: frm.doc.customer_party,
+                        sales_efactura: frm.doc.name,
+                    },
+                }),
+            },
+        ],
+        (values) => {
+            frappe.call({
+                method: "erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.link_purchase_receipt_return",
+                args: {
+                    name: frm.doc.name,
+                    purchase_receipt: values.purchase_receipt,
+                },
+                freeze: true,
+                freeze_message: __("Matching Purchase Receipt..."),
+                callback(r) {
+                    if (!r.exc) {
+                        frappe.show_alert({
+                            message: __("Purchase Receipt Return linked."),
+                            indicator: "green",
+                        });
+                        frm.reload_doc();
+                    }
+                },
+            });
+        },
+        __("Link Purchase Receipt Return"),
+        __("Link")
+    );
 }
