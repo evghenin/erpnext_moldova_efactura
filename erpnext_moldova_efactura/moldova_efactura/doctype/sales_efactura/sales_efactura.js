@@ -9,6 +9,7 @@ frappe.ui.form.on('Sales eFactura', {
         ensure_customer_idno_field(frm);
         ensure_supplier_idno_field(frm);
         ensure_fiscal_territory(frm);
+        setup_sales_invoice_query(frm);
     },
 
     before_submit(frm) {
@@ -437,6 +438,7 @@ frappe.ui.form.on('Sales eFactura', {
             frm.set_value("naming_series", "ACC-SEF-NT-.YYYY.-");
         }
         sync_sef_party_type(frm);
+        setup_sales_invoice_query(frm);
     },
 
     async sales_invoice(frm) {
@@ -519,20 +521,28 @@ async function validate_sales_invoice_customer(frm) {
     }
 }
 
-function setup_sales_invoice_query(frm) {
-    frm.toggle_enable('sales_invoice', 1);
-    frm.set_df_property('sales_invoice', 'description', '');
+function sales_invoice_link_filters(frm) {
+    const filters = { docstatus: 1 };
+    if (frm.doc.company) {
+        filters.company = frm.doc.company;
+    }
+    const partyType = frm.doc.customer_party_type || "Customer";
+    if (partyType === "Customer" && frm.doc.customer_party) {
+        filters.customer = frm.doc.customer_party;
+    } else {
+        filters.name = ["=", ""];
+    }
+    return filters;
+}
 
-    frm.set_query('sales_invoice', function () {
-        const filters = { docstatus: 1 };
-        if (frm.doc.company) {
-            filters.company = frm.doc.company;
-        }
-        if (frm.doc.customer_party_type === "Customer" && frm.doc.customer_party) {
-            filters.customer = frm.doc.customer_party;
-        }
-        return { filters };
-    });
+function setup_sales_invoice_query(frm) {
+    frm.toggle_enable("sales_invoice", 1);
+    frm.set_df_property("sales_invoice", "description", "");
+    const query = function () {
+        return { filters: sales_invoice_link_filters(frm) };
+    };
+    frm.set_query("sales_invoice", query);
+    frm.set_query("sales_invoice", "items", query);
 }
 
 async function apply_currency_rules(frm, opts) {
