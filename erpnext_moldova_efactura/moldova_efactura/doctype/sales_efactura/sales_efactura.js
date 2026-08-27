@@ -218,7 +218,7 @@ frappe.ui.form.on('Sales eFactura', {
                             });
                         },
                         __("Cancel e-Factura"),
-                        __("Cancel")
+                        __("Confirm Cancellation")
                     );
                 },
                 __("eFactura Actions")

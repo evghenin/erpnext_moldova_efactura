@@ -1155,7 +1155,7 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 			self.assertEqual(int(pi.set_posting_time or 0), 1)
 			self.assertEqual(getdate(pi.posting_date), getdate("2026-06-09"))
 			self.assertEqual(get_time(pi.posting_time), get_time("10:38:41"))
-			self.assertEqual(getdate(pi.bill_date), getdate("2026-06-09"))
+			self.assertFalse(pi.bill_date)
 			self.assertEqual(pi.purchase_efactura, doc.name)
 			self.assertTrue(pi.get_onload("load_after_mapping"))
 
@@ -2301,6 +2301,63 @@ class TestEFacturaBuyerPIMatch(FrappeTestCase):
 		pi.items[0].amount = 80
 		errors, _ = collect_totals_and_line_errors(buyer, pi, mprec=2, qprec=3)
 		self.assertTrue(any("rate" in e.lower() or "no matching" in e.lower() for e in errors))
+
+	def test_inverted_credit_signs_detector(self):
+		from erpnext_moldova_efactura.utils.pef_mode import (
+			apply_erpnext_return_signs,
+			has_inverted_credit_signs,
+		)
+
+		buyer, _ = self._pair()
+		self.assertFalse(has_inverted_credit_signs(buyer))
+		buyer.total = -118
+		buyer.items[0].rate = -50
+		buyer.items[0].rate_with_vat = -59
+		buyer.items[0].net_amount = -100
+		buyer.items[0].amount = -118
+		self.assertTrue(has_inverted_credit_signs(buyer))
+		buyer.type = "Non-Transfer"
+		self.assertFalse(has_inverted_credit_signs(buyer))
+		vals = apply_erpnext_return_signs({"qty": 2, "rate": -50, "amount": -100})
+		self.assertEqual(vals["qty"], -2)
+		self.assertEqual(vals["rate"], 50)
+		self.assertEqual(vals["amount"], -100)
+
+	def test_inverted_credit_matches_return_pi(self):
+		from erpnext_moldova_efactura.utils.pi_match import collect_totals_and_line_errors
+
+		buyer, pi = self._pair()
+		buyer.total = -118
+		buyer.vat_total = -18
+		buyer.net_total = -100
+		buyer.items[0].rate = -50
+		buyer.items[0].rate_with_vat = -59
+		buyer.items[0].net_amount = -100
+		buyer.items[0].amount = -118
+		pi.is_return = 1
+		pi.grand_total = -118
+		pi.total_taxes_and_charges = -18
+		pi.items[0].qty = -2
+		pi.items[0].rate = 50
+		pi.items[0].amount = -100
+		errors, pairs = collect_totals_and_line_errors(buyer, pi, mprec=2, qprec=3)
+		self.assertEqual(errors, [])
+		self.assertEqual(len(pairs), 1)
+
+	def test_inverted_credit_does_not_match_regular_pi(self):
+		from erpnext_moldova_efactura.utils.pi_match import collect_totals_and_line_errors
+
+		buyer, pi = self._pair()
+		buyer.total = -118
+		buyer.vat_total = -18
+		buyer.net_total = -100
+		buyer.items[0].rate = -50
+		buyer.items[0].rate_with_vat = -59
+		buyer.items[0].net_amount = -100
+		buyer.items[0].amount = -118
+		errors, pairs = collect_totals_and_line_errors(buyer, pi, mprec=2, qprec=3)
+		self.assertTrue(errors)
+		self.assertNotEqual(len(pairs), 1)
 
 	def test_item_count_mismatch(self):
 		from erpnext_moldova_efactura.utils.pi_match import collect_totals_and_line_errors

@@ -71,7 +71,8 @@ def pi_line_name(row) -> str:
 
 def qty_matches(buyer_row, pi_row, qprec: int, abs_qty: bool = False) -> bool:
 	pi_qty = abs(flt(pi_row.qty)) if abs_qty else flt(pi_row.qty)
-	if eq(pi_qty, buyer_row.ef_qty, qprec):
+	buyer_ef = abs(flt(buyer_row.ef_qty)) if abs_qty else flt(buyer_row.ef_qty)
+	if eq(pi_qty, buyer_ef, qprec):
 		return True
 	buyer_qty = abs(flt(buyer_row.qty)) if abs_qty else flt(buyer_row.qty)
 	if buyer_qty and eq(pi_qty, buyer_qty, qprec):
@@ -79,16 +80,20 @@ def qty_matches(buyer_row, pi_row, qprec: int, abs_qty: bool = False) -> bool:
 	return False
 
 
+def _maybe_abs(value, abs_qty: bool) -> float:
+	return abs(flt(value)) if abs_qty else flt(value)
+
+
 def rate_matches(buyer_row, pi_row, mprec: int, abs_qty: bool = False) -> bool:
-	pi_rate = flt(pi_row.rate)
+	pi_rate = _maybe_abs(pi_row.rate, abs_qty)
 	alts = {
-		expected_buyer_rate(buyer_row),
-		flt(buyer_row.rate),
-		flt(buyer_row.rate_with_vat),
-		implied_unit_rate(buyer_row, vat_included=False),
-		implied_unit_rate(buyer_row, vat_included=True),
-		buying_rate_for_row(buyer_row, False),
-		buying_rate_for_row(buyer_row, True),
+		_maybe_abs(expected_buyer_rate(buyer_row), abs_qty),
+		_maybe_abs(buyer_row.rate, abs_qty),
+		_maybe_abs(buyer_row.rate_with_vat, abs_qty),
+		_maybe_abs(implied_unit_rate(buyer_row, vat_included=False), abs_qty),
+		_maybe_abs(implied_unit_rate(buyer_row, vat_included=True), abs_qty),
+		_maybe_abs(buying_rate_for_row(buyer_row, False), abs_qty),
+		_maybe_abs(buying_rate_for_row(buyer_row, True), abs_qty),
 	}
 	if any(
 		eq(pi_rate, alt, mprec) or eq(pi_rate, alt, BUYING_RATE_PRECISION)
@@ -97,23 +102,42 @@ def rate_matches(buyer_row, pi_row, mprec: int, abs_qty: bool = False) -> bool:
 	):
 		return True
 	# Converted UOM (kWh → MWh): compare line extension, not XML unit price.
-	pi_ext = abs(flt(pi_row.qty) * pi_rate) if abs_qty else flt(pi_row.qty) * pi_rate
-	pi_amount = abs(flt(pi_row.amount)) if abs_qty else flt(pi_row.amount)
+	pi_ext = abs(flt(pi_row.qty) * flt(pi_row.rate)) if abs_qty else flt(pi_row.qty) * flt(pi_row.rate)
+	pi_amount = _maybe_abs(pi_row.amount, abs_qty)
 	if not pi_ext:
 		pi_ext = pi_amount
+	buyer_net = _maybe_abs(buyer_row.net_amount, abs_qty)
+	buyer_amt = _maybe_abs(buyer_row.amount, abs_qty)
 	return (
-		amount_close(pi_ext, buyer_row.net_amount, mprec)
-		or amount_close(pi_ext, buyer_row.amount, mprec)
-		or amount_close(pi_amount, buyer_row.net_amount, mprec)
-		or amount_close(pi_amount, buyer_row.amount, mprec)
+		amount_close(pi_ext, buyer_net, mprec)
+		or amount_close(pi_ext, buyer_amt, mprec)
+		or amount_close(pi_amount, buyer_net, mprec)
+		or amount_close(pi_amount, buyer_amt, mprec)
 	)
 
 
 def price_matches(buyer_row, pi_row, mprec: int, abs_qty: bool = False) -> bool:
-	pi_amount = abs(flt(pi_row.amount)) if abs_qty else flt(pi_row.amount)
+	pi_amount = _maybe_abs(pi_row.amount, abs_qty)
 	rate_ok = rate_matches(buyer_row, pi_row, mprec, abs_qty=abs_qty)
-	amount_ok = eq(pi_amount, buyer_row.net_amount, mprec) or eq(pi_amount, buyer_row.amount, mprec)
+	amount_ok = eq(pi_amount, _maybe_abs(buyer_row.net_amount, abs_qty), mprec) or eq(
+		pi_amount, _maybe_abs(buyer_row.amount, abs_qty), mprec
+	)
 	return rate_ok or amount_ok
+
+
+def is_erpnext_return_invoice(pi) -> bool:
+	if cint(getattr(pi, "is_return", 0)):
+		return True
+	items = getattr(pi, "items", None) or []
+	if not items or flt(getattr(pi, "grand_total", 0)) >= 0:
+		return False
+	return all(flt(row.qty) < 0 and flt(row.rate) >= 0 for row in items)
+
+
+def use_abs_qty_rate_match(buyer, pi) -> bool:
+	from erpnext_moldova_efactura.utils.pef_mode import has_inverted_credit_signs
+
+	return has_inverted_credit_signs(buyer) and is_erpnext_return_invoice(pi)
 
 
 def describe_rate_mismatch(buyer_row, pi_row, currency: str, mprec: int) -> str:
@@ -208,6 +232,7 @@ def collect_totals_and_line_errors(
 	errors: list[str] = []
 
 	errors.extend(collect_total_errors(buyer, pi, mprec, currency))
+	abs_qty = use_abs_qty_rate_match(buyer, pi)
 
 	buyer_items = list(buyer.items or [])
 	pi_items = list(pi.items or [])
@@ -230,12 +255,16 @@ def collect_totals_and_line_errors(
 				for i, prow in enumerate(pi_items)
 				if i not in used and prow.item_code == brow.item_code
 			]
-			compatible = [i for i in same if lines_compatible(brow, pi_items[i], qprec, mprec)]
+			compatible = [
+				i for i in same if lines_compatible(brow, pi_items[i], qprec, mprec, abs_qty=abs_qty)
+			]
 			if compatible:
 				candidate_idx = compatible[0]
 			elif same:
 				idx = same[0]
-				errors.append(describe_line_mismatch(brow, pi_items[idx], currency, qprec, mprec))
+				errors.append(
+					describe_line_mismatch(brow, pi_items[idx], currency, qprec, mprec, abs_qty=abs_qty)
+				)
 				used.add(idx)
 				continue
 
@@ -245,7 +274,7 @@ def collect_totals_and_line_errors(
 					continue
 				if brow.item_code and prow.item_code and brow.item_code != prow.item_code:
 					continue
-				if lines_compatible(brow, prow, qprec, mprec):
+				if lines_compatible(brow, prow, qprec, mprec, abs_qty=abs_qty):
 					candidate_idx = i
 					break
 
@@ -428,6 +457,7 @@ def validate_existing_allocations(buyer, pi, submit: bool = True) -> None:
 	currency = buyer.currency or pi.currency or "MDL"
 	mprec = money_precision(currency)
 	qprec = qty_precision()
+	abs_qty = use_abs_qty_rate_match(buyer, pi)
 	errors: list[str] = []
 	errors.extend(collect_document_errors(buyer, pi))
 	pi_by_name = {r.name: r for r in (pi.items or []) if r.name}
@@ -453,10 +483,10 @@ def validate_existing_allocations(buyer, pi, submit: bool = True) -> None:
 					prow.uom or _("empty"),
 				)
 			)
-		if not price_matches(brow, prow, mprec):
+		if not price_matches(brow, prow, mprec, abs_qty=abs_qty):
 			errors.append(describe_rate_mismatch(brow, prow, currency, mprec))
-		if not qty_matches(brow, prow, qprec):
-			errors.append(describe_line_mismatch(brow, prow, currency, qprec, mprec))
+		if not qty_matches(brow, prow, qprec, abs_qty=abs_qty):
+			errors.append(describe_line_mismatch(brow, prow, currency, qprec, mprec, abs_qty=abs_qty))
 	if is_full_cover_existing(buyer, pi.name):
 		errors.extend(collect_total_errors(buyer, pi, mprec, currency))
 	if errors:

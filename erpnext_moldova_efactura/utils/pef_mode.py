@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import frappe
 from frappe import _
-from frappe.utils import cint
+from frappe.utils import cint, flt
 
 from erpnext_moldova_efactura.utils.party import (
 	find_customer_by_idno,
@@ -22,6 +22,32 @@ def is_non_livrare(doc) -> bool:
 
 def is_pef_return(doc) -> bool:
 	return is_non_livrare(doc) and cint(getattr(doc, "is_return", 0))
+
+
+def _row_qty(row) -> float:
+	return flt(getattr(row, "qty", 0)) or flt(getattr(row, "ef_qty", 0))
+
+
+def has_inverted_credit_signs(doc) -> bool:
+	"""Transfer credit issued as +qty / −rate / −total (ERPNext needs −qty / +rate)."""
+	if is_non_livrare(doc):
+		return False
+	if flt(getattr(doc, "total", 0)) >= 0:
+		return False
+	billed = [row for row in (getattr(doc, "items", None) or []) if _row_qty(row)]
+	if not billed:
+		return False
+	return all(_row_qty(row) > 0 and flt(getattr(row, "rate", 0)) < 0 for row in billed)
+
+
+def apply_erpnext_return_signs(vals: dict) -> dict:
+	"""ERPNext return line: negative qty, positive rate, negative amount."""
+	out = dict(vals)
+	out["qty"] = -abs(flt(out.get("qty")))
+	out["rate"] = abs(flt(out.get("rate")))
+	if out.get("amount"):
+		out["amount"] = -abs(flt(out["amount"]))
+	return out
 
 
 def expected_party_type(doc) -> str:

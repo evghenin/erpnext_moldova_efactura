@@ -97,19 +97,22 @@ def _try_auto_allocate(doc):
 
 
 def _allocs_by_row_order(buyer, pi) -> list[dict]:
-	from erpnext_moldova_efactura.utils.pi_match import buyer_row_qty, eq, qty_precision
+	from erpnext_moldova_efactura.utils.pi_match import buyer_row_qty, eq, qty_precision, use_abs_qty_rate_match
 
 	buyer_items = list(buyer.items or [])
 	pi_items = list(pi.items or [])
 	if not buyer_items or len(buyer_items) != len(pi_items):
 		return []
 	qprec = qty_precision()
+	abs_qty = use_abs_qty_rate_match(buyer, pi)
 	allocs = []
 	for brow, prow in zip(buyer_items, pi_items):
 		if not prow.name:
 			return []
 		need = buyer_row_qty(brow)
-		if not eq(need, flt(prow.qty), qprec):
+		pi_qty = abs(flt(prow.qty)) if abs_qty else flt(prow.qty)
+		cmp = abs(need) if abs_qty else need
+		if not eq(cmp, pi_qty, qprec):
 			return []
 		allocs.append(
 			{

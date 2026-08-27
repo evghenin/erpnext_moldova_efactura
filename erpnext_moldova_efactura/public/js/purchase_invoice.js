@@ -124,9 +124,6 @@ function prefill_from_linked_pef(frm) {
 				if (issueTime) {
 					frm.set_value("posting_time", issueTime);
 				}
-				if (!frm.doc.bill_date) {
-					frm.set_value("bill_date", data.issue_date);
-				}
 			});
 		});
 	};

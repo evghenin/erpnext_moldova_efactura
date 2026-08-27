@@ -21,6 +21,7 @@ from erpnext_moldova_efactura.utils.pi_match import (
 	pi_line_name,
 	qty_precision,
 	throw_unmapped_items,
+	use_abs_qty_rate_match,
 )
 
 
@@ -249,6 +250,7 @@ def match_pi_to_remaining(buyer, pi) -> tuple[list[dict], list[str]]:
 	currency = buyer.currency or pi.currency or "MDL"
 	mprec = money_precision(currency)
 	qprec = qty_precision()
+	abs_qty = use_abs_qty_rate_match(buyer, pi)
 	errors: list[str] = []
 	allocs: list[dict] = []
 
@@ -280,18 +282,23 @@ def match_pi_to_remaining(buyer, pi) -> tuple[list[dict], list[str]]:
 			key = brow.name or f"idx-{brow.idx}"
 			if key in used_buyer or key in used_this:
 				continue
-			if flt(remaining_qty_for_item(buyer, brow), qprec) <= 0:
+			if abs_qty:
+				if abs(flt(remaining_qty_for_item(buyer, brow), qprec)) <= 0:
+					continue
+			elif flt(remaining_qty_for_item(buyer, brow), qprec) <= 0:
 				continue
 			if brow.item_code and prow.item_code and brow.item_code != prow.item_code:
 				continue
-			if lines_compatible(brow, prow, qprec, mprec):
+			if lines_compatible(brow, prow, qprec, mprec, abs_qty=abs_qty):
 				candidate = brow
 				break
 			mismatch_row = brow
 
 		if candidate is None:
 			if mismatch_row is not None:
-				errors.append(describe_line_mismatch(mismatch_row, prow, currency, qprec, mprec))
+				errors.append(
+					describe_line_mismatch(mismatch_row, prow, currency, qprec, mprec, abs_qty=abs_qty)
+				)
 			else:
 				errors.append(
 					_(

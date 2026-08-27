@@ -35,7 +35,9 @@ from erpnext_moldova_efactura.utils.pef_currency import (
 	settings_ef_currency,
 )
 from erpnext_moldova_efactura.utils.pef_mode import (
+	apply_erpnext_return_signs,
 	has_buying_or_stock_links,
+	has_inverted_credit_signs,
 	is_non_livrare,
 	is_pef_return,
 	pef_customer,
@@ -931,8 +933,13 @@ def _append_buying_items(target, source):
 		target.ignore_pricing_rule = 1
 	vat_included = bool(frappe.db.get_single_value("eFactura Settings", "vat_included_in_rate"))
 	schedule = source.delivery_date or source.issue_date
+	credit = has_inverted_credit_signs(source)
+	if credit and target.meta.has_field("is_return"):
+		target.is_return = 1
 	for row in source.items:
 		vals = _buying_line_from_buyer(row, vat_included)
+		if credit:
+			vals = apply_erpnext_return_signs(vals)
 		item = target.append("items", {})
 		_apply_buying_line_vals(item, vals, schedule)
 	apply_buying_taxes(target, source)
@@ -1034,11 +1041,9 @@ def _apply_posting_from_factura(target, source) -> None:
 
 
 def apply_factura_defaults_to_pi(pi, source) -> None:
-	"""Same PI defaults as Create from Purchase eFactura (date, bill date, link, rates)."""
+	"""Same PI defaults as Create from Purchase eFactura (date, link, rates)."""
 	if not pi or not source:
 		return
-	if source.issue_date:
-		pi.bill_date = source.issue_date
 	_apply_posting_from_factura(pi, source)
 	if pi.meta.has_field("purchase_efactura"):
 		pi.purchase_efactura = source.name
@@ -1105,8 +1110,6 @@ def make_purchase_invoice(source_name: str, target_doc=None):
 	pi.company = source.company
 	pi.supplier = pef_supplier(source)
 	pi.currency = source.currency or "MDL"
-	if source.issue_date:
-		pi.bill_date = source.issue_date
 	_apply_posting_from_factura(pi, source)
 	_append_buying_items(pi, source)
 	if pi.meta.has_field("purchase_efactura"):
@@ -1123,6 +1126,8 @@ def make_purchase_order(source_name: str, target_doc=None):
 	source = _get_purchase_efactura(source_name)
 	throw_if_pi_path_blocked(source)
 	_require_not_cancelled(source)
+	if flt(source.total) < 0:
+		frappe.throw(_("Purchase Order cannot be created from an e-Factura with a negative total"))
 	_require_mapped(source, _("Purchase Order"))
 
 	po = frappe.new_doc("Purchase Order")

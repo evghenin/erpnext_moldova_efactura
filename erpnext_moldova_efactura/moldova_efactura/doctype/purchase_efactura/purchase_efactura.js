@@ -73,6 +73,8 @@ frappe.ui.form.on("Purchase eFactura", {
 			return;
 		}
 
+		show_inverted_credit_notice(frm);
+
 		const canWrite = frm.has_perm("write");
 		const efActions = __("eFactura Actions");
 		const nonLivrare = frm.doc.type === "Non-Transfer";
@@ -298,7 +300,7 @@ frappe.ui.form.on("Purchase eFactura", {
 					);
 				}
 			} else if (!nonLivrare) {
-				if (frappe.model.can_create("Purchase Order")) {
+				if (frappe.model.can_create("Purchase Order") && flt(frm.doc.total) >= 0) {
 					frm.add_custom_button(
 						__("Purchase Order"),
 						() => {
@@ -790,6 +792,43 @@ function pef_has_stock_or_buy_links(frm) {
 	return (frm.doc.items || []).some(
 		(row) => row.purchase_invoice || row.purchase_receipt || row.delivery_note
 	);
+}
+
+function pef_has_inverted_credit_signs(frm) {
+	if (frm.doc.type === "Non-Transfer") {
+		return false;
+	}
+	if (flt(frm.doc.total) >= 0) {
+		return false;
+	}
+	const billed = (frm.doc.items || []).filter((row) => flt(row.qty) || flt(row.ef_qty));
+	if (!billed.length) {
+		return false;
+	}
+	return billed.every((row) => {
+		const qty = flt(row.qty) || flt(row.ef_qty);
+		return qty > 0 && flt(row.rate) < 0;
+	});
+}
+
+function show_inverted_credit_notice(frm) {
+	if (!pef_has_inverted_credit_signs(frm)) {
+		frm.set_intro();
+		return;
+	}
+	const headline =
+		"<b>" + __("This e-Factura has lines with a negative rate, which is not valid.") + "</b> ";
+	const draftMsg =
+		headline +
+		__(
+			"The system treats it as a return. Link a return Purchase Invoice with negative quantity and positive rate, or use Create Purchase Invoice — the new document will be filled that way."
+		);
+	const submittedMsg =
+		headline +
+		__(
+			"The system treats it as a return. It is linked to a return Purchase Invoice with the correct negative quantity and positive rate."
+		);
+	frm.set_intro(cint(frm.doc.docstatus) === 0 ? draftMsg : submittedMsg, "yellow");
 }
 
 function unlink_pef_document(frm, method, confirm_message, success_message) {
