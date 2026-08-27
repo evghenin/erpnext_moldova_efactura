@@ -29,6 +29,7 @@ required_apps = ["erpnext"]
 app_include_js = [
     "/assets/erpnext_moldova_efactura/js/moldsign.js",
     "/assets/erpnext_moldova_efactura/js/skip_price_list_after_mapping.js",
+    "/assets/erpnext_moldova_efactura/js/fiscal_status.js",
 ]
 
 # include js, css files in header of web template

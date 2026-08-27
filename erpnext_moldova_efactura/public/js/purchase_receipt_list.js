@@ -2,28 +2,10 @@
 	const existing = frappe.listview_settings["Purchase Receipt"] || {};
 
 	const custom = {
+		add_fields: [...new Set([...(existing.add_fields || []), "fiscal_status"])],
 		formatters: Object.assign({}, existing.formatters || {}, {
 			fiscal_status(value, field, doc) {
-				if (cint(doc.docstatus) === 2) return "";
-				if (cint(doc.docstatus) !== 1) return "";
-				if (!value) return "";
-				const base = String(value).replace(/ \(Draft\)$/, "");
-				const color_map = {
-					Pending: "red",
-					Partial: "red",
-					"In Progress": "yellow",
-					Completed: "green",
-					Failed: "red",
-					"Not Required": "gray",
-					"Not Applicable": "gray",
-					Unknown: "red",
-				};
-				const color = color_map[base] || "gray";
-				return `
-					<span class="indicator-pill no-indicator-dot ${color}">
-						${__(value)}
-					</span>
-				`;
+				return erpnext_moldova_efactura.fiscal_status.list_pill(value, doc.docstatus);
 			},
 		}),
 

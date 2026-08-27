@@ -18,26 +18,7 @@ frappe.ui.form.on("Sales Invoice", {
 
         if (frm.doc.docstatus !== 1) return;
 
-        const status = frm.doc.fiscal_status;
-        if (status) {
-            const color_map = {
-                "Pending": "red",
-                "In Progress": "yellow",
-                "Partial": "red",
-                "Completed": "green",
-                "Failed": "red",
-                "Not Required": "gray",
-                "Not Applicable": "gray",
-                "Unknown": "red",
-            };
-
-            const color = color_map[status] || "gray";
-
-            frm.page.set_indicator(
-                __('Fiscalization: {0}', [__(status)]),
-                color
-            );
-        }
+        erpnext_moldova_efactura.fiscal_status.set_form_indicator(frm, frm.doc.fiscal_status);
 
 
         if (frappe.model.can_create("Sales eFactura")) {

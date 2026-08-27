@@ -4,33 +4,10 @@
   const existing = frappe.listview_settings['Sales Invoice'] || {};
 
   const custom = {
+    add_fields: [...new Set([...(existing.add_fields || []), "fiscal_status"])],
     formatters: Object.assign({}, existing.formatters || {}, {
       fiscal_status(value, field, doc) {
-        // 1) No status → render empty cell
-        if (!value) return '';
-
-        // 2) Canceled invoices with "Pending" status → render empty cell 
-        if (doc.docstatus == 2 && value == "Pending") return '';
-
-        const color_map = {
-          "Pending": "red",
-          "In Progress": "yellow",
-          "Partial": "red",
-          "Completed": "green",
-          "Failed": "red",
-          "Not Required": "gray",
-          "Not Applicable": "gray",
-          "Unknown": "red",
-        };
-
-        const color = color_map[value] || "gray";
-
-        // 3) Render clean badge (NO DOT)
-        return `
-          <span class="indicator-pill no-indicator-dot ${color}">
-            ${__(value)}
-          </span>
-        `;
+        return erpnext_moldova_efactura.fiscal_status.list_pill(value, doc.docstatus);
       }
     }),
 

@@ -17,24 +17,7 @@ frappe.ui.form.on("Purchase Receipt", {
 		}
 
 		if (frm.doc.docstatus === 1) {
-			const status = frm.doc.fiscal_status;
-			if (status) {
-				const base = String(status).replace(/ \(Draft\)$/, "");
-				const color_map = {
-					Pending: "red",
-					Partial: "red",
-					"In Progress": "yellow",
-					Completed: "green",
-					Failed: "red",
-					"Not Required": "gray",
-					"Not Applicable": "gray",
-					Unknown: "red",
-				};
-				frm.page.set_indicator(
-					__("Fiscalization: {0}", [__(status)]),
-					color_map[base] || "gray"
-				);
-			}
+			erpnext_moldova_efactura.fiscal_status.set_form_indicator(frm, frm.doc.fiscal_status);
 
 			frm.add_custom_button(
 				__("Actualize Fiscal Status"),
