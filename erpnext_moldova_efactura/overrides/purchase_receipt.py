@@ -39,6 +39,12 @@ def on_submit(doc, method=None):
 	sync_pr_fiscal_status(doc.name, pr=doc)
 
 
+def onload(doc, method=None):
+	if cint(doc.docstatus) != 1:
+		return
+	sync_pr_fiscal_status(doc.name, pr=doc)
+
+
 def before_cancel(doc, method=None):
 	throw_if_submitted_sef_blocks_pr(doc.name)
 

@@ -181,6 +181,7 @@ doc_events = {
     "Purchase Receipt": {
         "before_submit": "erpnext_moldova_efactura.overrides.purchase_receipt.before_submit",
         "on_submit": "erpnext_moldova_efactura.overrides.purchase_receipt.on_submit",
+        "onload": "erpnext_moldova_efactura.overrides.purchase_receipt.onload",
         "before_cancel": "erpnext_moldova_efactura.overrides.purchase_receipt.before_cancel",
         "on_cancel": "erpnext_moldova_efactura.overrides.purchase_receipt.on_cancel",
         "on_trash": "erpnext_moldova_efactura.overrides.purchase_receipt.on_trash",

@@ -24,3 +24,4 @@ erpnext_moldova_efactura.patches.v2_1.restore_pef_supplier_party
 erpnext_moldova_efactura.patches.v2_1.retarget_sef_non_transfer_party
 erpnext_moldova_efactura.patches.v2_1.grant_sales_user_pr_read
 erpnext_moldova_efactura.patches.v2_1.refresh_return_pi_fiscal_status
+erpnext_moldova_efactura.patches.v2_1.refresh_pr_fiscal_status

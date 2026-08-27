@@ -371,6 +371,7 @@ def sync_pi_fiscal_status(pi_name, pi=None, buyer_override=None):
     if (pi.get("fiscal_status") or "") != status:
         frappe.db.set_value("Purchase Invoice", pi.name, "fiscal_status", status, update_modified=False)
         pi.fiscal_status = status
+    sync_prs_for_purchase_invoice(pi.name)
     return status or None
 
 
@@ -442,6 +443,113 @@ def _sef_cover_for_pr(pr) -> tuple[bool, float, float, float, bool, bool]:
 		elif code in SEF_FISCAL_IN_PROGRESS:
 			in_progress += qty
 	return bool(live), total, signed, in_progress, has_draft, has_failed
+
+
+def _classify_pef_pr_cover(pr) -> str | None:
+	has_factura, total, signed, in_progress, has_draft = _pef_cover_for_pr(pr)
+	if not has_factura:
+		return None
+	status = classify_pi_fiscal_status(
+		individual=False,
+		has_factura=True,
+		total=total,
+		signed=signed,
+		in_progress=in_progress,
+	)
+	return apply_draft_suffix(status, has_draft)
+
+
+def _pef_cover_for_pr(pr) -> tuple[bool, float, float, float, bool]:
+	"""(has_factura, abs_pr_qty, signed_qty, in_progress_qty, has_draft)."""
+	items = getattr(pr, "items", None) or []
+	total = sum(abs(flt(row.qty)) for row in items)
+	pr_name = getattr(pr, "name", None)
+	parents: set[str] = set()
+	rows = []
+	if pr_name and frappe.db.has_column("Purchase eFactura Item", "purchase_receipt"):
+		rows = frappe.get_all(
+			"Purchase eFactura Item",
+			filters={"purchase_receipt": pr_name, "parenttype": "Purchase eFactura"},
+			fields=["parent", "qty", "ef_qty"],
+		)
+		parents.update(row.parent for row in rows if row.parent)
+	header = getattr(pr, "purchase_efactura", None)
+	if header:
+		parents.add(header)
+	if not parents:
+		return False, total, 0.0, 0.0, False
+
+	signed = 0.0
+	in_progress = 0.0
+	has_draft = False
+	live: set[str] = set()
+	status_by: dict[str, str | None] = {}
+	for name in parents:
+		buyer = _buyer_status_fields(name)
+		if not buyer or cint(buyer.docstatus) == 2:
+			continue
+		live.add(name)
+		if cint(buyer.docstatus) == 0:
+			has_draft = True
+		status_by[name] = status_label(buyer.ef_status) or buyer.ef_status or None
+	for row in rows:
+		if row.parent not in live:
+			continue
+		code = status_by.get(row.parent)
+		qty = abs(flt(row.qty) if flt(row.qty) else flt(row.ef_qty))
+		if code in PI_FISCAL_COMPLETED:
+			signed += qty
+		elif code in PI_FISCAL_IN_PROGRESS:
+			in_progress += qty
+	if not rows:
+		for name in live:
+			code = status_by.get(name)
+			if code in PI_FISCAL_COMPLETED:
+				signed += total
+			elif code in PI_FISCAL_IN_PROGRESS:
+				in_progress += total
+	return bool(live), total, signed, in_progress, has_draft
+
+
+def _purchase_invoices_for_pr(pr) -> list[str]:
+	names: list[str] = []
+	seen: set[str] = set()
+
+	def add(name):
+		if not name or name in seen:
+			return
+		if cint(frappe.db.get_value("Purchase Invoice", name, "docstatus")) != 1:
+			return
+		seen.add(name)
+		names.append(name)
+
+	for row in getattr(pr, "items", None) or []:
+		add(getattr(row, "purchase_invoice", None))
+	pr_name = getattr(pr, "name", None)
+	if pr_name and frappe.db.has_column("Purchase Receipt Item", "purchase_invoice"):
+		for name in frappe.get_all(
+			"Purchase Receipt Item",
+			filters={"parent": pr_name, "parenttype": "Purchase Receipt"},
+			pluck="purchase_invoice",
+		):
+			add(name)
+	if pr_name and frappe.db.has_column("Purchase Invoice Item", "purchase_receipt"):
+		for name in frappe.get_all(
+			"Purchase Invoice Item",
+			filters={"purchase_receipt": pr_name, "parenttype": "Purchase Invoice"},
+			pluck="parent",
+		):
+			add(name)
+	return names
+
+
+def _pi_stored_fiscal_status(pi_name: str) -> str:
+	label = (frappe.db.get_value("Purchase Invoice", pi_name, "fiscal_status") or "").strip()
+	if label:
+		return label
+	if not frappe.db.exists("Purchase Invoice", pi_name):
+		return ""
+	return determine_pi_fiscal_status(frappe.get_doc("Purchase Invoice", pi_name)) or ""
 
 
 def determine_return_pr_fiscal_status(pr) -> str | None:
@@ -571,6 +679,27 @@ def determine_pr_fiscal_status(pr) -> str | None:
 		return None
 	if cint(getattr(pr, "is_return", 0)):
 		return determine_return_pr_fiscal_status(pr)
+	if _pr_supplier_is_individual(pr):
+		return "Not Required"
+	pef_status = _classify_pef_pr_cover(pr)
+	if pef_status:
+		return pef_status
+	pi_names = _purchase_invoices_for_pr(pr)
+	if pi_names:
+		return _worst_mirrored_fiscal([_pi_stored_fiscal_status(name) for name in pi_names])
+	has_factura, total, signed, in_progress, has_draft, has_failed = _sef_cover_for_pr(pr)
+	if has_factura:
+		if has_failed:
+			status = "Failed"
+		else:
+			status = classify_pi_fiscal_status(
+				individual=False,
+				has_factura=True,
+				total=total,
+				signed=signed,
+				in_progress=in_progress,
+			)
+		return apply_draft_suffix(status, has_draft)
 	si_names = sales_invoices_for_purchase_receipt(pr)
 	if not si_names:
 		return "Pending"
@@ -590,6 +719,44 @@ def sync_pr_fiscal_status(pr_name, pr=None) -> str | None:
 		frappe.db.set_value("Purchase Receipt", pr.name, "fiscal_status", status, update_modified=False)
 		pr.fiscal_status = status
 	return status or None
+
+
+def purchase_receipts_for_purchase_invoice(pi_name: str) -> list[str]:
+	if not pi_name:
+		return []
+	found: list[str] = []
+	seen: set[str] = set()
+
+	def add(name):
+		if not name or name in seen:
+			return
+		if cint(frappe.db.get_value("Purchase Receipt", name, "docstatus")) != 1:
+			return
+		if cint(frappe.db.get_value("Purchase Receipt", name, "is_return")):
+			return
+		seen.add(name)
+		found.append(name)
+
+	if frappe.db.has_column("Purchase Receipt Item", "purchase_invoice"):
+		for name in frappe.get_all(
+			"Purchase Receipt Item",
+			filters={"purchase_invoice": pi_name, "parenttype": "Purchase Receipt"},
+			pluck="parent",
+		):
+			add(name)
+	if frappe.db.has_column("Purchase Invoice Item", "purchase_receipt"):
+		for name in frappe.get_all(
+			"Purchase Invoice Item",
+			filters={"parent": pi_name, "parenttype": "Purchase Invoice"},
+			pluck="purchase_receipt",
+		):
+			add(name)
+	return found
+
+
+def sync_prs_for_purchase_invoice(pi_name: str) -> None:
+	for pr_name in purchase_receipts_for_purchase_invoice(pi_name):
+		sync_pr_fiscal_status(pr_name)
 
 
 def sync_prs_for_sales_invoice(si_name: str) -> None:

@@ -47,7 +47,7 @@ Submitted **Sales Invoice** and **Purchase Invoice** show **Fiscalization** (for
 
 - **Sales Invoice:** `Not Required` if the customer is not a Company; `Not Applicable` if the customer Territory is outside **Fiscal Territory** in eFactura Settings (including nested territories). Otherwise `Pending` / `In Progress` / `Partial` / `Completed` / `Failed` from linked Sales eFactura coverage.
 - **Purchase Invoice:** `Not Required` if the supplier is Individual; otherwise coverage from linked Purchase eFactura (`Pending`, `In Progress`, `Partial`, `Completed`). A draft e-Factura adds the `(Draft)` suffix.
-- **Purchase Receipt Return:** same coverage model from the linked return Sales eFactura. A regular Purchase Receipt mirrors fiscalization from related Sales Invoices (sales order / purchase order).
+- **Purchase Receipt:** `Not Required` if the supplier is Individual. A linked Purchase eFactura uses the same coverage model as Purchase Invoice. Otherwise the receipt mirrors linked Purchase Invoice fiscalization (PI → PR), then a linked Sales eFactura, then related Sales Invoices (sales order / purchase order). **Purchase Receipt Return** uses the linked return Sales eFactura.
 
 #### Settings
 

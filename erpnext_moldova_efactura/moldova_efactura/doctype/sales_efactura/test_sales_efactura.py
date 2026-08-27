@@ -564,6 +564,59 @@ class TestSaleseFactura(FrappeTestCase):
 		):
 			self.assertEqual(determine_pr_fiscal_status(pr), "Failed")
 
+	def test_regular_pr_fiscal_mirrors_purchase_invoice_status(self):
+		from types import SimpleNamespace
+		from unittest.mock import patch
+
+		from erpnext_moldova_efactura.utils.fiscal_status import determine_pr_fiscal_status
+
+		pr = SimpleNamespace(
+			name="PR-PI-1",
+			docstatus=1,
+			is_return=0,
+			supplier=None,
+			purchase_efactura=None,
+			items=[SimpleNamespace(qty=2, purchase_invoice="PINV-1")],
+		)
+		with (
+			patch(
+				"erpnext_moldova_efactura.utils.fiscal_status._classify_pef_pr_cover",
+				return_value=None,
+			),
+			patch(
+				"erpnext_moldova_efactura.utils.fiscal_status._purchase_invoices_for_pr",
+				return_value=["PINV-1"],
+			),
+			patch(
+				"erpnext_moldova_efactura.utils.fiscal_status._pi_stored_fiscal_status",
+				return_value="In Progress",
+			),
+		):
+			self.assertEqual(determine_pr_fiscal_status(pr), "In Progress")
+
+	def test_regular_pr_fiscal_from_linked_sales_efactura(self):
+		from types import SimpleNamespace
+		from unittest.mock import patch
+
+		from erpnext_moldova_efactura.utils.fiscal_status import determine_pr_fiscal_status
+
+		pr = SimpleNamespace(name="PR-SEF-1", docstatus=1, is_return=0, supplier=None)
+		with (
+			patch(
+				"erpnext_moldova_efactura.utils.fiscal_status._classify_pef_pr_cover",
+				return_value=None,
+			),
+			patch(
+				"erpnext_moldova_efactura.utils.fiscal_status._purchase_invoices_for_pr",
+				return_value=[],
+			),
+			patch(
+				"erpnext_moldova_efactura.utils.fiscal_status._sef_cover_for_pr",
+				return_value=(True, 2, 0, 2, False, False),
+			),
+		):
+			self.assertEqual(determine_pr_fiscal_status(pr), "In Progress")
+
 	def test_make_sales_invoice_blocked_for_non_transfer(self):
 		from erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura import (
 			_require_transfer_for_selling,
