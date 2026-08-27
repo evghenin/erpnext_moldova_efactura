@@ -81,6 +81,8 @@ Then open **eFactura Settings**, set the API URL, and add a **Company API Accoun
 bench --site $SITE migrate
 ```
 
+A 2.1 migrate bug dropped `customer_party` on Sales eFactura. The follow-up patch fills empty **Customer** parties from the linked Sales Invoice (header, item, or `Sales Invoice.sales_efactura`), then by buyer IDNO. **Non-Transfer** parties are filled from Supplier IDNO, not from SI.customer.
+
 ### Upgrade from 1.x
 
 ```bash

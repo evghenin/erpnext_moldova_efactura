@@ -562,3 +562,85 @@ class TestSaleseFactura(FrappeTestCase):
 			sef_workflow_status(SimpleNamespace(status="Draft", ef_status=-1)),
 			"Pending Registration",
 		)
+
+	def test_migrate_from_v1_does_not_drop_live_customer_party(self):
+		from types import SimpleNamespace
+		from unittest.mock import patch
+
+		from erpnext_moldova_efactura.patches.v2_0 import migrate_from_v1 as m
+
+		dropped = []
+		with (
+			patch.object(m.frappe.db, "table_exists", return_value=True),
+			patch.object(m.frappe.db, "exists", return_value=True),
+			patch.object(m.frappe, "get_meta") as get_meta,
+			patch.object(m.frappe.db, "has_column", return_value=True),
+			patch.object(m.frappe.db, "sql_ddl", side_effect=lambda sql: dropped.append(sql)),
+		):
+			get_meta.return_value.fields = [
+				SimpleNamespace(fieldname="customer_party"),
+				SimpleNamespace(fieldname="customer_party_type"),
+				SimpleNamespace(fieldname="sales_invoice"),
+			]
+			m._drop_legacy_sef_columns()
+
+		self.assertFalse(any("customer_party`" in sql for sql in dropped))
+		self.assertFalse(any("customer_party_type`" in sql for sql in dropped))
+		self.assertTrue(any("supplier_party`" in sql for sql in dropped))
+
+	def test_restore_sef_customer_party_from_linked_si(self):
+		from erpnext_moldova_efactura.patches.v2_1.restore_sef_customer_party_from_si import execute
+
+		si = frappe.db.get_value(
+			"Sales Invoice", {"docstatus": ["<", 2]}, ["name", "customer"], as_dict=True
+		)
+		if not si or not si.customer:
+			self.skipTest("Need a Sales Invoice with a customer")
+
+		names = []
+		try:
+			def insert_sef(**kwargs):
+				doc = frappe.get_doc(
+					{
+						"doctype": "Sales eFactura",
+						"items": [{"item_name": "X", "qty": 1, "rate": 1}],
+						**kwargs,
+					}
+				)
+				doc.flags.ignore_validate = True
+				doc.insert(ignore_permissions=True, ignore_mandatory=True)
+				names.append(doc.name)
+				frappe.db.set_value(
+					"Sales eFactura", doc.name, "customer_party", "", update_modified=False
+				)
+				return doc.name
+
+			transfer = insert_sef(
+				type="Transfer",
+				sales_invoice=si.name,
+				customer_party_type="Customer",
+				items=[{"item_name": "X", "qty": 1, "rate": 1, "sales_invoice": si.name}],
+			)
+			non_transfer = insert_sef(
+				type="Non-Transfer",
+				sales_invoice=si.name,
+				customer_party_type="Supplier",
+			)
+			item_only = insert_sef(
+				type="Transfer",
+				customer_party_type="Customer",
+				items=[{"item_name": "X", "qty": 1, "rate": 1, "sales_invoice": si.name}],
+			)
+
+			execute()
+			self.assertEqual(
+				frappe.db.get_value("Sales eFactura", transfer, "customer_party"), si.customer
+			)
+			self.assertFalse(frappe.db.get_value("Sales eFactura", non_transfer, "customer_party"))
+			self.assertEqual(
+				frappe.db.get_value("Sales eFactura", item_only, "customer_party"), si.customer
+			)
+		finally:
+			for name in names:
+				frappe.delete_doc("Sales eFactura", name, force=1, ignore_permissions=True)
+

@@ -57,10 +57,20 @@ def execute():
 	frappe.clear_cache()
 
 
+def _live_fieldnames(doctype):
+	if not frappe.db.exists("DocType", doctype):
+		return set()
+	return {df.fieldname for df in frappe.get_meta(doctype).fields}
+
+
 def _copy_sales_efactura_fields():
 	if not frappe.db.table_exists(SEF):
 		return
+	live = _live_fieldnames(SEF)
 	for old, new in SEF_FIELD_COPIES:
+		# 2.1 reuses customer_party; never copy the live field into a leftover column.
+		if old in live:
+			continue
 		if not frappe.db.has_column(SEF, old) or not frappe.db.has_column(SEF, new):
 			continue
 		where_ref = ""
@@ -96,9 +106,17 @@ def _copy_item_sales_invoice():
 
 
 def _drop_legacy_sef_columns():
+	"""Drop leftover v1/v2.0 columns. Never drop fields that are still on the DocType.
+
+	2.1 put the live party back on ``customer_party`` / ``customer_party_type``.
+	Dropping those as v1 leftovers wiped every Sales eFactura party after migrate.
+	"""
 	if not frappe.db.table_exists(SEF):
 		return
+	live = _live_fieldnames(SEF)
 	for col in SEF_DROP_COLUMNS:
+		if col in live:
+			continue
 		if frappe.db.has_column(SEF, col):
 			frappe.db.sql_ddl(f"ALTER TABLE `tab{SEF}` DROP COLUMN `{col}`")
 
