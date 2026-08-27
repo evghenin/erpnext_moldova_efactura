@@ -36,6 +36,13 @@ def before_submit(doc, method=None):
 	validate_existing_allocations(buyer, doc, submit=True)
 
 
+def onload(doc, method=None):
+	# Submitted docs cannot be saved; still refresh the stored fiscal label.
+	if cint(doc.docstatus) != 1:
+		return
+	sync_pi_fiscal_status(doc.name, pi=doc)
+
+
 def on_update(doc, method=None):
 	if int(doc.docstatus or 0) == 2:
 		return

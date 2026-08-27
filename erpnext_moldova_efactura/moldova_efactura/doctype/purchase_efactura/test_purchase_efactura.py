@@ -2533,6 +2533,26 @@ class TestEFacturaBuyerPIMatch(FrappeTestCase):
 			),
 			"Pending",
 		)
+		# Return PI (−qty) + inverted-credit PEF (+qty): magnitudes must count as covered.
+		self.assertEqual(
+			classify_pi_fiscal_status(
+				individual=False, has_factura=True, total=-2, signed=2, in_progress=0, precision=3
+			),
+			"Completed",
+		)
+		self.assertEqual(
+			classify_pi_fiscal_status(
+				individual=False, has_factura=True, total=-2, signed=0, in_progress=2, precision=3
+			),
+			"In Progress",
+		)
+		# Return PI and PEF both with negative qty (Non-Transfer credit).
+		self.assertEqual(
+			classify_pi_fiscal_status(
+				individual=False, has_factura=True, total=-2, signed=-2, in_progress=0, precision=3
+			),
+			"Completed",
+		)
 
 	def test_apply_draft_suffix(self):
 		from erpnext_moldova_efactura.utils.fiscal_status import apply_draft_suffix

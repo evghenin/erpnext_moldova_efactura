@@ -27,30 +27,26 @@ frappe.ui.form.on("Purchase Invoice", {
 				);
 			}
 
-			const base = status ? String(status).replace(/ \(Draft\)$/, "") : "";
-			const showFiscal = base && !["Pending", "Not Required"].includes(base);
-			if (showFiscal) {
-				frm.add_custom_button(
-					__("Actualize Fiscal Status"),
-					() => {
-						frappe.call({
-							method: "erpnext_moldova_efactura.api.fiscal_status.actualize_purchase_invoice_fiscal_status",
-							args: { purchase_invoice: frm.doc.name },
-							freeze: true,
-							callback(r) {
-								if (r.message) {
-									frappe.show_alert({
-										message: __("Fiscal status updated."),
-										indicator: "green",
-									});
-									frm.reload_doc();
-								}
-							},
-						});
-					},
-					__("Actions")
-				);
-			}
+			frm.add_custom_button(
+				__("Actualize Fiscal Status"),
+				() => {
+					frappe.call({
+						method: "erpnext_moldova_efactura.api.fiscal_status.actualize_purchase_invoice_fiscal_status",
+						args: { purchase_invoice: frm.doc.name },
+						freeze: true,
+						callback(r) {
+							if (r.message) {
+								frappe.show_alert({
+									message: __("Fiscal status updated."),
+									indicator: "green",
+								});
+								frm.reload_doc();
+							}
+						},
+					});
+				},
+				__("Actions")
+			);
 		}
 
 		frappe.call({

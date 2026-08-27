@@ -254,15 +254,17 @@ def classify_pi_fiscal_status(
 		from erpnext_moldova_efactura.utils.pi_match import qty_precision
 
 		precision = qty_precision()
-	need = flt(total, precision)
+	# Return PI / inverted-credit PEF use opposite qty signs; compare magnitudes.
+	need = abs(flt(total, precision))
 	if need <= 0:
 		return "Pending"
-	done = flt(signed, precision)
+	done = abs(flt(signed, precision))
+	in_prog = abs(flt(in_progress, precision))
 	if done >= need:
 		return "Completed"
 	if done > 0:
 		return "Partial"
-	if flt(in_progress, precision) >= need:
+	if in_prog >= need:
 		return "In Progress"
 	return "Pending"
 
@@ -296,7 +298,7 @@ def _buyer_status_fields(name: str, buyer_override=None):
 def _pi_fiscal_cover(pi, buyer_override=None) -> tuple[bool, float, float, float, bool]:
 	"""(has_factura, total_qty, signed_qty, in_progress_qty, has_draft_factura)."""
 	items = getattr(pi, "items", None) or []
-	total = sum(flt(row.qty) for row in items)
+	total = sum(abs(flt(row.qty)) for row in items)
 	pi_name = getattr(pi, "name", None)
 	if not pi_name or not frappe.db.has_column("Purchase eFactura Item", "purchase_invoice"):
 		return False, total, 0.0, 0.0, False
@@ -328,7 +330,7 @@ def _pi_fiscal_cover(pi, buyer_override=None) -> tuple[bool, float, float, float
 		if row.parent not in live_parents:
 			continue
 		code = status_by_buyer.get(row.parent)
-		qty = flt(row.qty) if flt(row.qty) else flt(row.ef_qty)
+		qty = abs(flt(row.qty) if flt(row.qty) else flt(row.ef_qty))
 		if code in PI_FISCAL_COMPLETED:
 			signed += qty
 		elif code in PI_FISCAL_IN_PROGRESS:

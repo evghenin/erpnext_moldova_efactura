@@ -172,6 +172,7 @@ doc_events = {
     "Purchase Invoice": {
         "before_insert": "erpnext_moldova_efactura.overrides.purchase_invoice.before_insert",
         "before_submit": "erpnext_moldova_efactura.overrides.purchase_invoice.before_submit",
+        "onload": "erpnext_moldova_efactura.overrides.purchase_invoice.onload",
         "on_update": "erpnext_moldova_efactura.overrides.purchase_invoice.on_update",
         "on_cancel": "erpnext_moldova_efactura.overrides.purchase_invoice.on_cancel",
         "on_trash": "erpnext_moldova_efactura.overrides.purchase_invoice.on_trash",
