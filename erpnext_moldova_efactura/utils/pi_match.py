@@ -12,6 +12,7 @@ from erpnext_moldova_efactura.utils.buying_rate import (
 	BUYING_RATE_PRECISION,
 	buying_rate_for_row,
 	implied_unit_rate,
+	row_rate_with_vat,
 )
 
 
@@ -89,7 +90,7 @@ def rate_matches(buyer_row, pi_row, mprec: int, abs_qty: bool = False) -> bool:
 	alts = {
 		_maybe_abs(expected_buyer_rate(buyer_row), abs_qty),
 		_maybe_abs(buyer_row.rate, abs_qty),
-		_maybe_abs(buyer_row.rate_with_vat, abs_qty),
+		_maybe_abs(row_rate_with_vat(buyer_row), abs_qty),
 		_maybe_abs(implied_unit_rate(buyer_row, vat_included=False), abs_qty),
 		_maybe_abs(implied_unit_rate(buyer_row, vat_included=True), abs_qty),
 		_maybe_abs(buying_rate_for_row(buyer_row, False), abs_qty),
@@ -373,8 +374,8 @@ def expected_buyer_rate(buyer_row) -> float:
 		vat_included = bool(frappe.db.get_single_value("eFactura Settings", "vat_included_in_rate"))
 	except Exception:
 		pass
-	if vat_included and flt(buyer_row.rate_with_vat):
-		return flt(buyer_row.rate_with_vat)
+	if vat_included and row_rate_with_vat(buyer_row):
+		return row_rate_with_vat(buyer_row)
 	return flt(buyer_row.rate)
 
 

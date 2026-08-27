@@ -1580,6 +1580,8 @@ def _set_sef_return(name: str, is_return: int):
     doc.flags.allow_mark_as_return = True
     doc.is_return = want_return
     resolve_xml_customer_party(doc)
+    # Party is required on the form; a type switch may leave no matching Customer/Supplier.
+    doc.flags.ignore_mandatory = True
     _save_sef_links(doc)
     log_event(doc, _("Unmarked as return.") if not want_return else _("Marked as return."))
     return doc.as_dict()

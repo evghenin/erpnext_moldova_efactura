@@ -414,6 +414,77 @@ class TestSaleseFactura(FrappeTestCase):
 			if name:
 				frappe.delete_doc("Sales eFactura", name, force=1, ignore_permissions=True)
 
+	def test_unmark_as_return_clears_party_when_no_customer(self):
+		from erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura import (
+			mark_as_return,
+			unmark_as_return,
+		)
+		from erpnext_moldova_efactura.utils.party import get_supplier_idno_field
+
+		item = frappe.db.get_value("Item", {"disabled": 0}, ["name", "stock_uom"], as_dict=True)
+		sup = frappe.db.get_value("Supplier", {"disabled": 0}, "name")
+		company = frappe.db.get_single_value("Global Defaults", "default_company") or frappe.db.get_value(
+			"Company", {}, "name"
+		)
+		bank = frappe.db.get_value("Bank Account", {"company": company, "is_company_account": 1}, "name")
+		if not item or not sup or not company or not bank:
+			self.skipTest("Need Item, Supplier, Company Bank Account")
+		idno = "1888888888888"
+		sfield = get_supplier_idno_field()
+		prev_s = frappe.db.get_value("Supplier", sup, sfield) if sfield else None
+		name = frappe.db.exists("Sales eFactura", {"ef_series": "ZZ", "ef_number": "88003"})
+		if name:
+			frappe.delete_doc("Sales eFactura", name, force=1, ignore_permissions=True)
+		try:
+			if sfield:
+				frappe.db.set_value("Supplier", sup, sfield, idno, update_modified=False)
+			doc = frappe.get_doc(
+				{
+					"doctype": "Sales eFactura",
+					"company": company,
+					"company_bank_account": bank,
+					"type": "Non-Transfer",
+					"customer_party_type": "Supplier",
+					"customer_party": sup,
+					"is_return": 1,
+					"ef_series": "ZZ",
+					"ef_number": "88003",
+					"ef_customer_idno": idno,
+					"ef_conversion_rate": 1,
+					"items": [
+						{
+							"item_code": item.name,
+							"item_name": "Widget",
+							"qty": 1,
+							"uom": item.stock_uom,
+							"stock_uom": item.stock_uom,
+							"ef_uom": item.stock_uom,
+							"rate": 1,
+						}
+					],
+				}
+			)
+			doc.flags.ignore_validate = True
+			doc.flags.allow_mark_as_return = True
+			doc.insert(ignore_permissions=True, ignore_mandatory=True)
+			unmark_as_return(doc.name)
+			doc.reload()
+			self.assertEqual(cint(doc.is_return), 0)
+			self.assertEqual(doc.customer_party_type, "Customer")
+			self.assertFalse(doc.customer_party)
+			mark_as_return(doc.name)
+			doc.reload()
+			self.assertEqual(cint(doc.is_return), 1)
+			self.assertEqual(doc.customer_party_type, "Supplier")
+			if sfield:
+				self.assertEqual(doc.customer_party, sup)
+		finally:
+			if sfield:
+				frappe.db.set_value("Supplier", sup, sfield, prev_s, update_modified=False)
+			name = frappe.db.exists("Sales eFactura", {"ef_series": "ZZ", "ef_number": "88003"})
+			if name:
+				frappe.delete_doc("Sales eFactura", name, force=1, ignore_permissions=True)
+
 	def test_mark_as_return_blocked_when_pr_linked(self):
 		from erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura import (
 			mark_as_return,
@@ -911,4 +982,33 @@ class TestSaleseFactura(FrappeTestCase):
 		finally:
 			for name in names:
 				frappe.delete_doc("Sales eFactura", name, force=1, ignore_permissions=True)
+
+	def test_rate_matches_sales_efactura_item_without_rate_with_vat(self):
+		from erpnext_moldova_efactura.utils.pi_match import lines_compatible, rate_matches
+
+		sef = frappe.get_doc(
+			{
+				"doctype": "Sales eFactura",
+				"type": "Non-Transfer",
+				"items": [
+					{
+						"item_name": "Widget",
+						"item_code": "X",
+						"qty": 1,
+						"ef_qty": 1,
+						"rate": 100,
+						"amount": 100,
+						"net_amount": 100,
+						"uom": "Nos",
+						"ef_uom": "Nos",
+					}
+				],
+			}
+		)
+		row = sef.items[0]
+		self.assertFalse(row.meta.has_field("rate_with_vat"))
+		pr_row = frappe._dict(qty=-1, rate=100, amount=-100, uom="Nos", item_code="X")
+		self.assertTrue(rate_matches(row, pr_row, 2, abs_qty=True))
+		self.assertTrue(lines_compatible(row, pr_row, 3, 2, abs_qty=True))
+
 

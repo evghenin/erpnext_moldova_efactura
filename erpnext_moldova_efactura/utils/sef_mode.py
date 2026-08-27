@@ -85,7 +85,7 @@ def resolve_xml_customer_party(doc) -> None:
 	doc.customer_party_type = expected
 	found = find_party_by_idno(expected, _doc_get(doc, "ef_customer_idno"))
 	if real_switch:
-		doc.customer_party = found
+		doc.customer_party = found or None
 	elif not _doc_get(doc, "customer_party") and found:
 		doc.customer_party = found
 

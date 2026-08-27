@@ -12,12 +12,21 @@ from frappe.utils import flt
 BUYING_RATE_PRECISION = 6
 
 
+def row_rate_with_vat(row) -> float:
+	"""Gross unit rate. Purchase eFactura Item has rate_with_vat; Sales eFactura Item does not."""
+	if callable(getattr(row, "get", None)):
+		return flt(row.get("rate_with_vat"))
+	return flt(getattr(row, "rate_with_vat", None) or 0)
+
+
 def line_amount(row, vat_included: bool) -> float:
 	return flt(row.amount) if vat_included else flt(row.net_amount)
 
 
 def printed_unit_rate(row, vat_included: bool) -> float:
-	return flt(row.rate_with_vat) if vat_included else flt(row.rate)
+	if vat_included:
+		return row_rate_with_vat(row) or flt(row.rate)
+	return flt(row.rate)
 
 
 def implied_unit_rate(row, vat_included: bool) -> float:
