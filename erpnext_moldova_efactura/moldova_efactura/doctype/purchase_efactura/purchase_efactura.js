@@ -66,6 +66,7 @@ frappe.ui.form.on("Purchase eFactura", {
 		autofill_ef_details(frm, "customer");
 		autofill_ef_details(frm, "transporter");
 		frm.set_df_property("currency", "read_only", frm.doc.docstatus !== 0);
+		frm.set_df_property("supplier_party", "read_only", frm.doc.docstatus !== 0);
 		apply_currency_rules(frm);
 		ef_set_items_grid_currency_labels(frm);
 

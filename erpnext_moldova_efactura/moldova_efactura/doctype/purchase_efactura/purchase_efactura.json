@@ -198,7 +198,6 @@
    "read_only": 1
   },
   {
-   "allow_on_submit": 1,
    "fieldname": "supplier_party",
    "fieldtype": "Dynamic Link",
    "in_list_view": 1,
@@ -500,7 +499,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-08-26 09:26:00.000000",
+ "modified": "2026-08-27 13:00:00.000000",
  "modified_by": "Administrator",
  "module": "Moldova eFactura",
  "name": "Purchase eFactura",

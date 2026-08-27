@@ -1570,6 +1570,84 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 		self.assertEqual(doc.supplier_party_type, "Supplier")
 		self.assertEqual(doc.supplier_party, self._idno_supplier)
 
+	def test_supplier_party_not_editable_after_submit(self):
+		df = frappe.get_meta("Purchase eFactura").get_field("supplier_party")
+		self.assertFalse(cint(df.allow_on_submit))
+
+	def test_restore_pef_supplier_party_from_linked_pi(self):
+		from erpnext_moldova_efactura.patches.v2_1.restore_pef_supplier_party import execute
+
+		item = frappe.db.get_value("Item", {"disabled": 0}, ["name", "stock_uom"], as_dict=True)
+		sup = frappe.db.get_value("Supplier", {}, "name")
+		if not item or not sup:
+			self.skipTest("Need Item and Supplier")
+
+		pi = self._make_pi(sup, item.name, 1, item.stock_uom)
+		names = []
+		try:
+
+			def insert_pef(number, **kwargs):
+				self._delete_buyer("EBJ", number)
+				doc = frappe.get_doc(
+					{
+						"doctype": "Purchase eFactura",
+						"naming_series": "ACC-PEF-.YYYY.-",
+						"company": self.company,
+						"ef_series": "EBJ",
+						"ef_number": number,
+						"ef_status": "Signed by Buyer",
+						"supplier_party_type": "Supplier",
+						"items": [{"item_name": "X", "qty": 1, "rate": 1}],
+						**kwargs,
+					}
+				)
+				doc.flags.ignore_validate = True
+				doc.flags.ignore_links = True
+				doc.insert(ignore_permissions=True, ignore_mandatory=True)
+				names.append(doc.name)
+				frappe.db.set_value(
+					"Purchase eFactura", doc.name, "supplier_party", "", update_modified=False
+				)
+				return doc.name
+
+			from_item = insert_pef(
+				"000068101",
+				is_return=0,
+				items=[{"item_name": "X", "qty": 1, "rate": 1, "purchase_invoice": pi.name}],
+			)
+			return_pef = insert_pef(
+				"000068102",
+				is_return=1,
+				supplier_party_type="Customer",
+				items=[{"item_name": "X", "qty": 1, "rate": 1, "purchase_invoice": pi.name}],
+			)
+			from_reverse = insert_pef("000068103", is_return=0)
+			if frappe.get_meta("Purchase Invoice").has_field("purchase_efactura"):
+				frappe.db.set_value(
+					"Purchase Invoice",
+					pi.name,
+					"purchase_efactura",
+					from_reverse,
+					update_modified=False,
+				)
+
+			execute()
+			self.assertEqual(
+				frappe.db.get_value("Purchase eFactura", from_item, "supplier_party"), pi.supplier
+			)
+			self.assertFalse(frappe.db.get_value("Purchase eFactura", return_pef, "supplier_party"))
+			self.assertEqual(
+				frappe.db.get_value("Purchase eFactura", from_reverse, "supplier_party"),
+				pi.supplier,
+			)
+		finally:
+			for name in names:
+				frappe.delete_doc("Purchase eFactura", name, force=1, ignore_permissions=True)
+			if pi and frappe.get_meta("Purchase Invoice").has_field("purchase_efactura"):
+				frappe.db.set_value(
+					"Purchase Invoice", pi.name, "purchase_efactura", "", update_modified=False
+				)
+
 	def test_non_livrare_blocks_pi_and_requires_pr_on_submit(self):
 		from erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura import (
 			make_purchase_invoice,

@@ -83,6 +83,8 @@ bench --site $SITE migrate
 
 A 2.1 migrate bug dropped `customer_party` on Sales eFactura. The follow-up patch fills empty **Customer** parties from the linked Sales Invoice (header, item, or `Sales Invoice.sales_efactura`), then by buyer IDNO. **Non-Transfer** parties are filled from Supplier IDNO, not from SI.customer.
 
+The 2.1 rename of Purchase eFactura `supplier` → `supplier_party` left some Party values empty. The follow-up patch fills empty **Supplier** parties from a leftover `supplier` column, linked Purchase Invoice / Receipt / Order, then by supplier IDNO. **Return** parties are filled from the linked Delivery Note or customer IDNO, not from PI.supplier. After submit, Party is read-only.
+
 ### Upgrade from 1.x
 
 ```bash

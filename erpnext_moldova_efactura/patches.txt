@@ -20,3 +20,4 @@ erpnext_moldova_efactura.patches.v2_0.set_return_list_status
 erpnext_moldova_efactura.patches.v2_0.split_sef_status_fields
 erpnext_moldova_efactura.patches.v2_0.convert_ef_status_to_text
 erpnext_moldova_efactura.patches.v2_1.restore_sef_customer_party_from_si
+erpnext_moldova_efactura.patches.v2_1.restore_pef_supplier_party
