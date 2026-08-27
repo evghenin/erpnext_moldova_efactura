@@ -248,6 +248,70 @@ class TestSaleseFactura(FrappeTestCase):
 		with self.assertRaises(frappe.ValidationError):
 			doc._validate_ready_to_submit()
 
+	def test_submit_requires_sales_invoice_for_transfer(self):
+		doc = frappe.get_doc(
+			{
+				"doctype": "Sales eFactura",
+				"type": "Transfer",
+				"issue_date": "2026-08-20",
+				"delivery_date": "2026-08-20",
+				"company_bank_account": "X",
+				"items": [
+					{
+						"item_name": "Widget",
+						"qty": 1,
+						"uom": "Nos",
+						"stock_uom": "Nos",
+						"ef_uom": "Nos",
+						"rate": 1,
+					}
+				],
+			}
+		)
+		doc.customer = "Cust"
+		with self.assertRaises(frappe.ValidationError) as ctx:
+			doc._validate_ready_to_submit()
+		self.assertIn("Sales Invoice is required before submit", str(ctx.exception))
+
+	def test_submit_allows_non_transfer_without_sales_invoice(self):
+		doc = frappe.get_doc(
+			{
+				"doctype": "Sales eFactura",
+				"type": "Non-Transfer",
+				"customer_party_type": "Supplier",
+				"customer_party": "Supp",
+				"issue_date": "2026-08-20",
+				"delivery_date": "2026-08-20",
+				"company_bank_account": "X",
+				"items": [
+					{
+						"item_name": "Widget",
+						"qty": 1,
+						"uom": "Nos",
+						"stock_uom": "Nos",
+						"ef_uom": "Nos",
+						"rate": 1,
+					}
+				],
+			}
+		)
+		with self.assertRaises(frappe.ValidationError) as ctx:
+			doc._validate_ready_to_submit()
+		self.assertNotIn("Sales Invoice is required before submit", str(ctx.exception))
+
+	def test_sales_invoice_cannot_change_after_submit(self):
+		from unittest.mock import patch
+
+		doc = frappe.get_doc({"doctype": "Sales eFactura", "sales_invoice": "SINV-NEW"})
+		doc.docstatus = 1
+		with (
+			patch.object(doc, "is_new", return_value=False),
+			patch.object(doc, "has_value_changed", return_value=True),
+		):
+			with self.assertRaises(frappe.ValidationError) as ctx:
+				doc._validate_sales_invoice_locked_after_submit()
+		self.assertIn("cannot be changed after submit", str(ctx.exception))
+
 	def test_require_mapped_needs_customer_and_item_code(self):
 		from erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura import (
 			_require_mapped,

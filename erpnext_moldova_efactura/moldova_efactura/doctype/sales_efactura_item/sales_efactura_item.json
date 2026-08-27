@@ -321,7 +321,6 @@
    "label": "References"
   },
   {
-   "allow_on_submit": 1,
    "fieldname": "sales_invoice",
    "fieldtype": "Link",
    "label": "Sales Invoice",

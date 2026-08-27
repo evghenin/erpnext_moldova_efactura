@@ -447,7 +447,9 @@ frappe.ui.form.on('Sales eFactura', {
     },
 
     company(frm) {
-        frm.set_value('sales_invoice', null);
+        if (cint(frm.doc.docstatus) === 0) {
+            frm.set_value('sales_invoice', null);
+        }
         setup_sales_invoice_query(frm);
 
         if (!frm.doc.company) {
@@ -536,7 +538,7 @@ function sales_invoice_link_filters(frm) {
 }
 
 function setup_sales_invoice_query(frm) {
-    frm.toggle_enable("sales_invoice", 1);
+    frm.toggle_enable("sales_invoice", cint(frm.doc.docstatus) === 0);
     frm.set_df_property("sales_invoice", "description", "");
     const query = function () {
         return { filters: sales_invoice_link_filters(frm) };

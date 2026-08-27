@@ -331,6 +331,8 @@ Sales Invoice on the document does not match the rows.,Счёт продажи �
 Sales eFactura {0} already exists for {1}{2},Sales eFactura {0} уже существует для {1}{2}
 No Company found for Sales eFactura sync,Не найдена компания для синхронизации Sales eFactura
 Customer is required before submit,Перед проведением укажите клиента
+Sales Invoice is required before submit,Перед проведением укажите счёт продажи
+Sales Invoice cannot be changed after submit,После проведения счёт продажи менять нельзя
 Company Bank Account is required before submit,Перед проведением укажите банковский счёт компании
 Issue Date is required before submit,Перед проведением укажите дату выписки
 Delivery Date is required before submit,Перед проведением укажите дату поставки

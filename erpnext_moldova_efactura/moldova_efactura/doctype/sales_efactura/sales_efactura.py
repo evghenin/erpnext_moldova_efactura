@@ -26,6 +26,7 @@ from erpnext_moldova_efactura.utils.timeline import log_event, log_status_change
 from lxml import etree
 from erpnext_moldova_efactura.utils.sef_mode import (
     expected_party_type,
+    is_non_transfer,
     party_type as sef_party_type,
     resolve_xml_customer_party,
     sef_customer,
@@ -107,6 +108,7 @@ class SaleseFactura(Document):
         resolve_xml_customer_party(self)
         throw_if_sef_party_idno_mismatch(self)
         self._validate_sales_invoice_customer()
+        self._validate_sales_invoice_locked_after_submit()
         self.update_items_available_qty()
         self.set_status(log=False)
         self.apply_vat()
@@ -155,9 +157,17 @@ class SaleseFactura(Document):
             return
         enforce_si_qty_on_submit(self)
 
+    def _validate_sales_invoice_locked_after_submit(self):
+        if self.is_new() or cint(self.docstatus) == 0:
+            return
+        if self.has_value_changed("sales_invoice"):
+            frappe.throw(_("Sales Invoice cannot be changed after submit"))
+
     def _validate_ready_to_submit(self):
         if not (sef_customer(self) or self.get("customer_party") or self.get("customer")):
             frappe.throw(_("Party is required before submit"))
+        if not is_non_transfer(self) and not sales_invoice_of(self):
+            frappe.throw(_("Sales Invoice is required before submit"))
         if not self.company_bank_account:
             frappe.throw(_("Company Bank Account is required before submit"))
         if not self.issue_date:
@@ -1311,6 +1321,8 @@ def link_created_sales_invoice(si):
     if not name or not frappe.db.exists("Sales eFactura", name):
         return
     sef = frappe.get_doc("Sales eFactura", name)
+    if cint(sef.docstatus) == 1:
+        return
     if sef.sales_invoice and sef.sales_invoice != si.name:
         return
     sef.sales_invoice = si.name
@@ -1320,8 +1332,6 @@ def link_created_sales_invoice(si):
             row.si_detail = si_row.name
     sync_sales_invoice_links(sef)
     sef.flags.ignore_si_qty_guard = True
-    if cint(sef.docstatus) == 1:
-        sef.flags.ignore_validate_update_after_submit = True
     sef.save(ignore_permissions=True)
 
 
@@ -1330,6 +1340,8 @@ def unlink_created_sales_invoice(si):
     if not name or not frappe.db.exists("Sales eFactura", name):
         return
     sef = frappe.get_doc("Sales eFactura", name)
+    if cint(sef.docstatus) == 1:
+        return
     if sef.sales_invoice != si.name:
         return
     sef.sales_invoice = None
@@ -1338,8 +1350,6 @@ def unlink_created_sales_invoice(si):
             row.sales_invoice = None
             row.si_detail = None
     sef.flags.ignore_si_qty_guard = True
-    if cint(sef.docstatus) == 1:
-        sef.flags.ignore_validate_update_after_submit = True
     sef.save(ignore_permissions=True)
 
 

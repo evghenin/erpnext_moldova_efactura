@@ -339,6 +339,8 @@ Sales Invoice on the document does not match the rows.,Factura de vânzare din a
 Sales eFactura {0} already exists for {1}{2},Sales eFactura {0} există deja pentru {1}{2}
 No Company found for Sales eFactura sync,Nu a fost găsită o companie pentru sincronizarea Sales eFactura
 Customer is required before submit,Clientul este obligatoriu înainte de confirmare
+Sales Invoice is required before submit,Factura de vânzare este obligatorie înainte de confirmare
+Sales Invoice cannot be changed after submit,Factura de vânzare nu poate fi modificată după confirmare
 Company Bank Account is required before submit,Contul bancar al companiei este obligatoriu înainte de confirmare
 Issue Date is required before submit,Data emiterii este obligatorie înainte de confirmare
 Delivery Date is required before submit,Data livrării este obligatorie înainte de confirmare
