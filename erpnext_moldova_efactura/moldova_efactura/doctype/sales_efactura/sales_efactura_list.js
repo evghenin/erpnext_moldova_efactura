@@ -25,7 +25,7 @@ frappe.listview_settings["Sales eFactura"] = {
 			const colors = {
 				"Pending Registration": "orange",
 				"Registered as Draft": "orange",
-				"Signed by Supplier": "blue",
+				"Signed by Supplier": "yellow",
 				"Rejected by Customer": "red",
 				"Accepted by Customer": "yellow",
 				"Canceled by Supplier": "darkgrey",

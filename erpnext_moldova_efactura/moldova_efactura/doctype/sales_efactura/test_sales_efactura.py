@@ -9,6 +9,52 @@ from erpnext_moldova_efactura.utils.party import new_customer_defaults
 
 
 class TestSaleseFactura(FrappeTestCase):
+	def test_signed_sef_total_coverage_uses_currency_precision(self):
+		from erpnext_moldova_efactura.utils.fiscal_status import classify_si_fiscal_totals
+
+		self.assertEqual(classify_si_fiscal_totals(118.004, 118.0, 2), "Completed")
+		self.assertEqual(classify_si_fiscal_totals(118.01, 118.0, 2), "Completed")
+		self.assertEqual(classify_si_fiscal_totals(117.99, 118.0, 2), "Partial")
+		self.assertEqual(classify_si_fiscal_totals(-118.0, -118.0, 2), "Completed")
+
+	def test_extract_single_invoice_from_search_response(self):
+		from erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura import (
+			_extract_single_invoice_from_search_response,
+		)
+
+		invoice = {"Seria": "EBL", "Number": "000501857", "InvoiceStatus": 8}
+		self.assertEqual(
+			_extract_single_invoice_from_search_response({"Results": {"Invoice": invoice}}),
+			invoice,
+		)
+		self.assertIsNone(_extract_single_invoice_from_search_response({"Results": {}}))
+
+	def test_status_check_falls_back_to_invoice_details_on_sfs_fault(self):
+		from unittest.mock import Mock
+
+		from erpnext_moldova_efactura.api_client import EFacturaAPIError
+		from erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura import (
+			_status_map_with_fallback,
+		)
+
+		client = Mock()
+		client.check_invoices_status.side_effect = EFacturaAPIError(
+			"SOAP Fault in CheckInvoicesStatus: Unknown fault occured"
+		)
+		client.get_invoices_by_seria_number.return_value = {
+			"Results": {
+				"XmlInvoice": {
+					"Seria": "EBL",
+					"Number": "000501857",
+					"InvoiceStatus": 8,
+				}
+			}
+		}
+		identifiers = [{"Seria": "EBL", "Number": "000501857"}]
+
+		self.assertEqual(_status_map_with_fallback(client, identifiers), {("EBL", "000501857"): 8})
+		client.get_invoices_by_seria_number.assert_called_once_with(identifiers)
+
 	def test_apply_vat_zero_rate_includes_line_in_totals(self):
 		doc = frappe.get_doc(
 			{
@@ -1075,5 +1121,3 @@ class TestSaleseFactura(FrappeTestCase):
 		self.assertTrue(
 			any("Purchase Receipt" in (group.get("items") or []) for group in data["transactions"])
 		)
-
-

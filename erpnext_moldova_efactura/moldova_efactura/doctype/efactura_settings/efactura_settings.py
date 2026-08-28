@@ -120,3 +120,18 @@ class eFacturaSettings(Document):
 							row.sales_taxes_and_charges, row.company
 						)
 					)
+
+
+@frappe.whitelist()
+def get_form_settings():
+	"""Return the non-sensitive e-Factura settings used by SEF/PEF forms."""
+	if not frappe.has_permission("eFactura Settings", "read"):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	fields = (
+		"customer_idno_field",
+		"supplier_idno_field",
+		"fiscal_territory",
+		"vat_included_in_rate",
+	)
+	return {field: frappe.db.get_single_value("eFactura Settings", field) for field in fields}

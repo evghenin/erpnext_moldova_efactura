@@ -1,8 +1,6 @@
 frappe.ui.form.on("Purchase eFactura", {
 	setup(frm) {
-		ensure_supplier_idno_field(frm);
-		ensure_customer_idno_field(frm);
-		ensure_fiscal_territory(frm);
+		load_efactura_form_settings(frm);
 	},
 	onload(frm) {
 		if (frm.is_new()) {
@@ -59,9 +57,7 @@ frappe.ui.form.on("Purchase eFactura", {
 		lock_items_grid(frm);
 		setup_new_party_from_factura(frm);
 		setup_new_item_from_factura(frm);
-		ensure_supplier_idno_field(frm);
-		ensure_customer_idno_field(frm);
-		ensure_fiscal_territory(frm);
+		load_efactura_form_settings(frm);
 		autofill_ef_details(frm, "supplier");
 		autofill_ef_details(frm, "customer");
 		autofill_ef_details(frm, "transporter");
@@ -526,35 +522,31 @@ function ef_set_items_grid_currency_labels(frm) {
 	);
 }
 
-function ensure_supplier_idno_field(frm) {
-	if (frm._supplier_idno_field) {
-		return;
+function load_efactura_form_settings(frm) {
+	if (frm._efactura_settings_promise) {
+		return frm._efactura_settings_promise;
 	}
-	frappe.db.get_single_value("eFactura Settings", "supplier_idno_field").then((field) => {
-		frm._supplier_idno_field = field;
-	});
+	frm._efactura_settings_promise = frappe
+		.call({
+			method: "erpnext_moldova_efactura.moldova_efactura.doctype.efactura_settings.efactura_settings.get_form_settings",
+		})
+		.then((response) => {
+			const settings = response.message || {};
+			frm._supplier_idno_field = settings.supplier_idno_field || "";
+			frm._customer_idno_field = settings.customer_idno_field || "";
+			frm._fiscal_territory = settings.fiscal_territory || "";
+			frm.__ef_vat_included_in_rate = cint(settings.vat_included_in_rate || 0);
+			return settings;
+		})
+		.catch((error) => {
+			delete frm._efactura_settings_promise;
+			throw error;
+		});
+	return frm._efactura_settings_promise;
 }
 
 function normalize_idno(value) {
 	return String(value || "").replace(/\D+/g, "");
-}
-
-function ensure_customer_idno_field(frm) {
-	if (frm._customer_idno_field !== undefined) {
-		return;
-	}
-	frappe.db.get_single_value("eFactura Settings", "customer_idno_field").then((field) => {
-		frm._customer_idno_field = field;
-	});
-}
-
-function ensure_fiscal_territory(frm) {
-	if (frm._fiscal_territory !== undefined) {
-		return;
-	}
-	frappe.db.get_single_value("eFactura Settings", "fiscal_territory").then((value) => {
-		frm._fiscal_territory = value || "";
-	});
 }
 
 function party_idno_cache_key(ptype) {
@@ -566,11 +558,7 @@ function get_party_idno_field(frm, ptype) {
 	if (frm[cacheKey] !== undefined) {
 		return Promise.resolve(frm[cacheKey]);
 	}
-	const settingsField = ptype === "Customer" ? "customer_idno_field" : "supplier_idno_field";
-	return frappe.db.get_single_value("eFactura Settings", settingsField).then((field) => {
-		frm[cacheKey] = field;
-		return field;
-	});
+	return load_efactura_form_settings(frm).then(() => frm[cacheKey]);
 }
 
 function resolve_party_by_idno(frm, opts) {
@@ -624,7 +612,6 @@ function validate_party_idno(frm) {
 	}
 	const ptype = frm.doc.supplier_party_type || "Supplier";
 	const idnoFieldKey = ptype === "Customer" ? "_customer_idno_field" : "_supplier_idno_field";
-	const settingsField = ptype === "Customer" ? "customer_idno_field" : "supplier_idno_field";
 	const check = (field) => {
 		if (!field) {
 			return Promise.resolve(true);
@@ -648,10 +635,7 @@ function validate_party_idno(frm) {
 	if (frm[idnoFieldKey] !== undefined) {
 		return check(frm[idnoFieldKey]);
 	}
-	return frappe.db.get_single_value("eFactura Settings", settingsField).then((field) => {
-		frm[idnoFieldKey] = field;
-		return check(field);
-	});
+	return load_efactura_form_settings(frm).then(() => check(frm[idnoFieldKey]));
 }
 
 function item_title_from_row(row) {

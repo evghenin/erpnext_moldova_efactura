@@ -18,7 +18,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.model.mapper import get_mapped_doc
 from frappe.utils import cint, flt
-from erpnext_moldova_efactura.api_client import EFacturaAPIClient
+from erpnext_moldova_efactura.api_client import EFacturaAPIClient, EFacturaAPIError
 from erpnext_moldova_efactura.utils.api_response import invoice_status_map, sfs_action_error
 from erpnext_moldova_efactura.utils.invoice_xml import unescape_sfs_text
 from erpnext_moldova_efactura.utils.taxpayer_type import taxpayer_type_from_sfs, taxpayer_type_to_sfs
@@ -790,6 +790,7 @@ def update_ef_status(efactura_name):
     if not efactura.ef_series or not efactura.ef_number:
         # List of statuses to check in sequence (eFactura API requires status filter)
         search_statuses = [0,1,7,8,3,2,5,10,4,6,9]
+        inv = None
         for status in search_statuses:
             params = {
                 "APIeInvoiceId": efactura.name, 
@@ -825,16 +826,8 @@ def update_ef_status(efactura_name):
                     ) 
 
     else:
-        resp = client.check_invoices_status(seria_and_numbers=
-            [
-                {
-                    "Seria": efactura.ef_series,
-                    "Number": efactura.ef_number,
-                }
-            ]
-        )
-
-        statuses = _extract_status_map(resp)
+        identifiers = [{"Seria": efactura.ef_series, "Number": efactura.ef_number}]
+        statuses = _status_map_with_fallback(client, identifiers)
 
         key = (str(efactura.ef_series), str(efactura.ef_number))
         status = statuses.get(key)
@@ -842,6 +835,30 @@ def update_ef_status(efactura_name):
         if status is not None and sef_status_label(status) != efactura.ef_status:
             efactura.db_set("ef_status", sef_status_label(status), update_modified=False)
             efactura.set_status()
+
+
+def _status_map_with_fallback(client, identifiers):
+    """Fetch statuses, falling back when SFS rejects CheckInvoicesStatus."""
+    try:
+        response = client.check_invoices_status(seria_and_numbers=identifiers)
+    except EFacturaAPIError:
+        response = client.get_invoices_by_seria_number(identifiers)
+    return invoice_status_map(response)
+
+
+def _extract_single_invoice_from_search_response(response):
+    """Return one SearchInvoices row, or all rows when the result is ambiguous."""
+    if not isinstance(response, dict):
+        return None
+    results = response.get("Results") or response
+    invoices = results.get("Invoice") if isinstance(results, dict) else None
+    if not invoices:
+        return None
+    if isinstance(invoices, dict):
+        return invoices
+    if isinstance(invoices, list) and len(invoices) == 1:
+        return invoices[0]
+    return invoices
 
 
 def _assert_can_cancel(doc):
@@ -860,8 +877,9 @@ def _assert_can_cancel(doc):
 
 def _refresh_sfs_status(doc):
     client = EFacturaAPIClient.from_settings(company=doc.company)
-    resp = client.check_invoices_status([{"Seria": doc.ef_series, "Number": doc.ef_number}])
-    statuses = invoice_status_map(resp)
+    statuses = _status_map_with_fallback(
+        client, [{"Seria": doc.ef_series, "Number": doc.ef_number}]
+    )
     status = statuses.get((str(doc.ef_series), str(doc.ef_number)))
     if status is not None and sef_status_label(status) != doc.ef_status:
         label = sef_status_label(status)

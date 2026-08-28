@@ -146,15 +146,16 @@ def determine_fiscal_status(si):
         )
     )
     si_total = float(si.grand_total or 0)
+    precision = si.precision("grand_total") if hasattr(si, "precision") else 2
 
-    if ef_total < si_total:
-        return "Partial"
+    return classify_si_fiscal_totals(ef_total, si_total, precision)
 
-    if ef_total == si_total:
-        return "Completed"
 
-    # 10) Any unexpected situation
-    return "Unknown"
+def classify_si_fiscal_totals(ef_total: float, si_total: float, precision: int = 2) -> str:
+    """Classify signed SEF coverage using the Sales Invoice currency precision."""
+    covered = abs(flt(ef_total, precision))
+    required = abs(flt(si_total, precision))
+    return "Completed" if covered >= required else "Partial"
 
 
 def territory_in_fiscal_scope(customer_territory: str) -> bool:

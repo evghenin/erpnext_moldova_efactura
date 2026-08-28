@@ -210,6 +210,13 @@ def parse_invoice_xml(xml_content: str | bytes) -> dict[str, Any]:
 	# SFS signed XML sometimes drops the decimal in header TotalTVA (9781 vs 97.81)
 	# while line TotalTVA attributes stay correct.
 	line_vat = flt(sum(flt(row["vat_amount"]) for row in items))
+
+	# If header TotalTVA is missing/zero but line items contain VAT, prefer
+	# the summed line VAT. This covers cases where SFS omits or zeroes the
+	# header but individual rows carry correct TotalTVA attributes.
+	if not vat_total and line_vat:
+		vat_total = line_vat
+
 	if vat_total > total + 0.005:
 		if items and line_vat and line_vat <= total + 0.05:
 			vat_total = line_vat

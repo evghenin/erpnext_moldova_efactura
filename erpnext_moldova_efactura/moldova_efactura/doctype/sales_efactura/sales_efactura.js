@@ -6,9 +6,7 @@ frappe.ui.form.on('Sales eFactura', {
         frm.set_indicator_formatter("item_code", function (doc) {
             return doc.docstatus == 1 || doc.stock_qty <= doc.available_stock_qty ? "green" : "red";
         });
-        ensure_customer_idno_field(frm);
-        ensure_supplier_idno_field(frm);
-        ensure_fiscal_territory(frm);
+        load_efactura_form_settings(frm);
         setup_sales_invoice_query(frm);
     },
 
@@ -78,13 +76,12 @@ frappe.ui.form.on('Sales eFactura', {
         update_transporter_party(frm);
         apply_currency_rules(frm, { fetch_rate: false });
         ef_set_items_grid_currency_labels(frm);
+        toggle_ef_item_code_column(frm);
         sync_sef_party_type(frm);
         autofillEfDetails(frm, "supplier");
         autofillEfDetails(frm, "customer");
         autofillEfDetails(frm, "transporter");
-        ensure_customer_idno_field(frm);
-        ensure_supplier_idno_field(frm);
-        ensure_fiscal_territory(frm);
+        load_efactura_form_settings(frm);
         setup_new_party_from_factura(frm);
         setup_new_item_from_factura(frm);
         update_customer(frm);
@@ -893,31 +890,27 @@ function normalize_party_title(name) {
     return text;
 }
 
-function ensure_customer_idno_field(frm) {
-    if (frm._customer_idno_field !== undefined) {
-        return;
+function load_efactura_form_settings(frm) {
+    if (frm._efactura_settings_promise) {
+        return frm._efactura_settings_promise;
     }
-    frappe.db.get_single_value("eFactura Settings", "customer_idno_field").then((field) => {
-        frm._customer_idno_field = field;
-    });
-}
-
-function ensure_supplier_idno_field(frm) {
-    if (frm._supplier_idno_field !== undefined) {
-        return;
-    }
-    frappe.db.get_single_value("eFactura Settings", "supplier_idno_field").then((field) => {
-        frm._supplier_idno_field = field;
-    });
-}
-
-function ensure_fiscal_territory(frm) {
-    if (frm._fiscal_territory !== undefined) {
-        return;
-    }
-    frappe.db.get_single_value("eFactura Settings", "fiscal_territory").then((value) => {
-        frm._fiscal_territory = value || "";
-    });
+    frm._efactura_settings_promise = frappe
+        .call({
+            method: "erpnext_moldova_efactura.moldova_efactura.doctype.efactura_settings.efactura_settings.get_form_settings",
+        })
+        .then((response) => {
+            const settings = response.message || {};
+            frm._customer_idno_field = settings.customer_idno_field || "";
+            frm._supplier_idno_field = settings.supplier_idno_field || "";
+            frm._fiscal_territory = settings.fiscal_territory || "";
+            frm.__ef_vat_included_in_rate = cint(settings.vat_included_in_rate || 0);
+            return settings;
+        })
+        .catch((error) => {
+            delete frm._efactura_settings_promise;
+            throw error;
+        });
+    return frm._efactura_settings_promise;
 }
 
 function customer_route_options_from_factura(frm) {
@@ -1402,9 +1395,7 @@ async function ef_get_vat_included_in_rate(frm) {
     }
 
     try {
-        // Singleton settings (лучше всего)
-        const v = await frappe.db.get_single_value('eFactura Settings', 'vat_included_in_rate');
-        frm.__ef_vat_included_in_rate = cint(v || 0);
+        await load_efactura_form_settings(frm);
         return frm.__ef_vat_included_in_rate;
     } catch (e) {
         frm.__ef_vat_included_in_rate = 0;
@@ -1427,6 +1418,15 @@ function ef_set_items_grid_currency_labels(frm) {
         'ef_rate', 'ef_amount', 'ef_uom_rate', 'ef_net_rate', 
         'ef_net_amount','ef_vat_amount'
     ], frm.doc.ef_currency, 'items');
+}
+
+function toggle_ef_item_code_column(frm) {
+    const grid = frm.fields_dict.items && frm.fields_dict.items.grid;
+    if (!grid) {
+        return;
+    }
+    const hasEfItemCode = (frm.doc.items || []).some((row) => (row.ef_item_code || "").trim());
+    grid.set_column_disp("ef_item_code", hasEfItemCode);
 }
 
 

@@ -65,6 +65,7 @@
   {
    "fieldname": "ef_item_code",
    "fieldtype": "Data",
+   "hidden": 1,
    "in_list_view": 1,
    "label": "eFactura Item Code",
    "no_copy": 1,
