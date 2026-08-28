@@ -169,7 +169,7 @@ frappe.ui.form.on("Purchase eFactura", {
 			);
 		}
 
-		if (frm.doc.docstatus === 1 && frm.doc.ef_status && frm.doc.ef_series && frm.doc.ef_number) {
+		if (frm.doc.ef_series && frm.doc.ef_number) {
 			frm.add_custom_button(
 				__("Download PDF"),
 				() => {

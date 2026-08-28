@@ -924,28 +924,9 @@ def cancel_invoice(name: str, reason: str | None = None):
 @frappe.whitelist()
 def download_pdf(efactura_name):
     efactura = _get_sales_efactura(efactura_name, "read")
+    from erpnext_moldova_efactura.utils.invoice_download import download_sfs_pdf
 
-    client = EFacturaAPIClient.from_settings(company=efactura.company)
-    resp = client.get_invoices_content_for_print(seria_and_numbers=
-        {
-            "Seria": efactura.ef_series,
-            "Number": efactura.ef_number,
-        },
-        actor_role=1
-    )
-
-    pdf_content = (resp or {}).get("Result", {}).get("Content") or ""
-
-    # sanity check
-    if not pdf_content.startswith(b"%PDF"):
-        frappe.throw(_("e-Factura returned non-PDF content in Result.Content"))
-
-    filename = f"{efactura.ef_series}{efactura.ef_number}.pdf"
-
-    frappe.local.response.filename = filename
-    frappe.local.response.filecontent = pdf_content
-    frappe.local.response.type = "download"
-    frappe.local.response.content_type = "application/pdf"
+    download_sfs_pdf(efactura, actor_role=1)
 
 
 @frappe.whitelist()

@@ -693,22 +693,9 @@ def download_xml(name: str):
 def download_pdf(name: str):
 	"""Download printable PDF from SFS (buyer, ActorRole=2)."""
 	doc = _get_purchase_efactura(name, "read")
-	if not doc.ef_series or not doc.ef_number:
-		frappe.throw(_("eFactura Series/Number is required to download PDF"))
+	from erpnext_moldova_efactura.utils.invoice_download import download_sfs_pdf
 
-	client = EFacturaAPIClient.from_settings(company=doc.company)
-	resp = client.get_invoices_content_for_print(
-		seria_and_numbers={"Seria": doc.ef_series, "Number": doc.ef_number},
-		actor_role=2,
-	)
-	pdf_content = (resp or {}).get("Result", {}).get("Content") or ""
-	if not pdf_content.startswith(b"%PDF"):
-		frappe.throw(_("e-Factura returned non-PDF content in Result.Content"))
-
-	frappe.local.response.filename = f"{doc.ef_series}{doc.ef_number}.pdf"
-	frappe.local.response.filecontent = pdf_content
-	frappe.local.response.type = "download"
-	frappe.local.response.content_type = "application/pdf"
+	download_sfs_pdf(doc, actor_role=2)
 
 
 @frappe.whitelist()
