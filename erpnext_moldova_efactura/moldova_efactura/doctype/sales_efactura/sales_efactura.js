@@ -3,9 +3,7 @@
 
 frappe.ui.form.on('Sales eFactura', {
     setup: function (frm) {
-        frm.set_indicator_formatter("item_code", function (doc) {
-            return doc.docstatus == 1 || doc.stock_qty <= doc.available_stock_qty ? "green" : "red";
-        });
+        apply_sef_item_code_indicator(frm);
         load_efactura_form_settings(frm);
         setup_sales_invoice_query(frm);
     },
@@ -71,6 +69,7 @@ frappe.ui.form.on('Sales eFactura', {
 
     refresh(frm) {
         frm._ef_in_submit = false;
+        apply_sef_item_code_indicator(frm);
         setup_sales_invoice_query(frm);
         update_company_bank_account(frm);
         update_transporter_party(frm);
@@ -1012,12 +1011,63 @@ function wrap_item_link_new_doc(control, getTitle) {
     };
 }
 
+function sef_item_code_indicator_color(doc) {
+    if (cint(doc.docstatus) === 1) {
+        return "green";
+    }
+    // Quota left on the linked Sales Invoice (stock UOM). Orange when over.
+    return flt(doc.stock_qty || doc.qty) <= flt(doc.available_stock_qty) ? "green" : "orange";
+}
+
+function apply_sef_item_code_indicator(frm) {
+    frm.set_indicator_formatter("item_code", sef_item_code_indicator_color);
+
+    const doctype = "Sales eFactura Item";
+    const map_df = frappe.meta.docfield_map[doctype] && frappe.meta.docfield_map[doctype].item_code;
+    const formatter = map_df && map_df.formatter;
+    if (!formatter) {
+        return;
+    }
+
+    // Per-row / per-parent docfield copies are made once and then reused. If a
+    // copy was created before setup(), it has no indicator formatter — only the
+    // first row that happened to use the live map would show the bullet.
+    const copies = frappe.meta.docfield_copy[doctype] || {};
+    Object.keys(copies).forEach((name) => {
+        const fields = copies[name];
+        if (fields && fields.item_code) {
+            fields.item_code.formatter = formatter;
+        }
+    });
+
+    const grid = frm.fields_dict.items && frm.fields_dict.items.grid;
+    if (!grid) {
+        return;
+    }
+    (grid.docfields || []).forEach((df) => {
+        if (df.fieldname === "item_code") {
+            df.formatter = formatter;
+        }
+    });
+    (grid.grid_rows || []).forEach((row) => {
+        (row.docfields || []).forEach((df) => {
+            if (df.fieldname === "item_code") {
+                df.formatter = formatter;
+            }
+        });
+        if (row.doc && row.columns && row.columns.item_code) {
+            row.refresh_field("item_code");
+        }
+    });
+}
+
 function setup_new_item_from_factura(frm) {
     const df = frm.get_docfield("items", "item_code");
     if (df) {
         df.get_route_options_for_new_doc = (link) =>
             item_route_options_from_title(item_title_from_row((link && link.doc) || {}));
     }
+    apply_sef_item_code_indicator(frm);
     wrap_item_code_grid_controls(frm);
     hook_items_grid_refresh(frm);
 }
@@ -1046,6 +1096,7 @@ function hook_items_grid_refresh(frm) {
     const original_refresh = grid.refresh.bind(grid);
     grid.refresh = function (...args) {
         const result = original_refresh(...args);
+        apply_sef_item_code_indicator(frm);
         wrap_item_code_grid_controls(frm);
         return result;
     };

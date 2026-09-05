@@ -1492,12 +1492,9 @@ def make_efactura_from_delivery_note(source_name, target_doc=None, args=None):
         target_doc,
         _postprocess_with_discount,
     )
-
-    if target_doc:
-        target_doc.update_items_available_qty()
-
+    # get_mapped_doc already parses a JSON target_doc into a Document; do not
+    # call methods on the original argument (it may still be a str from map_docs).
     doc.update_items_available_qty()
-
     return doc
 
 
@@ -1536,11 +1533,7 @@ def make_efactura_from_sales_invoice(source_name, target_doc=None):
         target_doc,
         _postprocess_with_discount,
     )
-    if target_doc:
-        target_doc.update_items_available_qty()
-
     doc.update_items_available_qty()
-
     return doc
 
 
