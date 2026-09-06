@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch
@@ -7,7 +8,8 @@ from frappe.tests.utils import FrappeTestCase
 from frappe.utils import flt, nowdate
 
 from erpnext_moldova_efactura.moldova_efactura.doctype.purchase_factura.purchase_factura import import_pdf
-from erpnext_moldova_efactura.utils.factura_pdf import FacturaImportError, parse_pdf, parse_text
+from erpnext_moldova_efactura.utils.factura_ocr import OCR_ERROR, _items, _totals, parse_image
+from erpnext_moldova_efactura.utils.factura_pdf import FacturaImportError, decimal, parse_pdf, parse_text
 from erpnext_moldova_efactura.utils.pf_invoice import (
 	assert_no_pf_for_pef,
 	assert_no_pf_for_pi,
@@ -58,6 +60,19 @@ class TestFacturaPDF(TestCase):
 	def test_invalid_pdf_fails(self):
 		with self.assertRaises(FacturaImportError):
 			parse_pdf(b"not a pdf")
+
+	def test_ocr_rows_and_totals_are_accepted_only_when_they_reconcile(self):
+		text = """Schimb bec auto stop  buc  1  66-67  66-67  20-00  13-33  80-00
+12. Total (pe factura fiscala) 66-67 x 13-33 80-00"""
+		rows = _items(text)
+		self.assertEqual(len(rows), 1)
+		self.assertEqual((rows[0]["description"], rows[0]["amount"]), ("Schimb bec auto stop", "80.00"))
+		self.assertEqual(_totals(text), [(decimal("66.67"), decimal("13.33"), decimal("80.00"))])
+		self.assertFalse(_items(text.replace("80-00", "81-00", 1)))
+
+	def test_invalid_scan_returns_quality_error(self):
+		with self.assertRaisesRegex(FacturaImportError, re.escape(OCR_ERROR)):
+			parse_image(b"not an image")
 
 	def test_actual_provider_pdfs(self):
 		for filename, series, number, total, uom in (

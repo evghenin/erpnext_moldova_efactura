@@ -16,7 +16,7 @@ frappe.ui.form.on("Purchase Factura", {
 		pf_render_party_details(frm, "supplier");
 		pf_render_party_details(frm, "customer");
 		if (frappe.model.can_create("Purchase Factura")) {
-			frm.add_custom_button(__("Import PDF"), erpnext_moldova_efactura.pf.import_pdf);
+			frm.add_custom_button(__("Import Document"), erpnext_moldova_efactura.pf.import_pdf);
 		}
 		if (frm.doc.provider) {
 			frm.set_intro(

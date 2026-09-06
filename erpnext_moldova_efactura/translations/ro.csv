@@ -548,3 +548,9 @@ Buyer Bank Account,Contul bancar al cumpărătorului
 Buyer Bank Name,Banca cumpărătorului
 Buyer Bank Code,Codul băncii cumpărătorului
 No original party details,Rechizitele părții lipsesc din original
+Import Document,Importă documentul
+Import Factura,Importă factura
+Upload Document,Încarcă documentul
+Reading factura…,Se citește factura…
+Cannot read factura,Factura nu poate fi citită
+Unable to obtain complete and consistent factura data. Please provide a clearer, correctly oriented photo or scan of the complete document.,Nu s-au putut obține date complete și coerente ale facturii. Încărcați o fotografie mai clară și orientată corect sau scanul documentului complet.

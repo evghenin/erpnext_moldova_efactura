@@ -46,7 +46,7 @@ Version 3 adds **Purchase Factura (PF)** for fiscal invoices received outside th
 #### Purchase Factura (version 3)
 
 - Manually register a Moldovan purchase factura received on paper. Preserve its original series, number, dates, issuer/recipient IDNO, VAT details, item values, references, and an optional private scan.
-- Import the observed **Orange Moldova** and **ARAX-IMPEX** PDF layouts from **Purchase Factura → Import PDF**. The importer reads the local PDF text layer, creates a PF draft, preserves the private original and its hash, extracts the factura and related references, and reconciles every extracted row with its totals. Unsupported or ambiguous files stop for manual registration rather than guessing.
+- Import the observed **Orange Moldova** and **ARAX-IMPEX** PDFs, or a photographed/scanned paper factura, from **Purchase Factura → Import Document**. PDF import prefers the embedded text layer; JPG/JPEG/PNG import uses local Tesseract OCR (`ron`, `rus`, and `eng`) after orientation and contrast normalization and table-line suppression. The importer preserves the private original and its hash and creates a PF draft only when the required requisites and all extracted arithmetic reconcile.
 - Detect embedded PDF signature fields and retain their format and declared time. Imported signatures remain `Not Checked`: PDF import does not claim certificate trust, revocation, trusted timestamp, or complete signature validity.
 - Match Company and Supplier through the configured IDNO fields. Creating a Supplier from PF prefills its name, configured IDNO field and fiscal territory, as in PEF. Reuse an existing supplier Item/UOM mapping when one is unambiguous; otherwise the user maps the Item, Factura UOM, purchase UOM before review.
 - PF header fields follow PEF naming: `supplier_party_type` / `supplier_party` identify the ERP party, while values read from the original use `f_*` counterparts of PEF's `ef_*` fields. This includes `f_series`, `f_number`, and separate supplier/buyer names, IDNO, VAT IDs, taxpayer types, addresses, bank accounts, bank names, and bank codes. Party detail blocks show these source requisites together. Buyer bank fields extend the current PEF schema because the supported PDF originals contain them and PF must preserve all available source information.
@@ -60,7 +60,7 @@ Version 3 adds **Purchase Factura (PF)** for fiscal invoices received outside th
 - The standard Purchase Invoice creates all General Ledger entries. PF itself creates no accounting or stock entries. A submitted PI linked to a PF shows `Pending (Draft)` until the reviewed PF is submitted, then `Completed`.
 - Prevent a PF and PEF from allocating the same original or Purchase Invoice. Repeated PDF import returns the existing active PF; concurrent creation is serialized per Company. A cancelled original remains in duplicate history and must be amended rather than registered as a new unrelated document.
 - Cancelling PF removes its fiscal link and coverage without cancelling or reversing its Purchase Invoice. A submitted PF must be cancelled before its PI can be cancelled.
-- Version 3 stage one supports ordinary positive Purchase Invoice transactions. Purchase Orders, Purchase Receipts, stock-only facturas, returns, partial/multiple allocations, email intake, OCR, and full signature validation remain later stages.
+- Version 3 stage one supports ordinary positive Purchase Invoice transactions. Purchase Orders, Purchase Receipts, stock-only facturas, returns, partial/multiple allocations, email intake, and full signature validation remain later stages.
 
 #### Fiscalization
 
@@ -231,6 +231,7 @@ Then open **eFactura Settings**, set the API URL, and add a **Company API Accoun
 Version 3 adds the `pypdf` runtime dependency, the Purchase Factura DocTypes, a Purchase Invoice link, and purchase workspace entries:
 
 ```bash
+sudo apt-get install tesseract-ocr tesseract-ocr-ron tesseract-ocr-rus tesseract-ocr-eng
 cd $PATH_TO_YOUR_BENCH
 bench setup requirements --python erpnext_moldova_efactura
 bench --site $SITE migrate

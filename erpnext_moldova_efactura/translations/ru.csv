@@ -541,3 +541,9 @@ Buyer Bank Account,Банковский счёт покупателя
 Buyer Bank Name,Банк покупателя
 Buyer Bank Code,Код банка покупателя
 No original party details,Реквизиты стороны отсутствуют в оригинале
+Import Document,Импортировать документ
+Import Factura,Импортировать фактуру
+Upload Document,Загрузить документ
+Reading factura…,Распознавание фактуры…
+Cannot read factura,Не удалось распознать фактуру
+Unable to obtain complete and consistent factura data. Please provide a clearer, correctly oriented photo or scan of the complete document.,Не удалось получить полные и согласованные данные фактуры. Предоставьте более чёткую правильно ориентированную фотографию или скан всего документа.

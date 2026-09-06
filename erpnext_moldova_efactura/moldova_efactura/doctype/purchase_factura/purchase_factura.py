@@ -303,9 +303,16 @@ def import_pdf(file_url: str, company: str):
 	frappe.get_doc("Company", company).check_permission("read")
 	file_doc = _read_original(file_url)
 	try:
-		data = imported_fields(parse_pdf(file_doc.get_content()))
+		content = file_doc.get_content()
+		if content.startswith(b"%PDF-"):
+			parsed = parse_pdf(content)
+		else:
+			from erpnext_moldova_efactura.utils.factura_ocr import parse_image
+
+			parsed = parse_image(content)
+		data = imported_fields(parsed)
 	except FacturaImportError as exc:
-		frappe.throw(_(str(exc)), title=_("Cannot import factura"))
+		frappe.throw(_(str(exc)), title=_("Cannot read factura"))
 	if data["f_customer_idno"] != _party_idno("Company", company):
 		frappe.throw(_("The PDF recipient IDNO does not match the selected Company"))
 	_lock_company(company)

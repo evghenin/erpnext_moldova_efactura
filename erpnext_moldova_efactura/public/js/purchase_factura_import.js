@@ -16,20 +16,23 @@ erpnext_moldova_efactura.pf.import_pdf = function () {
 			new frappe.ui.FileUploader({
 				allow_multiple: false,
 				make_attachments_public: false,
-				restrictions: { allowed_file_types: [".pdf"], max_file_size: 15 * 1024 * 1024 },
+				restrictions: {
+					allowed_file_types: [".pdf", ".jpg", ".jpeg", ".png"],
+					max_file_size: 15 * 1024 * 1024,
+				},
 				on_success(file) {
 					frappe.call({
 						method: "erpnext_moldova_efactura.moldova_efactura.doctype.purchase_factura.purchase_factura.import_pdf",
 						args: { file_url: file.file_url, company },
 						freeze: true,
-						freeze_message: __("Reading factura PDF…"),
+						freeze_message: __("Reading factura…"),
 						callback: (r) =>
 							r.message && frappe.set_route("Form", "Purchase Factura", r.message),
 					});
 				},
 			});
 		},
-		__("Import Orange / ARAX PDF"),
-		__("Upload PDF")
+		__("Import Factura"),
+		__("Upload Document")
 	);
 };
