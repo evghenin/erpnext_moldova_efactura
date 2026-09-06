@@ -12,6 +12,7 @@ frappe.ui.form.on("Purchase Factura", {
 			frm.refresh_field("items");
 		}
 		pf_setup_new_supplier(frm);
+		pf_setup_new_item(frm);
 		pf_currency_labels(frm);
 		pf_render_party_details(frm, "supplier");
 		pf_render_party_details(frm, "customer");
@@ -328,6 +329,14 @@ function pf_original_amount_changed(frm, cdt, cdn) {
 }
 
 frappe.ui.form.on("Purchase Factura Item", {
+	form_render(frm, cdt, cdn) {
+		const grid = frm.fields_dict.items && frm.fields_dict.items.grid;
+		const grid_row = grid && grid.grid_rows_by_docname && grid.grid_rows_by_docname[cdn];
+		const control =
+			(grid_row && grid_row.grid_form && grid_row.grid_form.fields_dict.item_code) ||
+			(grid_row && grid_row.get_field && grid_row.get_field("item_code"));
+		pf_wrap_item_new_doc(control, () => pf_item_title(locals[cdt][cdn]));
+	},
 	f_qty: pf_original_amount_changed,
 	f_rate: pf_original_amount_changed,
 	f_vat_rate: pf_original_amount_changed,
@@ -338,3 +347,85 @@ frappe.ui.form.on("Purchase Factura Item", {
 	f_uom: pf_preview,
 	uom: pf_preview,
 });
+
+function pf_item_title(row) {
+	return ((row && (row.supplier_item_name || row.supplier_item_code)) || "").trim();
+}
+
+function pf_item_route_options(title) {
+	if (!title) return {};
+	return {
+		name_field: title,
+		item_code: title,
+		item_name: title,
+	};
+}
+
+function pf_wrap_item_new_doc(control, get_title) {
+	if (!control || typeof control.new_doc !== "function" || control._pf_item_new_doc_wrapped) {
+		return;
+	}
+	control._pf_item_new_doc_wrapped = true;
+	const original_new_doc = control.new_doc.bind(control);
+	control.new_doc = function () {
+		const title = (get_title(this) || "").trim();
+		const original_get_label = this.get_label_value.bind(this);
+		if (title) this.get_label_value = () => title;
+		try {
+			const result = original_new_doc();
+			if (title && frappe.route_options) {
+				frappe.route_options.name_field = title;
+				frappe.route_options.item_code = title;
+				frappe.route_options.item_name = title;
+			}
+			return result;
+		} finally {
+			this.get_label_value = original_get_label;
+		}
+	};
+}
+
+function pf_setup_new_item(frm) {
+	const df = frm.get_docfield("items", "item_code");
+	if (df) {
+		df.get_route_options_for_new_doc = (link) =>
+			pf_item_route_options(pf_item_title((link && link.doc) || {}));
+	}
+	const grid = frm.fields_dict.items && frm.fields_dict.items.grid;
+	if (grid && !grid._pf_new_item_refresh_wrapped && typeof grid.refresh === "function") {
+		grid._pf_new_item_refresh_wrapped = true;
+		const original_refresh = grid.refresh.bind(grid);
+		grid.refresh = function (...args) {
+			const result = original_refresh(...args);
+			setTimeout(() => pf_wrap_item_grid_controls(frm), 0);
+			return result;
+		};
+	}
+	pf_wrap_item_grid_controls(frm);
+}
+
+function pf_wrap_item_grid_controls(frm) {
+	const grid = frm.fields_dict.items && frm.fields_dict.items.grid;
+	if (!grid) return;
+	(grid.grid_rows || []).forEach((row) => {
+		pf_patch_row_make_control(row);
+		const control =
+			(row.on_grid_fields_dict && row.on_grid_fields_dict.item_code) ||
+			(row.grid_form && row.grid_form.fields_dict && row.grid_form.fields_dict.item_code);
+		pf_wrap_item_new_doc(control, (link) => pf_item_title((link && link.doc) || row.doc));
+	});
+}
+
+function pf_patch_row_make_control(row) {
+	if (!row || row._pf_make_control_patched || typeof row.make_control !== "function") return;
+	row._pf_make_control_patched = true;
+	const original_make_control = row.make_control.bind(row);
+	row.make_control = function (column) {
+		original_make_control(column);
+		if (column && column.df && column.df.fieldname === "item_code" && column.field) {
+			pf_wrap_item_new_doc(column.field, (link) =>
+				pf_item_title((link && link.doc) || row.doc)
+			);
+		}
+	};
+}
