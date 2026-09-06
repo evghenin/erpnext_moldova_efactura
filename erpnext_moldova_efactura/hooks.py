@@ -27,7 +27,7 @@ required_apps = ["erpnext"]
 # include js, css files in header of desk.html
 # app_include_css = "/assets/erpnext_moldova_efactura/css/erpnext_moldova_efactura.css"
 app_include_js = [
-    "/assets/erpnext_moldova_efactura/js/purchase_factura_import.js",
+    "/assets/erpnext_moldova_efactura/js/purchase_factura_import_v3.js",
     "/assets/erpnext_moldova_efactura/js/moldsign.js",
     "/assets/erpnext_moldova_efactura/js/skip_price_list_after_mapping.js",
     "/assets/erpnext_moldova_efactura/js/fiscal_status.js",
