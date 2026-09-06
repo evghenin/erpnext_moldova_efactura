@@ -17,7 +17,8 @@ erpnext_moldova_efactura.pf.import_pdf = function () {
 				allow_multiple: false,
 				make_attachments_public: false,
 				restrictions: {
-					allowed_file_types: [".pdf", ".jpg", ".jpeg", ".png"],
+					// Image MIME matching also accepts camera filenames and browser-normalized extensions.
+					allowed_file_types: [".pdf", "image/*", ".jpg", ".jpeg", ".png"],
 					max_file_size: 15 * 1024 * 1024,
 				},
 				on_success(file) {
