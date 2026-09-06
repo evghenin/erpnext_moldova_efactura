@@ -303,6 +303,11 @@ class PurchaseeFactura(Document):
 					frappe.db.set_value(row.doctype, row.name, field, fixed, update_modified=False)
 
 	def _validate_allocations(self):
+		from erpnext_moldova_efactura.utils.pf_invoice import assert_no_pf_for_pi
+
+		for row in self.items or []:
+			if row.purchase_invoice:
+				assert_no_pf_for_pi(row.purchase_invoice)
 		validate_allocation_qtys(self)
 
 	def save_version(self):
@@ -1087,6 +1092,9 @@ def _save_buyer_links(doc):
 def make_purchase_invoice(source_name: str, target_doc=None):
 	frappe.has_permission("Purchase Invoice", "create", throw=True)
 	source = _get_purchase_efactura(source_name)
+	from erpnext_moldova_efactura.utils.pf_invoice import assert_no_pf_for_pef
+
+	assert_no_pf_for_pef(source)
 	throw_if_pi_path_blocked(source)
 	_require_not_cancelled(source)
 	_require_mapped(source, _("Purchase Invoice"))

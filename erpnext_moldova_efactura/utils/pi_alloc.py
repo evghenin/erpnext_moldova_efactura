@@ -347,6 +347,10 @@ def is_full_document_cover(buyer, allocs: list[dict]) -> bool:
 
 
 def apply_allocations(buyer, allocs: list[dict], pi_name: str) -> None:
+	from erpnext_moldova_efactura.utils.pf_invoice import assert_no_pf_for_pef, assert_no_pf_for_pi
+
+	assert_no_pf_for_pef(buyer)
+	assert_no_pf_for_pi(pi_name)
 	for a in allocs:
 		row = a["buyer_row"]
 		row.purchase_invoice = pi_name

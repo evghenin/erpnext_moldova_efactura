@@ -27,6 +27,7 @@ required_apps = ["erpnext"]
 # include js, css files in header of desk.html
 # app_include_css = "/assets/erpnext_moldova_efactura/css/erpnext_moldova_efactura.css"
 app_include_js = [
+    "/assets/erpnext_moldova_efactura/js/purchase_factura_import.js",
     "/assets/erpnext_moldova_efactura/js/moldsign.js",
     "/assets/erpnext_moldova_efactura/js/skip_price_list_after_mapping.js",
     "/assets/erpnext_moldova_efactura/js/fiscal_status.js",
@@ -164,6 +165,9 @@ doctype_list_js = {
 # }
 
 doc_events = {
+    "File": {
+        "on_trash": "erpnext_moldova_efactura.utils.pf_original.protect_purchase_factura_original",
+    },
     "Sales Invoice": {
         "before_insert": "erpnext_moldova_efactura.overrides.sales_invoice.before_insert",
         "after_insert": "erpnext_moldova_efactura.overrides.sales_invoice.after_insert",
@@ -171,12 +175,23 @@ doc_events = {
         "on_cancel": "erpnext_moldova_efactura.overrides.sales_invoice.on_cancel",
     },
     "Purchase Invoice": {
+        "validate": "erpnext_moldova_efactura.utils.pf_invoice.validate_pi",
+        "before_cancel": "erpnext_moldova_efactura.utils.pf_invoice.before_cancel_pi",
         "before_insert": "erpnext_moldova_efactura.overrides.purchase_invoice.before_insert",
         "before_submit": "erpnext_moldova_efactura.overrides.purchase_invoice.before_submit",
         "onload": "erpnext_moldova_efactura.overrides.purchase_invoice.onload",
-        "on_update": "erpnext_moldova_efactura.overrides.purchase_invoice.on_update",
-        "on_cancel": "erpnext_moldova_efactura.overrides.purchase_invoice.on_cancel",
-        "on_trash": "erpnext_moldova_efactura.overrides.purchase_invoice.on_trash",
+        "on_update": [
+            "erpnext_moldova_efactura.utils.pf_invoice.sync_pi_link",
+            "erpnext_moldova_efactura.overrides.purchase_invoice.on_update",
+        ],
+        "on_cancel": [
+            "erpnext_moldova_efactura.utils.pf_invoice.clear_pi_link",
+            "erpnext_moldova_efactura.overrides.purchase_invoice.on_cancel",
+        ],
+        "on_trash": [
+            "erpnext_moldova_efactura.utils.pf_invoice.clear_pi_link",
+            "erpnext_moldova_efactura.overrides.purchase_invoice.on_trash",
+        ],
     },
     "Purchase Receipt": {
         "before_submit": "erpnext_moldova_efactura.overrides.purchase_receipt.before_submit",
@@ -325,7 +340,7 @@ fixtures = [
         ]
     },
     {
-        "doctype": "Custom Field", 
+        "doctype": "Custom Field",
         "filters": [
             ["module", "in", ["Moldova eFactura"]]
         ]

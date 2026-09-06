@@ -5,6 +5,11 @@ frappe.ui.form.on("Purchase Invoice", {
 		}
 	},
 	refresh(frm) {
+		if (frm.doc.purchase_factura && frappe.model.can_read("Purchase Factura")) {
+			frm.add_custom_button(__("Purchase Factura"), () =>
+				frappe.set_route("Form", "Purchase Factura", frm.doc.purchase_factura)
+			);
+		}
 		if (frm.is_new()) {
 			prefill_from_linked_pef(frm);
 			return;
@@ -95,18 +100,20 @@ function prefill_from_linked_pef(frm) {
 			if (!cint(copy)) {
 				return;
 			}
-			frappe.db.get_value("Purchase eFactura", pefName, ["issue_date", "issue_time"]).then((r) => {
-				const data = r.message || {};
-				if (!data.issue_date) {
-					return;
-				}
-				frm.set_value("set_posting_time", 1);
-				frm.set_value("posting_date", data.issue_date);
-				const issueTime = posting_time_from_pef(data.issue_time);
-				if (issueTime) {
-					frm.set_value("posting_time", issueTime);
-				}
-			});
+			frappe.db
+				.get_value("Purchase eFactura", pefName, ["issue_date", "issue_time"])
+				.then((r) => {
+					const data = r.message || {};
+					if (!data.issue_date) {
+						return;
+					}
+					frm.set_value("set_posting_time", 1);
+					frm.set_value("posting_date", data.issue_date);
+					const issueTime = posting_time_from_pef(data.issue_time);
+					if (issueTime) {
+						frm.set_value("posting_time", issueTime);
+					}
+				});
 		});
 	};
 

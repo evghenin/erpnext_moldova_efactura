@@ -1,0 +1,145 @@
+{
+ "doctype": "DocType",
+ "name": "Purchase Factura Item",
+ "module": "Moldova eFactura",
+ "istable": 1,
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "description",
+  "source_uom",
+  "source_qty",
+  "source_rate",
+  "net_amount",
+  "vat_rate",
+  "vat_amount",
+  "amount",
+  "mapping_section",
+  "item_code",
+  "uom",
+  "qty",
+  "conversion_factor",
+  "expense_account",
+  "cost_center",
+  "pi_detail"
+ ],
+ "fields": [
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Original Description",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 3
+  },
+  {
+   "fieldname": "source_uom",
+   "fieldtype": "Data",
+   "label": "Original UOM"
+  },
+  {
+   "fieldname": "source_qty",
+   "fieldtype": "Float",
+   "label": "Original Quantity",
+   "reqd": 1,
+   "precision": "6",
+   "default": "1"
+  },
+  {
+   "fieldname": "source_rate",
+   "fieldtype": "Currency",
+   "label": "Original Rate (excl. VAT)",
+   "options": "currency",
+   "reqd": 1,
+   "precision": "6"
+  },
+  {
+   "fieldname": "net_amount",
+   "fieldtype": "Currency",
+   "label": "Net Amount",
+   "options": "currency",
+   "precision": "2"
+  },
+  {
+   "fieldname": "vat_rate",
+   "fieldtype": "Percent",
+   "label": "VAT Rate",
+   "default": "20"
+  },
+  {
+   "fieldname": "vat_amount",
+   "fieldtype": "Currency",
+   "label": "VAT Amount",
+   "options": "currency",
+   "precision": "2"
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Gross Amount",
+   "options": "currency",
+   "read_only": 1,
+   "precision": "2",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "mapping_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "label": "Item",
+   "options": "Item",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "uom",
+   "fieldtype": "Link",
+   "label": "ERP UOM",
+   "options": "UOM",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "qty",
+   "fieldtype": "Float",
+   "label": "ERP Quantity",
+   "precision": "6",
+   "default": "1",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "conversion_factor",
+   "fieldtype": "Float",
+   "label": "ERP UOM Conversion Factor",
+   "precision": "9",
+   "read_only": 1
+  },
+  {
+   "fieldname": "expense_account",
+   "fieldtype": "Link",
+   "label": "Expense Account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "pi_detail",
+   "fieldtype": "Data",
+   "label": "Purchase Invoice Item",
+   "read_only": 1,
+   "no_copy": 1
+  }
+ ],
+ "permissions": [],
+ "links": [],
+ "actions": []
+}

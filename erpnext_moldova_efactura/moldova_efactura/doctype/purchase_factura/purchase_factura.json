@@ -1,0 +1,442 @@
+{
+ "doctype": "DocType",
+ "name": "Purchase Factura",
+ "module": "Moldova eFactura",
+ "autoname": "naming_series:",
+ "naming_rule": "By \"Naming Series\" field",
+ "is_submittable": 1,
+ "track_changes": 1,
+ "allow_rename": 0,
+ "engine": "InnoDB",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "field_order": [
+  "main_section",
+  "naming_series",
+  "company",
+  "supplier",
+  "original_format",
+  "column_main",
+  "series",
+  "number",
+  "issue_date",
+  "delivery_date",
+  "currency",
+  "original_section",
+  "original_file",
+  "provider",
+  "signature_status",
+  "reviewed",
+  "reviewed_by",
+  "reviewed_on",
+  "purchase_invoice",
+  "party_section",
+  "supplier_idno",
+  "supplier_name",
+  "supplier_vat_id",
+  "column_party",
+  "buyer_idno",
+  "buyer_vat_id",
+  "references_section",
+  "provider_reference",
+  "provider_account",
+  "contract_reference",
+  "service_period_start",
+  "service_period_end",
+  "related_document_type",
+  "related_document_number",
+  "related_document_date",
+  "items_section",
+  "items",
+  "totals_section",
+  "net_total",
+  "vat_total",
+  "total",
+  "notes",
+  "audit_section",
+  "signature_details",
+  "extracted_text",
+  "file_hash",
+  "identity_key",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "main_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "ACC-PF-.YYYY.-",
+   "default": "ACC-PF-.YYYY.-",
+   "reqd": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "label": "Supplier",
+   "options": "Supplier",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "original_format",
+   "fieldtype": "Select",
+   "label": "Original Format",
+   "options": "Paper\nDigitally Signed PDF\nOther Electronic",
+   "default": "Paper",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_main",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "series",
+   "fieldtype": "Data",
+   "label": "Factura Series",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "number",
+   "fieldtype": "Data",
+   "label": "Factura Number",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "issue_date",
+   "fieldtype": "Date",
+   "label": "Issue Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "delivery_date",
+   "fieldtype": "Date",
+   "label": "Delivery Date"
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency",
+   "default": "MDL",
+   "reqd": 1
+  },
+  {
+   "fieldname": "original_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "original_file",
+   "fieldtype": "Attach",
+   "label": "Original File"
+  },
+  {
+   "fieldname": "provider",
+   "fieldtype": "Data",
+   "label": "Provider",
+   "read_only": 1
+  },
+  {
+   "fieldname": "signature_status",
+   "fieldtype": "Data",
+   "label": "Signature Status",
+   "default": "Not Applicable",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reviewed",
+   "fieldtype": "Check",
+   "label": "Original and Mapping Reviewed",
+   "default": "0",
+   "description": "Confirm requisites, item mapping and amounts before creating a Purchase Invoice or submitting."
+  },
+  {
+   "fieldname": "reviewed_by",
+   "fieldtype": "Link",
+   "label": "Reviewed By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "reviewed_on",
+   "fieldtype": "Datetime",
+   "label": "Reviewed On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "purchase_invoice",
+   "fieldtype": "Link",
+   "label": "Purchase Invoice",
+   "options": "Purchase Invoice",
+   "read_only": 1,
+   "no_copy": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "party_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "supplier_idno",
+   "fieldtype": "Data",
+   "label": "Supplier IDNO",
+   "reqd": 1
+  },
+  {
+   "fieldname": "supplier_name",
+   "fieldtype": "Data",
+   "label": "Original Supplier Name"
+  },
+  {
+   "fieldname": "supplier_vat_id",
+   "fieldtype": "Data",
+   "label": "Supplier VAT Code"
+  },
+  {
+   "fieldname": "column_party",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "buyer_idno",
+   "fieldtype": "Data",
+   "label": "Buyer IDNO",
+   "reqd": 1
+  },
+  {
+   "fieldname": "buyer_vat_id",
+   "fieldtype": "Data",
+   "label": "Buyer VAT Code"
+  },
+  {
+   "fieldname": "references_section",
+   "fieldtype": "Section Break",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "provider_reference",
+   "fieldtype": "Data",
+   "label": "Provider Reference"
+  },
+  {
+   "fieldname": "provider_account",
+   "fieldtype": "Data",
+   "label": "Provider Account"
+  },
+  {
+   "fieldname": "contract_reference",
+   "fieldtype": "Data",
+   "label": "Contract Reference"
+  },
+  {
+   "fieldname": "service_period_start",
+   "fieldtype": "Date",
+   "label": "Service Period Start"
+  },
+  {
+   "fieldname": "service_period_end",
+   "fieldtype": "Date",
+   "label": "Service Period End"
+  },
+  {
+   "fieldname": "related_document_type",
+   "fieldtype": "Data",
+   "label": "Related Document Type"
+  },
+  {
+   "fieldname": "related_document_number",
+   "fieldtype": "Data",
+   "label": "Related Document Number"
+  },
+  {
+   "fieldname": "related_document_date",
+   "fieldtype": "Date",
+   "label": "Related Document Date"
+  },
+  {
+   "fieldname": "items_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Items",
+   "options": "Purchase Factura Item",
+   "reqd": 1
+  },
+  {
+   "fieldname": "totals_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "net_total",
+   "fieldtype": "Currency",
+   "label": "Net Total",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "vat_total",
+   "fieldtype": "Currency",
+   "label": "Vat Total",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total",
+   "fieldtype": "Currency",
+   "label": "Total",
+   "options": "currency",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "audit_section",
+   "fieldtype": "Section Break",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "signature_details",
+   "fieldtype": "Code",
+   "label": "Signature Details",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "fieldname": "extracted_text",
+   "fieldtype": "Long Text",
+   "label": "Extracted Text",
+   "read_only": 1
+  },
+  {
+   "fieldname": "file_hash",
+   "fieldtype": "Data",
+   "label": "File Hash",
+   "read_only": 1
+  },
+  {
+   "fieldname": "identity_key",
+   "fieldtype": "Data",
+   "label": "Identity Key",
+   "hidden": 1,
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "Purchase Factura",
+   "read_only": 1,
+   "no_copy": 1
+  }
+ ],
+ "permissions": [
+  {
+   "amend": 1,
+   "cancel": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1,
+   "create": 1
+  },
+  {
+   "amend": 1,
+   "cancel": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "eFactura Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1,
+   "create": 1
+  },
+  {
+   "amend": 1,
+   "cancel": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1,
+   "create": 1
+  },
+  {
+   "amend": 1,
+   "cancel": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts User",
+   "share": 1,
+   "submit": 1,
+   "write": 1,
+   "create": 1
+  },
+  {
+   "amend": 1,
+   "cancel": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Purchase Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1,
+   "create": 1
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Purchase User",
+   "share": 1,
+   "submit": 1,
+   "write": 1,
+   "create": 1
+  }
+ ],
+ "links": [],
+ "actions": [],
+ "states": []
+}

@@ -91,6 +91,29 @@ def resolve_item_code(
 	return None
 
 
+def resolve_item_and_uom(
+	supplier: str | None,
+	supplier_item_code: str | None,
+	supplier_item_name: str | None = None,
+) -> tuple[str | None, str | None]:
+	"""Resolve an Item and the reviewed purchasing UOM saved with its supplier map."""
+	item_code = resolve_item_code(supplier, supplier_item_code, supplier_item_name)
+	if not supplier or not supplier_item_name:
+		return item_code, None
+	mapped = frappe.db.get_value(
+		"eFactura Supplier Item Map",
+		{"supplier": supplier, "supplier_item_name": supplier_item_name},
+		["item_code", "uom"],
+		as_dict=True,
+		order_by="modified desc",
+	)
+	if not mapped:
+		mapped = _best_wildcard_map(supplier, supplier_item_name)
+	if mapped and mapped.item_code == item_code:
+		return item_code, mapped.uom
+	return item_code, None
+
+
 def _code_hit_trusted(
 	item_code: str,
 	current_supplier_name: str | None,
@@ -130,7 +153,8 @@ def _from_past_invoices(
 ) -> tuple[str | None, str | None]:
 	"""Return (item_code, supplier_item_name) from the latest matching buyer line."""
 	conditions = [
-		"p.supplier = %s",
+		"p.supplier_party = %s",
+		"p.supplier_party_type = 'Supplier'",
 		"IFNULL(i.item_code, '') != ''",
 		"p.docstatus < 2",
 	]
@@ -168,7 +192,7 @@ def _best_wildcard_map(supplier: str, name: str):
 	rows = frappe.get_all(
 		"eFactura Supplier Item Map",
 		filters={"supplier": supplier},
-		fields=["item_code", "supplier_item_name"],
+		fields=["item_code", "supplier_item_name", "uom"],
 		order_by="modified desc",
 	)
 	patterns = [

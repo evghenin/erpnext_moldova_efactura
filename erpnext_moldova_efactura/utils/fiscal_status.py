@@ -301,6 +301,16 @@ def _pi_fiscal_cover(pi, buyer_override=None) -> tuple[bool, float, float, float
 	items = getattr(pi, "items", None) or []
 	total = sum(abs(flt(row.qty)) for row in items)
 	pi_name = getattr(pi, "name", None)
+	if pi_name and getattr(pi, "purchase_factura", None) and frappe.db.table_exists("Purchase Factura"):
+		pf = frappe.db.get_value(
+			"Purchase Factura",
+			{"purchase_invoice": pi_name, "docstatus": ["<", 2]},
+			["name", "docstatus"],
+			as_dict=True,
+		)
+		if pf:
+			# Stage one enforces an exclusive, full PI link and checks every target row.
+			return True, total, total if cint(pf.docstatus) == 1 else 0.0, 0.0, cint(pf.docstatus) == 0
 	if not pi_name or not frappe.db.has_column("Purchase eFactura Item", "purchase_invoice"):
 		return False, total, 0.0, 0.0, False
 

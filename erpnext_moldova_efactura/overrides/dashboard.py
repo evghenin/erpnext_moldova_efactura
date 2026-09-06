@@ -34,8 +34,10 @@ def get_delivery_note_dashboard(data):
 def get_purchase_invoice_dashboard(data):
     data.setdefault("internal_links", {})
     data["internal_links"]["Purchase eFactura"] = "purchase_efactura"
+    data["internal_links"]["Purchase Factura"] = "purchase_factura"
     data.setdefault("transactions", [])
     data["transactions"].append({"label": _("Purchase eFactura"), "items": ["Purchase eFactura"]})
+    data["transactions"].append({"label": _("Purchase Factura"), "items": ["Purchase Factura"]})
     return data
 
 

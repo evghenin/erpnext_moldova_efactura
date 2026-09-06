@@ -1,6 +1,7 @@
 import frappe
 from frappe.utils import cint, flt
 
+from erpnext_moldova_efactura.utils.fiscal_status import sync_pi_fiscal_status
 from erpnext_moldova_efactura.utils.pi_alloc import (
 	apply_allocations,
 	clear_pi_buyer_link,
@@ -12,10 +13,11 @@ from erpnext_moldova_efactura.utils.pi_alloc import (
 	set_pi_buyer_link,
 )
 from erpnext_moldova_efactura.utils.pi_match import validate_existing_allocations
-from erpnext_moldova_efactura.utils.fiscal_status import sync_pi_fiscal_status
 
 
 def before_insert(doc, method=None):
+	if doc.get("purchase_factura"):
+		return
 	# Mapper/client already applied defaults; don't overwrite a user-edited posting date.
 	if cint(doc.get("set_posting_time")) and doc.meta.has_field("purchase_efactura") and doc.get(
 		"purchase_efactura"
@@ -71,6 +73,8 @@ def _clear_allocations(doc):
 
 
 def _try_auto_allocate(doc):
+	if doc.get("purchase_factura"):
+		return
 	if get_buyer_name_for_pi(doc):
 		return
 	buyer_name = find_source_buyer(doc)
