@@ -54,6 +54,8 @@ Version 3 adds **Purchase Factura (PF)** for fiscal invoices received outside th
 - Item fields follow PEF: Supplier Item Name, Supplier UOM, Factura UOM (`f_uom`), Quantity In Factura UOM (`f_qty`), Stock UOM/Quantity and purchase UOM/Quantity. `stock_qty = f_qty × f_conversion_factor`; `qty = stock_qty ÷ conversion_factor`. Mapping captures both factors and preserves them against later Item master changes. Quantities and amounts recalculate in the form and on the server.
 - Original prices, VAT and totals use `f_*` counterparts of PEF’s `ef_*` fields; `rate`, `rate_with_vat`, `net_amount`, `vat_amount`, `amount` and document totals hold converted values. The existing **VAT Included in Rate** setting also applies to PF. Purchase Invoice unit prices are derived from the converted line amount and purchase quantity. Its Company-currency exchange rate uses the factura rate when the original currency is the Company currency, otherwise the standard ERPNext exchange-rate lookup.
 - Record who reviewed the original and mapping. Imported source fields and source item values are immutable after import; ERP mapping remains editable in a draft and resets the review when changed.
+- Photo/scan OCR fills the PF draft with the best complete result it can obtain; it does not introduce a separate confirmation flow for individual rows. The user reviews and corrects the resulting document through the normal PF form before marking it Reviewed and submitting it.
+- OCR fails without creating a PF when critical data cannot be read reliably. Critical failures include missing or ambiguous supplier/customer identity and requisites, missing factura identity or totals, item arithmetic that does not reconcile, and row totals that do not reconcile with document totals. The error asks the user to provide a clearer, properly oriented photo or scan of the complete document.
 - Create a draft Purchase Invoice or link an existing draft/submitted Purchase Invoice. The PF and PI must match Company, Supplier, currency, every item/UOM/quantity/net amount, VAT total, and grand total. The PI receives the original `series + number` as Supplier Invoice No and the issue date as Supplier Invoice Date.
 - The standard Purchase Invoice creates all General Ledger entries. PF itself creates no accounting or stock entries. A submitted PI linked to a PF shows `Pending (Draft)` until the reviewed PF is submitted, then `Completed`.
 - Prevent a PF and PEF from allocating the same original or Purchase Invoice. Repeated PDF import returns the existing active PF; concurrent creation is serialized per Company. A cancelled original remains in duplicate history and must be amended rather than registered as a new unrelated document.
@@ -120,7 +122,7 @@ SF/PF support both paper originals and electronic originals, including digitally
 | --- | --- |
 | Identity | Internal ERP naming series; original issuer series and number in separate fields; Company; direction implied by DocType |
 | Parties | Supplier/customer links, issuer and recipient IDNO and relevant original names/requisites, preserving what appears on the original |
-| Dates | Issue date, delivery date where present, receipt/dispatch date, and service period start/end for recurring services |
+| Dates | Issue date, delivery date where present, and receipt/dispatch date |
 | Classification | Original format (`Paper`, `Digitally Signed PDF`, `Other Electronic`), delivery channel (`Email`, `Portal`, `In Person`, `Other`), and supported transaction/return type |
 | Currency and totals | Original currency, net amount, VAT breakdown and total, plus conversion rate/date and ERP currency amounts when conversion is needed |
 | Items | Original description, item code if present, UOM, quantity, rate, net amount, VAT rate/amount, gross amount; mapped ERP Item/UOM and saved conversion factor |
@@ -129,7 +131,7 @@ SF/PF support both paper originals and electronic originals, including digitally
 | Review | Review state, reviewer and timestamp, discrepancy notes, and independent signature verification result/evidence |
 | Corrections | Return/correction reference, amendment history, cancellation reason, and any explicit reconciliation with a matching SEF/PEF |
 
-Keep original values separate from mapped or converted ERP values. Preserve series/number as text, including leading zeroes. Do not use the ERP document name as the original factura number. Do not invent a missing issue date or service period from the email timestamp.
+Keep original values separate from mapped or converted ERP values. Preserve series/number as text, including leading zeroes. Do not use the ERP document name as the original factura number. Do not invent a missing issue date from the email timestamp.
 
 Store originals as permission-controlled attachments and preserve their bytes. A preview, extracted text, OCR output, or reprinted PDF is a derivative, not a replacement for the original. Submitted evidence must not be silently overwritten; subsequent files and corrections need an audit trail.
 
@@ -140,7 +142,7 @@ Uploading a PDF does not verify its digital signature. Track signature checking 
 The first complete use case is a telecom/internet service factura received as a signed PDF:
 
 1. Upload the original and create a PF draft; later, email intake will create the same kind of draft with source metadata.
-2. Identify the receiving Company and Supplier using the document's requisites/IDNO. Suggest extracted series, number, dates, service period, items, and VAT for review.
+2. Identify the receiving Company and Supplier using the document's requisites/IDNO. Extract series, number, dates, items, and VAT into the draft for review.
 3. Apply Company/Supplier defaults for ERP Item, UOM, expense account, cost center, tax template, and other required accounting dimensions.
 4. Check for an existing PF, PEF, or PI before creating another accounting document. Present plausible matches and discrepancies.
 5. Review the original, amounts, mapping, and signature-check result. Correct extracted data while retaining the original and extraction provenance.
@@ -149,7 +151,7 @@ The first complete use case is a telecom/internet service factura received as a 
 
 Allow linking an already submitted PI so receipt of the original can follow accounting entry. Creating a PI must be explicit and repeat-safe: another click or import retry should return the existing linked result or request reconciliation, not create another invoice.
 
-For recurring services, rules should be scoped by Company and Supplier, with contract/account identifier where needed. Defaults may map descriptions to service Items and accounting dimensions; each new original supplies its own number, period, amounts, and VAT. Unexpected totals, ambiguous party matches, missing requisites, and mapping failures stay in a review queue. Email intake and extraction initially create drafts only; unattended accounting submission is a separate future decision.
+For recurring suppliers, rules should be scoped by Company and Supplier, with contract/account identifier where needed. Defaults may map descriptions to service Items and accounting dimensions; each new original supplies its own number, items, amounts, and VAT. Successful extraction creates a draft for normal document-level review. Missing required requisites, ambiguous party identity, inconsistent amounts, or other critical extraction failures reject the import and ask for a better source image. Email intake and extraction initially create drafts only; unattended accounting submission is a separate future decision.
 
 #### Sales Factura workflow
 
@@ -201,14 +203,14 @@ Extend existing sales, purchase, accounting, and manager role patterns to SF/PF,
 
 Add settings for supplier processing rules, default accounting mappings, date handling, and enabled intake channels within this app. SF/PF manual entry must work without an API account. Keep original receipt/dispatch, extraction, business review, signature checking, and accounting creation as distinct tracked events so failed automation can be retried without replaying completed actions.
 
-Email intake will associate the message and relevant attachments with a draft, preserve provenance, and route unrecognized or ambiguous documents to review. Extraction should prefer embedded PDF text and use OCR for scans as needed. Neither email arrival nor successful OCR is sufficient to classify an attachment as a fiscal invoice or approve its contents; statements, ordinary payment requests, and other supporting documents must be distinguished during review.
+Email intake will associate the message and relevant attachments with a draft and preserve provenance. Extraction should prefer embedded PDF text and use OCR for scans as needed. A critically incomplete or inconsistent extraction fails and requests a better document instead of creating a partial draft. Neither email arrival nor successful OCR approves the contents; the user reviews and corrects the complete draft before submission.
 
 #### Delivery stages and acceptance criteria
 
 1. **Examples and field design.** Review documents in [examples](erpnext_moldova_efactura/examples/): paper scans, signed provider PDFs, itemized goods, recurring services, and returns/corrections as available. Record layouts, requisites, signature packaging, VAT/rounding patterns, numbering, and expected ERP mappings. Use findings to finalize the schema and parsing fixtures; do not assume every example is a fiscal original.
 2. **PF manual workflow.** Add PF/items, originals, permissions, review, duplicate checks, PI creation/linking, allocation, and shared Fiscalization. Acceptance: a provider factura can be entered, reviewed, accounted for once, and fully traced from PF to PI and back; cancellation recalculates coverage.
 3. **SF and extended transaction flows.** Add SF/items and SI creation/linking, then validated PR/DN, return, partial, and multiple-document allocation flows. Acceptance: sales, purchases, and their supported returns preserve accounting and stock behavior and enforce coverage limits across all four fiscal types.
-4. **Recurring supplier assistance.** Add Company/Supplier rules, PDF text extraction/OCR, suggested mappings, and a discrepancy review queue. Acceptance: repeat provider documents prefill correctly while changed periods/amounts and uncertain fields remain visible for review.
+4. **Recurring supplier assistance.** Add Company/Supplier rules, PDF text extraction/OCR, and suggested mappings. Acceptance: supported documents produce complete editable drafts; critical omissions and arithmetic discrepancies reject the import with a request for a better photo or scan; the user reviews the entire PF before submission without a separate row-confirmation workflow.
 5. **Email intake and signature integration.** Add configured mailbox intake, repeat-safe processing, provenance, and signature verification for supported formats. Acceptance: retries/forwarded copies do not create duplicate facturas or invoices, and failed/unsupported signature checks are accurately reported.
 
 Validation should cover manual paper and signed-PDF workflows; permissions and Company isolation; number/date preservation; VAT, currencies, UOMs and rounding; repeated/concurrent imports; cross-route duplicates and SFS reconciliation; partial/mixed coverage; cancellation/amendment and returns; PI-to-PR propagation; and regression of existing SEF/PEF fetch, sync, signing and allocations. Add targeted tests as each stage is implemented. No SF/PF migration or behavior change is included by documenting this plan.
