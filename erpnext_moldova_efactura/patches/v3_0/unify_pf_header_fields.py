@@ -14,8 +14,6 @@ RENAMES = {
 	"provider_reference": "f_provider_reference",
 	"provider_account": "f_provider_account",
 	"contract_reference": "f_contract_reference",
-	"service_period_start": "f_service_period_start",
-	"service_period_end": "f_service_period_end",
 	"related_document_type": "f_related_document_type",
 	"related_document_number": "f_related_document_number",
 	"related_document_date": "f_related_document_date",

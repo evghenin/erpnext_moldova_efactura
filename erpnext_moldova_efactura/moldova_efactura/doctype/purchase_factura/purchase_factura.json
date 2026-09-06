@@ -59,8 +59,6 @@
   "f_provider_reference",
   "f_provider_account",
   "f_contract_reference",
-  "f_service_period_start",
-  "f_service_period_end",
   "f_related_document_type",
   "f_related_document_number",
   "f_related_document_date",
@@ -262,16 +260,6 @@
    "fieldname": "f_contract_reference",
    "fieldtype": "Data",
    "label": "Contract Reference"
-  },
-  {
-   "fieldname": "f_service_period_start",
-   "fieldtype": "Date",
-   "label": "Service Period Start"
-  },
-  {
-   "fieldname": "f_service_period_end",
-   "fieldtype": "Date",
-   "label": "Service Period End"
   },
   {
    "fieldname": "f_related_document_type",

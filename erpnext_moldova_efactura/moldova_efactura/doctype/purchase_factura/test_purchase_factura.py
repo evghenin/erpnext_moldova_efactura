@@ -40,7 +40,6 @@ class TestFacturaPDF(TestCase):
 		self.assertEqual(data["items"][0]["source_uom"], "GB")
 		self.assertEqual(data["related_document_number"], "365411")
 		self.assertEqual(data["supplier_name"], "ARAX-IMPEX SRL")
-		self.assertNotIn("service_period_start", data)
 
 	def test_bad_totals_or_missing_rows_fail(self):
 		for layout in (

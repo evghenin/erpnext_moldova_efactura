@@ -54,8 +54,6 @@ frappe.ui.form.on("Purchase Factura", {
 			"f_provider_reference",
 			"f_provider_account",
 			"f_contract_reference",
-			"f_service_period_start",
-			"f_service_period_end",
 			"f_related_document_type",
 			"f_related_document_number",
 			"f_related_document_date",

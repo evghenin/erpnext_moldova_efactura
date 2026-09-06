@@ -5,7 +5,7 @@ import hashlib
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import cint, flt, getdate, now_datetime
+from frappe.utils import cint, flt, now_datetime
 
 from erpnext_moldova_efactura.utils.factura_pdf import FacturaImportError, decimal, money, parse_pdf
 from erpnext_moldova_efactura.utils.party import normalize_idno
@@ -45,8 +45,6 @@ ORIGINAL_FIELDS = (
 	"f_provider_reference",
 	"f_provider_account",
 	"f_contract_reference",
-	"f_service_period_start",
-	"f_service_period_end",
 	"f_related_document_type",
 	"f_related_document_number",
 	"f_related_document_date",
@@ -144,12 +142,6 @@ class PurchaseFactura(Document):
 			frappe.throw(_("Buyer IDNO does not match the selected Company"))
 		if self.supplier_party and self.f_supplier_idno != _party_idno("Supplier", self.supplier_party):
 			frappe.throw(_("Supplier IDNO does not match the original factura"))
-		if (
-			self.f_service_period_start
-			and self.f_service_period_end
-			and getdate(self.f_service_period_start) > getdate(self.f_service_period_end)
-		):
-			frappe.throw(_("Service period end must not precede its start"))
 		prepare_currency(self)
 		self._validate_original()
 		self._calculate()
