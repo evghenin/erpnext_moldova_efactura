@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 import frappe
 from frappe import _
 from frappe.utils import cint, flt, getdate
@@ -14,6 +12,7 @@ from erpnext_moldova_efactura.moldova_efactura.doctype.purchase_factura.purchase
 	_lock_company,
 )
 from erpnext_moldova_efactura.utils.factura_pdf import decimal, money
+from erpnext_moldova_efactura.utils.pf_amounts import tax_source
 
 
 def assert_pi_available(pi, pf_name=None):
@@ -47,14 +46,14 @@ def assert_no_pef(pf):
 		filters={
 			"company": pf.company,
 			"docstatus": ["<", 2],
-			"ef_series": pf.series,
-			"ef_number": pf.number,
+			"ef_series": pf.f_series,
+			"ef_number": pf.f_number,
 		},
 		fields=["name", "ef_supplier_idno"],
 	)
 	from erpnext_moldova_efactura.utils.party import normalize_idno
 
-	if any(normalize_idno(row.ef_supplier_idno) == pf.supplier_idno for row in rows):
+	if any(normalize_idno(row.ef_supplier_idno) == pf.f_supplier_idno for row in rows):
 		frappe.throw(
 			_(
 				"The same original exists in Purchase eFactura. Reconcile the documents before creating or linking a Purchase Invoice."
@@ -92,7 +91,7 @@ def match_invoice(pf, pi):
 	assert_pi_available(pi, pf.name)
 	if pi.docstatus == 2 or pi.is_return:
 		frappe.throw(_("Cancelled invoices and returns cannot be linked to Purchase Factura in this version"))
-	if (pf.company, pf.supplier, pf.currency) != (pi.company, pi.supplier, pi.currency):
+	if (pf.company, pf.supplier_party, pf.currency) != (pi.company, pi.supplier, pi.currency):
 		frappe.throw(
 			_("Purchase Factura and Purchase Invoice must have the same Company, Supplier and currency")
 		)
@@ -151,7 +150,7 @@ def validate_pi(doc, method=None):
 		frappe.throw(_("Purchase Factura already has a Purchase Invoice"))
 	assert_no_pef(pf)
 	match_invoice(pf, doc)
-	if doc.bill_no != pf.series + pf.number or getdate(doc.bill_date) != getdate(pf.issue_date):
+	if doc.bill_no != pf.f_series + pf.f_number or getdate(doc.bill_date) != getdate(pf.issue_date):
 		frappe.throw(_("Supplier invoice number/date must match the original factura"))
 
 
@@ -166,6 +165,7 @@ def sync_pi_link(doc, method=None):
 	for row, target in match_invoice(pf, doc):
 		row.item_code, row.uom, row.qty = target.item_code, target.uom, target.qty
 		row.conversion_factor, row.pi_detail = target.conversion_factor, target.name
+		row.purchase_invoice = doc.name
 	pf.flags.linking_pi = True
 	pf.save()
 
@@ -185,6 +185,7 @@ def clear_pi_link(doc, method=None):
 		pf.purchase_invoice = None
 		for row in pf.items:
 			row.pi_detail = None
+			row.purchase_invoice = None
 		pf.flags.linking_pi = True
 		pf.save()
 
@@ -206,8 +207,8 @@ def make_purchase_invoice(source_name, target_doc=None):
 		"Purchase Invoice",
 		{
 			"company": pf.company,
-			"supplier": pf.supplier,
-			"bill_no": pf.series + pf.number,
+			"supplier": pf.supplier_party,
+			"bill_no": pf.f_series + pf.f_number,
 			"docstatus": ["<", 2],
 		},
 	):
@@ -223,16 +224,18 @@ def make_purchase_invoice(source_name, target_doc=None):
 	pi.update(
 		{
 			"company": pf.company,
-			"supplier": pf.supplier,
+			"supplier": pf.supplier_party,
 			"currency": pf.currency,
 			"purchase_factura": pf.name,
-			"bill_no": pf.series + pf.number,
+			"bill_no": pf.f_series + pf.f_number,
 			"bill_date": pf.issue_date,
 			"ignore_pricing_rule": 1,
 		}
 	)
 	if cint(frappe.db.get_single_value("eFactura Settings", "copy_date_from_factura")):
 		pi.posting_date = pf.issue_date
+	from erpnext_moldova_efactura.utils.buying_rate import buying_rate_for_row
+
 	vat_included = cint(frappe.db.get_single_value("eFactura Settings", "vat_included_in_rate"))
 	for row in pf.items:
 		if not row.item_code or not row.uom or flt(row.qty) <= 0:
@@ -241,22 +244,31 @@ def make_purchase_invoice(source_name, target_doc=None):
 			"items",
 			{
 				"item_code": row.item_code,
-				"description": frappe.utils.escape_html(row.description),
+				"description": frappe.utils.escape_html(row.supplier_item_name),
 				"uom": row.uom,
 				"qty": row.qty,
 				"conversion_factor": row.conversion_factor,
-				"rate": flt((row.amount if vat_included else row.net_amount) / row.qty, 6),
-				"expense_account": row.expense_account,
-				"cost_center": row.cost_center,
+				"rate": flt(buying_rate_for_row(row, vat_included), 6),
 			},
 		)
+	company_currency = frappe.get_cached_value("Company", pf.company, "default_currency")
+	if pf.currency == company_currency:
+		pi.conversion_rate = 1
+	elif pf.f_currency == company_currency:
+		pi.conversion_rate = pf.f_conversion_rate
+	else:
+		from erpnext.setup.utils import get_exchange_rate
+
+		pi.conversion_rate = get_exchange_rate(
+			pf.currency, company_currency, pi.posting_date or pf.issue_date
+		)
+	if flt(pi.conversion_rate) <= 0:
+		frappe.throw(_("Set an exchange rate from Purchase Invoice currency to Company currency"))
 	_prepare_mapped_buying_doc(pi)
 	pi.set_missing_values()
 	# Reuse configured purchasing tax rules, with the original VAT rates available to the helper.
-	tax_source = SimpleNamespace(vat_total=pf.vat_total, net_total=pf.net_total, currency=pf.currency)
-	tax_source.items = [frappe._dict(vat_amount=r.vat_amount, ef_vat_rate=r.vat_rate) for r in pf.items]
 	pi.set("taxes", [])
-	apply_buying_taxes(pi, tax_source)
+	apply_buying_taxes(pi, tax_source(pf))
 	pi.calculate_taxes_and_totals()
 	pi.set_onload("load_after_mapping", True)
 	return pi
@@ -274,7 +286,7 @@ def link_purchase_invoice(name, purchase_invoice):
 	pi.check_permission("write")
 	assert_no_pef(pf)
 	pairs = match_invoice(pf, pi)
-	if pi.bill_no and pi.bill_no != pf.series + pf.number:
+	if pi.bill_no and pi.bill_no != pf.f_series + pf.f_number:
 		frappe.throw(_("Supplier invoice number differs from the factura"))
 	if pi.bill_date and getdate(pi.bill_date) != getdate(pf.issue_date):
 		frappe.throw(_("Supplier invoice date differs from the factura"))
@@ -285,6 +297,7 @@ def link_purchase_invoice(name, purchase_invoice):
 	for row, target in pairs:
 		row.item_code, row.uom, row.qty = target.item_code, target.uom, target.qty
 		row.conversion_factor, row.pi_detail = target.conversion_factor, target.name
+		row.purchase_invoice = pi.name
 	pf.flags.linking_pi = True
 	pf.save()
 	return pf.name
@@ -304,6 +317,7 @@ def unlink_purchase_invoice(name):
 	pf.purchase_invoice = None
 	for row in pf.items:
 		row.pi_detail = None
+		row.purchase_invoice = None
 	pf.flags.linking_pi = True
 	pf.save()
 	from erpnext_moldova_efactura.utils.fiscal_status import sync_pi_fiscal_status

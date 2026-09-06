@@ -6,51 +6,212 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "description",
-  "source_uom",
-  "source_qty",
-  "source_rate",
-  "net_amount",
-  "vat_rate",
-  "vat_amount",
-  "amount",
-  "mapping_section",
+  "supplier_item_code",
+  "supplier_item_name",
   "item_code",
+  "item_name",
+  "section_quantity",
+  "supplier_uom",
+  "f_uom",
+  "f_qty",
+  "f_conversion_factor",
+  "stock_uom",
+  "stock_qty",
   "uom",
   "qty",
   "conversion_factor",
-  "expense_account",
-  "cost_center",
+  "section_amounts",
+  "f_rate",
+  "f_rate_with_vat",
+  "f_vat_rate",
+  "f_net_amount",
+  "f_vat_amount",
+  "f_amount",
+  "rate",
+  "rate_with_vat",
+  "net_amount",
+  "vat_amount",
+  "amount",
+  "mapping_section",
+  "purchase_invoice",
   "pi_detail"
  ],
  "fields": [
   {
-   "fieldname": "description",
+   "fieldname": "supplier_item_code",
+   "fieldtype": "Data",
+   "label": "Supplier Item Code"
+  },
+  {
+   "fieldname": "supplier_item_name",
    "fieldtype": "Small Text",
-   "label": "Original Description",
-   "reqd": 1,
    "in_list_view": 1,
+   "label": "Supplier Item Name",
+   "read_only": 0,
+   "reqd": 1,
    "columns": 3
   },
   {
-   "fieldname": "source_uom",
-   "fieldtype": "Data",
-   "label": "Original UOM"
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Item Code",
+   "options": "Item"
   },
   {
-   "fieldname": "source_qty",
+   "fetch_from": "item_code.item_name",
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "label": "Item Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_quantity",
+   "fieldtype": "Section Break",
+   "label": "Quantity"
+  },
+  {
+   "fieldname": "supplier_uom",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Supplier UOM",
+   "read_only": 0
+  },
+  {
+   "fieldname": "f_uom",
+   "fieldtype": "Link",
+   "label": "Factura UOM",
+   "options": "UOM"
+  },
+  {
+   "fieldname": "f_qty",
    "fieldtype": "Float",
-   "label": "Original Quantity",
+   "label": "Quantity In Factura UOM",
+   "read_only": 0,
    "reqd": 1,
    "precision": "6",
    "default": "1"
   },
   {
-   "fieldname": "source_rate",
-   "fieldtype": "Currency",
-   "label": "Original Rate (excl. VAT)",
-   "options": "currency",
+   "depends_on": "eval:doc.uom != doc.stock_uom || doc.uom != doc.f_uom",
+   "fieldname": "f_conversion_factor",
+   "fieldtype": "Float",
+   "label": "Factura UOM Conversion Factor",
+   "print_hide": 1,
+   "read_only": 1,
+   "precision": "9"
+  },
+  {
+   "fetch_from": "item_code.stock_uom",
+   "fieldname": "stock_uom",
+   "fieldtype": "Link",
+   "label": "Stock UOM",
+   "options": "UOM",
+   "read_only": 1
+  },
+  {
+   "fieldname": "stock_qty",
+   "fieldtype": "Float",
+   "label": "Quantity In Stock UOM",
+   "read_only": 1
+  },
+  {
+   "fieldname": "uom",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "UOM",
+   "options": "UOM"
+  },
+  {
+   "fieldname": "qty",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Quantity",
+   "read_only": 1,
    "reqd": 1,
+   "precision": "6"
+  },
+  {
+   "depends_on": "eval:doc.uom != doc.stock_uom || doc.uom != doc.f_uom",
+   "fieldname": "conversion_factor",
+   "fieldtype": "Float",
+   "label": "UOM Conversion Factor",
+   "print_hide": 1,
+   "read_only": 1,
+   "precision": "9"
+  },
+  {
+   "fieldname": "section_amounts",
+   "fieldtype": "Section Break",
+   "label": "Amounts"
+  },
+  {
+   "depends_on": "eval:parent.currency !== parent.f_currency",
+   "fieldname": "f_rate",
+   "fieldtype": "Currency",
+   "label": "Net Rate (Factura Currency)",
+   "options": "f_currency",
+   "read_only": 0,
+   "precision": "6"
+  },
+  {
+   "depends_on": "eval:parent.currency !== parent.f_currency",
+   "fieldname": "f_rate_with_vat",
+   "fieldtype": "Currency",
+   "label": "Rate (Factura Currency)",
+   "options": "f_currency",
+   "read_only": 1,
+   "precision": "6"
+  },
+  {
+   "fieldname": "f_vat_rate",
+   "fieldtype": "Percent",
+   "label": "VAT Rate",
+   "read_only": 0,
+   "default": "20"
+  },
+  {
+   "depends_on": "eval:parent.currency !== parent.f_currency",
+   "fieldname": "f_net_amount",
+   "fieldtype": "Currency",
+   "label": "Net Amount (Factura Currency)",
+   "options": "f_currency",
+   "read_only": 0,
+   "precision": "2"
+  },
+  {
+   "depends_on": "eval:parent.currency !== parent.f_currency",
+   "fieldname": "f_vat_amount",
+   "fieldtype": "Currency",
+   "label": "VAT Amount (Factura Currency)",
+   "options": "f_currency",
+   "read_only": 0,
+   "precision": "2"
+  },
+  {
+   "depends_on": "eval:parent.currency !== parent.f_currency",
+   "fieldname": "f_amount",
+   "fieldtype": "Currency",
+   "label": "Amount (Factura Currency)",
+   "options": "f_currency",
+   "read_only": 1,
+   "precision": "2"
+  },
+  {
+   "fieldname": "rate",
+   "fieldtype": "Currency",
+   "label": "Net Rate",
+   "options": "currency",
+   "read_only": 1,
+   "precision": "6"
+  },
+  {
+   "fieldname": "rate_with_vat",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Rate",
+   "options": "currency",
+   "read_only": 1,
    "precision": "6"
   },
   {
@@ -58,83 +219,45 @@
    "fieldtype": "Currency",
    "label": "Net Amount",
    "options": "currency",
+   "read_only": 1,
    "precision": "2"
-  },
-  {
-   "fieldname": "vat_rate",
-   "fieldtype": "Percent",
-   "label": "VAT Rate",
-   "default": "20"
   },
   {
    "fieldname": "vat_amount",
    "fieldtype": "Currency",
    "label": "VAT Amount",
    "options": "currency",
+   "read_only": 1,
    "precision": "2"
   },
   {
    "fieldname": "amount",
    "fieldtype": "Currency",
-   "label": "Gross Amount",
+   "in_list_view": 1,
+   "label": "Amount",
    "options": "currency",
    "read_only": 1,
-   "precision": "2",
-   "in_list_view": 1,
-   "columns": 2
+   "precision": "2"
   },
   {
    "fieldname": "mapping_section",
-   "fieldtype": "Section Break"
+   "fieldtype": "Section Break",
+   "label": "References"
   },
   {
-   "fieldname": "item_code",
-   "fieldtype": "Link",
-   "label": "Item",
-   "options": "Item",
-   "in_list_view": 1,
-   "columns": 2
-  },
-  {
-   "fieldname": "uom",
-   "fieldtype": "Link",
-   "label": "ERP UOM",
-   "options": "UOM",
-   "in_list_view": 1,
-   "columns": 1
-  },
-  {
-   "fieldname": "qty",
-   "fieldtype": "Float",
-   "label": "ERP Quantity",
-   "precision": "6",
-   "default": "1",
-   "in_list_view": 1,
-   "columns": 1
-  },
-  {
-   "fieldname": "conversion_factor",
-   "fieldtype": "Float",
-   "label": "ERP UOM Conversion Factor",
-   "precision": "9",
+   "allow_on_submit": 1,
+   "fieldname": "pi_detail",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Purchase Invoice Item",
+   "no_copy": 1,
    "read_only": 1
   },
   {
-   "fieldname": "expense_account",
+   "fieldname": "purchase_invoice",
    "fieldtype": "Link",
-   "label": "Expense Account",
-   "options": "Account"
-  },
-  {
-   "fieldname": "cost_center",
-   "fieldtype": "Link",
-   "label": "Cost Center",
-   "options": "Cost Center"
-  },
-  {
-   "fieldname": "pi_detail",
-   "fieldtype": "Data",
-   "label": "Purchase Invoice Item",
+   "label": "Purchase Invoice",
+   "options": "Purchase Invoice",
    "read_only": 1,
    "no_copy": 1
   }

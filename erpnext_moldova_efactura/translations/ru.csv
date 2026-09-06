@@ -516,3 +516,28 @@ Fiscal status updated for {0} receipts.,Фискальный статус обн
 Please select at least one Purchase Receipt.,Выберите хотя бы один приход.
 Sales Invoice and Sales Order are not used for Non-Transfer e-Factura.,Счёт продажи и заказ клиента не используются для Non-Transfer e-Factura.
 
+Amount (Factura Currency),Сумма (валюта Factura)
+Net Amount (Factura Currency),Сумма нетто (валюта Factura)
+Net Rate (Factura Currency),Ставка нетто (валюта Factura)
+Net Total (Factura Currency),Итого нетто (валюта Factura)
+Rate (Factura Currency),Ставка (валюта Factura)
+Rate Factura UOM (Factura Currency),Ставка ЕИ Factura (валюта Factura)
+Total (Factura Currency),Итого (валюта Factura)
+VAT Amount (Factura Currency),Сумма НДС (валюта Factura)
+VAT Total (Factura Currency),Сумма НДС (валюта Factura)
+Factura Currency,Валюта Factura
+Factura Exchange Rate,Курс Factura
+Factura UOM,ЕИ Factura
+Factura UOM Conversion Factor,Коэффициент конверсии ЕИ Factura
+Rate (with VAT) (Factura Currency),Ставка с НДС (валюта Factura)
+Quantity In Factura UOM,Количество в ЕИ фактуры
+Factura Series,Серия фактуры
+Factura Number,Номер фактуры
+Supplier Address,Адрес поставщика
+Supplier Bank Name,Банк поставщика
+Supplier Bank Code,Код банка поставщика
+Buyer Address,Адрес покупателя
+Buyer Bank Account,Банковский счёт покупателя
+Buyer Bank Name,Банк покупателя
+Buyer Bank Code,Код банка покупателя
+No original party details,Реквизиты стороны отсутствуют в оригинале

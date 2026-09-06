@@ -48,7 +48,11 @@ Version 3 adds **Purchase Factura (PF)** for fiscal invoices received outside th
 - Manually register a Moldovan purchase factura received on paper. Preserve its original series, number, dates, issuer/recipient IDNO, VAT details, item values, references, and an optional private scan.
 - Import the observed **Orange Moldova** and **ARAX-IMPEX** PDF layouts from **Purchase Factura → Import PDF**. The importer reads the local PDF text layer, creates a PF draft, preserves the private original and its hash, extracts the factura and related references, and reconciles every extracted row with its totals. Unsupported or ambiguous files stop for manual registration rather than guessing.
 - Detect embedded PDF signature fields and retain their format and declared time. Imported signatures remain `Not Checked`: PDF import does not claim certificate trust, revocation, trusted timestamp, or complete signature validity.
-- Match Company and Supplier through the configured IDNO fields. Reuse an existing supplier Item/UOM mapping when one is unambiguous; otherwise the user maps the ERP Item, UOM, quantity, expense account, and cost center before review.
+- Match Company and Supplier through the configured IDNO fields. Creating a Supplier from PF prefills its name, configured IDNO field and fiscal territory, as in PEF. Reuse an existing supplier Item/UOM mapping when one is unambiguous; otherwise the user maps the Item, Factura UOM, purchase UOM before review.
+- PF header fields follow PEF naming: `supplier_party_type` / `supplier_party` identify the ERP party, while values read from the original use `f_*` counterparts of PEF's `ef_*` fields. This includes `f_series`, `f_number`, and separate supplier/buyer names, IDNO, VAT IDs, taxpayer types, addresses, bank accounts, bank names, and bank codes. Party detail blocks show these source requisites together. Buyer bank fields extend the current PEF schema because the supported PDF originals contain them and PF must preserve all available source information.
+- PF uses the currency and quantity fields corresponding to PEF, with `f_*` for factura fields instead of the XML-specific `ef_*` prefix. `currency` is the ERP document currency; `f_currency` is the preserved original currency, shown as **Factura Currency**. `f_conversion_rate` converts document currency to original currency: document amounts equal original amounts divided by this rate. The document currency defaults from Supplier, then Company, then system settings; the original currency defaults from eFactura Settings for manual entry and comes from the PDF for imports. A positive exchange rate is required when currencies differ; identical currencies use 1.
+- Item fields follow PEF: Supplier Item Name, Supplier UOM, Factura UOM (`f_uom`), Quantity In Factura UOM (`f_qty`), Stock UOM/Quantity and purchase UOM/Quantity. `stock_qty = f_qty × f_conversion_factor`; `qty = stock_qty ÷ conversion_factor`. Mapping captures both factors and preserves them against later Item master changes. Quantities and amounts recalculate in the form and on the server.
+- Original prices, VAT and totals use `f_*` counterparts of PEF’s `ef_*` fields; `rate`, `rate_with_vat`, `net_amount`, `vat_amount`, `amount` and document totals hold converted values. The existing **VAT Included in Rate** setting also applies to PF. Purchase Invoice unit prices are derived from the converted line amount and purchase quantity. Its Company-currency exchange rate uses the factura rate when the original currency is the Company currency, otherwise the standard ERPNext exchange-rate lookup.
 - Record who reviewed the original and mapping. Imported source fields and source item values are immutable after import; ERP mapping remains editable in a draft and resets the review when changed.
 - Create a draft Purchase Invoice or link an existing draft/submitted Purchase Invoice. The PF and PI must match Company, Supplier, currency, every item/UOM/quantity/net amount, VAT total, and grand total. The PI receives the original `series + number` as Supplier Invoice No and the issue date as Supplier Invoice Date.
 - The standard Purchase Invoice creates all General Ledger entries. PF itself creates no accounting or stock entries. A submitted PI linked to a PF shows `Pending (Draft)` until the reviewed PF is submitted, then `Completed`.
@@ -233,6 +237,8 @@ bench build --app erpnext_moldova_efactura
 
 Confirm that **Company IDNO Field** and **Supplier IDNO Field** are configured in eFactura Settings before creating or importing PF records. Configure the existing Purchase Tax Settings and supplier Item/UOM mappings used to create Purchase Invoices.
 
+The v3 PF currency/UOM migration copies earlier PF originals into the `f_*` fields and preserves their currency, totals, original quantities, purchase quantities and existing links, including submitted records. Records from the first single-currency PF schema start with matching original/document currencies and rate 1; they are not rebooked. Supplier payable-account currency must match its billing currency under the normal ERPNext rules.
+
 ### Upgrade from 2.0
 
 ```bash
@@ -281,3 +287,5 @@ bench --site $SITE run-tests --app erpnext_moldova_efactura
 ### License
 
 mit
+
+PF schema updates also migrate the intermediate `ef_*` fields to `f_*` without recalculating their stored values. PF Item exposes `purchase_invoice` and `pi_detail`; its invoice link follows the parent PF link. Expense Account and Cost Center are configured on Purchase Invoice using standard ERPNext defaults, not on PF Item.

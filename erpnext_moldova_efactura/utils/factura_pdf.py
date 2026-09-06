@@ -58,6 +58,53 @@ def _date(value):
 		raise FacturaImportError("Invalid factura date") from None
 
 
+def _split_columns(line):
+	return [part.strip() for part in re.split(r"\s{2,}", line.strip()) if part.strip()]
+
+
+def _party_source_details(layout: str, provider: str) -> dict:
+	"""Retain requisites printed on the supported originals without resolving ERP masters."""
+	lines = layout.splitlines()
+	if provider == "Orange":
+		start = next((i for i, line in enumerate(lines) if "1. Furnizor:" in line), None)
+		if start is None:
+			return {}
+		body = [_split_columns(line) for line in lines[start + 1 : start + 13]]
+		body = [parts for parts in body if parts]
+		if len(body) < 10:
+			return {}
+		supplier_address = ", ".join([body[1][0], body[2][0], body[3][0], body[4][0]])
+		buyer_address = ", ".join([body[1][-1], body[3][-1], body[4][-1]])
+		return {
+			"supplier_name": body[0][0],
+			"buyer_name": body[0][-1],
+			"supplier_address": supplier_address,
+			"buyer_address": buyer_address,
+			"supplier_bank_account": body[7][0].removeprefix("Codul IBAN:").strip(),
+			"supplier_bank_code": body[8][0].removeprefix("Codul bancii:").strip(),
+			"supplier_bank_name": body[9][0],
+			"buyer_bank_account": body[8][-1].removeprefix("Cont de plati:").strip(),
+			"buyer_bank_code": body[9][-1].removeprefix("Codul bancii:").strip(),
+			"buyer_bank_name": body[10][-1],
+		}
+
+	details = {}
+	for party, label in (("supplier", "1. Furnizor:"), ("buyer", "2. Cumpărător / beneficiar:")):
+		start = next((i for i, line in enumerate(lines) if label in line), None)
+		if start is None or start + 1 >= len(lines):
+			continue
+		party_line = re.split(r"c\.f\./nr\.TVA", lines[start], maxsplit=1)[0].split(label, 1)[-1].strip()
+		match = re.match(r"(.+?\b(?:SRL|SA)),\s*(.*?),?\s*$", party_line, re.IGNORECASE)
+		bank = re.search(r"\b(MD[A-Z0-9]+)\s*,\s*([A-Z0-9]+)", "\n".join(lines[start : start + 3]))
+		if match:
+			details[f"{party}_name"] = match[1].strip()
+			details[f"{party}_address"] = match[2].strip().rstrip(",")
+		if bank:
+			details[f"{party}_bank_account"] = bank[1]
+			details[f"{party}_bank_code"] = bank[2]
+	return details
+
+
 def parse_text(text: str, layout: str) -> dict:
 	"""Parse one supported page; layout preserves the original item/UOM columns."""
 	normalized = _label_text(text)
@@ -96,6 +143,7 @@ def parse_text(text: str, layout: str) -> dict:
 		"delivery_date": _date(delivered),
 		"currency": "MDL",
 	}
+	result.update(_party_source_details(layout, provider))
 	if provider == "Orange":
 		for key, pattern in (
 			("provider_reference", r"Numarul de referin\w+\s+(\d+)"),

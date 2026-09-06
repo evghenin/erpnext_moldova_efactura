@@ -523,3 +523,28 @@ Fiscal status updated for {0} receipts.,Statutul fiscal a fost actualizat pentru
 Please select at least one Purchase Receipt.,Selectați cel puțin o recepție.
 Sales Invoice and Sales Order are not used for Non-Transfer e-Factura.,Factura și comanda de vânzare nu se folosesc pentru e-Factura Non-Transfer.
 
+Amount (Factura Currency),Sumă (monedă Factura)
+Net Amount (Factura Currency),Sumă netă (monedă Factura)
+Net Rate (Factura Currency),Tarif net (monedă Factura)
+Net Total (Factura Currency),Total net (monedă Factura)
+Rate (Factura Currency),Tarif (monedă Factura)
+Rate Factura UOM (Factura Currency),Tarif UM Factura (monedă Factura)
+Total (Factura Currency),Total (monedă Factura)
+VAT Amount (Factura Currency),Sumă TVA (monedă Factura)
+VAT Total (Factura Currency),Total TVA (monedă Factura)
+Factura Currency,Monedă Factura
+Factura Exchange Rate,Curs Factura
+Factura UOM,UM Factura
+Factura UOM Conversion Factor,Factor de conversie UM Factura
+Rate (with VAT) (Factura Currency),Tarif (cu TVA) (monedă Factura)
+Quantity In Factura UOM,Cantitate în UM factură
+Factura Series,Seria facturii
+Factura Number,Numărul facturii
+Supplier Address,Adresa furnizorului
+Supplier Bank Name,Banca furnizorului
+Supplier Bank Code,Codul băncii furnizorului
+Buyer Address,Adresa cumpărătorului
+Buyer Bank Account,Contul bancar al cumpărătorului
+Buyer Bank Name,Banca cumpărătorului
+Buyer Bank Code,Codul băncii cumpărătorului
+No original party details,Rechizitele părții lipsesc din original
