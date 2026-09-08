@@ -1105,3 +1105,16 @@ class TestPurchaseFacturaInvoiceMatch(TestCase):
 		self.assertTrue(_line_amounts_ok(pf, pi))
 		pi.net_amount, pi.amount = 13.00, 15.60
 		self.assertFalse(_line_amounts_ok(pf, pi))
+
+	def test_split_pi_rows_cover_one_factura_line(self):
+		from types import SimpleNamespace
+
+		from erpnext_moldova_efactura.utils.pf_invoice import _cover_pf_pi_items
+
+		row = SimpleNamespace(item_code="EMB", uom="Nos", qty=80, net_amount=800, amount=944)
+		pi_rows = [
+			SimpleNamespace(item_code="EMB", uom="Nos", qty=40, net_amount=400, amount=472),
+			SimpleNamespace(item_code="EMB", uom="Nos", qty=40, net_amount=400, amount=472),
+		]
+		chosen = _cover_pf_pi_items(row, pi_rows)
+		self.assertEqual(len(chosen), 2)

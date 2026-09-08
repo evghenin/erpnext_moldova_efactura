@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
+from itertools import combinations
+
 import frappe
 from frappe import _
 from frappe.utils import cint, flt, getdate
@@ -102,11 +105,48 @@ def _line_identity(row, target):
 	)
 
 
+def _item_uom_ok(row, target):
+	return (not row.item_code or row.item_code == target.item_code) and _uom_eq(row.uom, target.uom)
+
+
+def _pi_line_net(target):
+	return money(getattr(target, "net_amount", None) or getattr(target, "amount", None) or 0)
+
+
+def _cover_pf_pi_items(row, candidates):
+	if not candidates:
+		return None
+	need_qty = flt(row.qty, 6)
+	need_net = money(row.net_amount or 0)
+	need_amt = money(row.amount or 0)
+	n = len(candidates)
+
+	def _ok(combo):
+		qty = sum(flt(candidates[i].qty, 6) for i in combo)
+		net = sum(_pi_line_net(candidates[i]) for i in combo)
+		if flt(qty, 6) != need_qty:
+			return False
+		return _close(net, need_net, ROUND_OFF_LIMIT) or _close(net, need_amt, ROUND_OFF_LIMIT)
+
+	if n > 12:
+		for i in range(n):
+			if _ok((i,)):
+				return [candidates[i]]
+		if _ok(tuple(range(n))):
+			return list(candidates)
+		return None
+	for size in range(1, n + 1):
+		for combo in combinations(range(n), size):
+			if _ok(combo):
+				return [candidates[i] for i in combo]
+	return None
+
+
 def _line_amounts_ok(row, target):
 	"""qty * rate on the PI can differ from the printed line; document round-off books the rest."""
 	pi_amount = getattr(target, "amount", None) or 0
 	return (
-		_close(row.net_amount, target.net_amount, ROUND_OFF_LIMIT)
+		_close(row.net_amount, getattr(target, "net_amount", None) or 0, ROUND_OFF_LIMIT)
 		or _close(row.amount, pi_amount, ROUND_OFF_LIMIT)
 		or _close(row.net_amount, pi_amount, ROUND_OFF_LIMIT)
 	)
@@ -174,7 +214,7 @@ def apply_factura_round_off(pi, pf):
 
 
 def match_invoice(pf, pi):
-	"""Validate every row and total; return pairs without trusting submitted child links."""
+	"""Validate every row and total; return (pf_row, pi_row) pairs. Several PI rows may cover one PF row."""
 	assert_pi_available(pi, pf.name)
 	if pi.docstatus == 2 or pi.is_return:
 		frappe.throw(_("Cancelled invoices and returns cannot be linked to Purchase Factura in this version"))
@@ -182,8 +222,6 @@ def match_invoice(pf, pi):
 		frappe.throw(
 			_("Purchase Factura and Purchase Invoice must have the same Company, Supplier and currency")
 		)
-	if len(pf.items) != len(pi.items):
-		frappe.throw(_("Purchase Factura and Purchase Invoice must have the same item count"))
 	if not _close(pf.total, pi.grand_total):
 		frappe.throw(
 			_("Grand Total does not match the original factura ({0} vs {1})").format(pf.total, pi.grand_total)
@@ -197,23 +235,47 @@ def match_invoice(pf, pi):
 	remaining = list(pi.items)
 	pairs = []
 	for row in pf.items:
-		matches = [
-			target
-			for target in remaining
-			if _line_identity(row, target) and _line_amounts_ok(row, target)
-		]
-		if not matches:
+		candidates = [target for target in remaining if _item_uom_ok(row, target)]
+		chosen = _cover_pf_pi_items(row, candidates)
+		if not chosen:
 			frappe.throw(
 				_(
 					"Row {0}: no matching Purchase Invoice item, UOM, quantity and net amount ({1} {2}, net {3})"
 				).format(row.idx, row.qty, row.uom or "", row.net_amount)
 			)
-		target = min(matches, key=lambda t: abs(money(row.net_amount or 0) - money(t.net_amount or 0)))
-		if row.conversion_factor and flt(row.conversion_factor, 9) != flt(target.conversion_factor, 9):
-			frappe.throw(_("Row {0}: UOM conversion factor changed").format(row.idx))
-		pairs.append((row, target))
-		remaining.remove(target)
+		for target in chosen:
+			if row.conversion_factor and flt(row.conversion_factor, 9) != flt(target.conversion_factor or 0, 9):
+				frappe.throw(_("Row {0}: UOM conversion factor changed").format(row.idx))
+			pairs.append((row, target))
+			remaining.remove(target)
+	if remaining:
+		frappe.throw(
+			_("Purchase Invoice has {0} extra item(s) that do not belong to this factura").format(len(remaining))
+		)
 	return pairs
+
+
+def _write_pf_pi_pairs(pf, pi_name, pairs):
+	from erpnext_moldova_efactura.utils.pi_match import join_child_names
+
+	groups = defaultdict(list)
+	for row, target in pairs:
+		groups[id(row)].append(target)
+	for row in pf.items:
+		targets = groups.get(id(row))
+		if not targets:
+			continue
+		first = targets[0]
+		if first.item_code:
+			row.item_code = first.item_code
+		if first.uom:
+			row.uom = first.uom
+		if len(targets) == 1:
+			row.qty = first.qty
+			if first.conversion_factor:
+				row.conversion_factor = first.conversion_factor
+		row.pi_detail = join_child_names(t.name for t in targets)
+		row.purchase_invoice = pi_name
 
 
 def validate_pi(doc, method=None):
@@ -249,10 +311,7 @@ def sync_pi_link(doc, method=None):
 		pf._refresh_fiscal_status()
 		return
 	pf.purchase_invoice = doc.name
-	for row, target in match_invoice(pf, doc):
-		row.item_code, row.uom, row.qty = target.item_code, target.uom, target.qty
-		row.conversion_factor, row.pi_detail = target.conversion_factor, target.name
-		row.purchase_invoice = doc.name
+	_write_pf_pi_pairs(pf, doc.name, match_invoice(pf, doc))
 	pf.flags.linking_pi = True
 	pf.save()
 
@@ -430,10 +489,7 @@ def link_purchase_invoice(name, purchase_invoice):
 	pi.purchase_factura = pf.name
 	pi.save()
 	pf.purchase_invoice = pi.name
-	for row, target in pairs:
-		row.item_code, row.uom, row.qty = target.item_code, target.uom, target.qty
-		row.conversion_factor, row.pi_detail = target.conversion_factor, target.name
-		row.purchase_invoice = pi.name
+	_write_pf_pi_pairs(pf, pi.name, pairs)
 	pf.flags.linking_pi = True
 	pf.save()
 	return pf.name

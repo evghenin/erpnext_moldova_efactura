@@ -1,4 +1,4 @@
-"""Purchase eFactura ↔ Purchase Invoice line links (one factura row ↔ one PI row)."""
+"""Purchase eFactura ↔ Purchase Invoice line links (one factura row ↔ one or more PI rows)."""
 
 from __future__ import annotations
 
@@ -11,15 +11,18 @@ from frappe.utils import flt
 from erpnext_moldova_efactura.utils.pi_match import (
 	buyer_line_name,
 	buyer_row_qty,
+	covering_pi_rows,
 	describe_line_mismatch,
 	describe_unmapped_row,
 	eq,
 	fmt_money,
 	fmt_qty,
-	lines_compatible,
+	identity_rate_compatible,
+	join_child_names,
 	money_precision,
 	pi_line_name,
 	qty_precision,
+	split_child_names,
 	throw_unmapped_items,
 	use_abs_qty_rate_match,
 )
@@ -96,7 +99,7 @@ def purchase_invoice_is_fully_covered(pi_name: str) -> bool:
 		return False
 	linked = frappe.get_all(
 		"Purchase eFactura Item",
-		filters={"pi_detail": ["in", billable], "parenttype": "Purchase eFactura"},
+		filters={"parenttype": "Purchase eFactura", "pi_detail": ["is", "set"]},
 		fields=["pi_detail", "parent"],
 	)
 	parents = {row.parent for row in linked if row.parent}
@@ -109,7 +112,10 @@ def purchase_invoice_is_fully_covered(pi_name: str) -> bool:
 				pluck="name",
 			)
 		)
-	taken = {row.pi_detail for row in linked if row.parent in live}
+	taken: set[str] = set()
+	for row in linked:
+		if row.parent in live:
+			taken.update(split_child_names(row.pi_detail))
 	return all(name in taken for name in billable)
 
 
@@ -213,7 +219,8 @@ def validate_allocation_qtys(buyer) -> None:
 		if not _item_linked(row):
 			row.pi_detail = None
 			continue
-		if not row.pi_detail:
+		details = split_child_names(row.pi_detail)
+		if not details:
 			frappe.throw(
 				_("e-Factura row {0} «{1}» is linked to Purchase Invoice {2} without a Purchase Invoice Item").format(
 					row.idx,
@@ -221,32 +228,35 @@ def validate_allocation_qtys(buyer) -> None:
 					row.purchase_invoice,
 				)
 			)
-		if row.pi_detail in seen_details:
-			frappe.throw(
-				_("Purchase Invoice Item {0} is allocated more than once").format(row.pi_detail)
-			)
-		seen_details.add(row.pi_detail)
+		for detail in details:
+			if detail in seen_details:
+				frappe.throw(_("Purchase Invoice Item {0} is allocated more than once").format(detail))
+			seen_details.add(detail)
 
 
 def _pi_detail_taken(pi_detail: str, buyer) -> bool:
 	if not pi_detail:
 		return False
 	for row in _child(buyer, "items"):
-		if row.pi_detail == pi_detail:
+		if pi_detail in split_child_names(row.pi_detail):
 			return True
 	buyer_name = getattr(buyer, "name", None)
 	if not buyer_name or not frappe.db.has_column("Purchase eFactura Item", "pi_detail"):
 		return False
-	other = frappe.db.get_value(
+	for row in frappe.get_all(
 		"Purchase eFactura Item",
-		{"pi_detail": pi_detail, "parent": ["!=", buyer_name]},
-		"parent",
-	)
-	return bool(other)
+		filters={"parenttype": "Purchase eFactura", "pi_detail": ["is", "set"]},
+		fields=["pi_detail", "parent"],
+	):
+		if row.parent == buyer_name:
+			continue
+		if pi_detail in split_child_names(row.pi_detail):
+			return True
+	return False
 
 
 def match_pi_to_remaining(buyer, pi) -> tuple[list[dict], list[str]]:
-	"""Match each PI row to one unused factura row (full qty and amount)."""
+	"""Match PI rows onto unused factura rows. Several PI rows may cover one factura row."""
 	currency = buyer.currency or pi.currency or "MDL"
 	mprec = money_precision(currency)
 	qprec = qty_precision()
@@ -265,64 +275,68 @@ def match_pi_to_remaining(buyer, pi) -> tuple[list[dict], list[str]]:
 		if _item_linked(row) and row.name:
 			used_buyer.add(row.name)
 
-	used_this: set[str] = set()
-	for prow in pi.items or []:
-		detail = prow.name or f"pi-{prow.idx}"
+	used_pi: set[int] = set()
+	for idx, prow in enumerate(pi.items or []):
 		if prow.name and _pi_detail_taken(prow.name, buyer):
 			errors.append(
 				_("Purchase Invoice row {0} «{1}» is already linked to an e-Factura").format(
 					prow.idx, pi_line_name(prow)
 				)
 			)
+			used_pi.add(idx)
+
+	for brow in buyer.items or []:
+		key = brow.name or f"idx-{brow.idx}"
+		if key in used_buyer:
 			continue
-
-		candidate = None
-		mismatch_row = None
-		for brow in buyer.items or []:
-			key = brow.name or f"idx-{brow.idx}"
-			if key in used_buyer or key in used_this:
+		if abs_qty:
+			if abs(flt(remaining_qty_for_item(buyer, brow), qprec)) <= 0:
 				continue
-			if abs_qty:
-				if abs(flt(remaining_qty_for_item(buyer, brow), qprec)) <= 0:
-					continue
-			elif flt(remaining_qty_for_item(buyer, brow), qprec) <= 0:
-				continue
-			if brow.item_code and prow.item_code and brow.item_code != prow.item_code:
-				continue
-			if lines_compatible(brow, prow, qprec, mprec, abs_qty=abs_qty):
-				candidate = brow
-				break
-			mismatch_row = brow
-
-		if candidate is None:
-			if mismatch_row is not None:
+		elif flt(remaining_qty_for_item(buyer, brow), qprec) <= 0:
+			continue
+		open_idx = [
+			i
+			for i, prow in enumerate(pi.items or [])
+			if i not in used_pi and identity_rate_compatible(brow, prow, mprec, abs_qty=abs_qty)
+		]
+		chosen = covering_pi_rows(brow, [pi.items[i] for i in open_idx], qprec, mprec, abs_qty=abs_qty)
+		if not chosen:
+			if open_idx:
 				errors.append(
-					describe_line_mismatch(mismatch_row, prow, currency, qprec, mprec, abs_qty=abs_qty)
-				)
-			else:
-				errors.append(
-					_(
-						"Purchase Invoice row {0} «{1}»: qty {2} × rate {3} {5} (amount {4}) — not found on e-Factura"
-					).format(
-						prow.idx,
-						pi_line_name(prow),
-						fmt_qty(prow.qty, qprec),
-						fmt_money(prow.rate, mprec),
-						fmt_money(prow.amount, mprec),
-						currency,
+					describe_line_mismatch(
+						brow, pi.items[open_idx[0]], currency, qprec, mprec, abs_qty=abs_qty
 					)
 				)
 			continue
+		chosen_ids = {id(row) for row in chosen}
+		for i in open_idx:
+			if id(pi.items[i]) not in chosen_ids:
+				continue
+			prow = pi.items[i]
+			used_pi.add(i)
+			allocs.append(
+				{
+					"buyer_row": brow,
+					"pi_row": prow,
+					"qty": abs(flt(prow.qty)) if abs_qty else flt(prow.qty),
+					"pi_detail": prow.name or f"pi-{prow.idx}",
+				}
+			)
 
-		key = candidate.name or f"idx-{candidate.idx}"
-		used_this.add(key)
-		allocs.append(
-			{
-				"buyer_row": candidate,
-				"pi_row": prow,
-				"qty": buyer_row_qty(candidate),
-				"pi_detail": detail,
-			}
+	for idx, prow in enumerate(pi.items or []):
+		if idx in used_pi:
+			continue
+		errors.append(
+			_(
+				"Purchase Invoice row {0} «{1}»: qty {2} × rate {3} {5} (amount {4}) — not found on e-Factura"
+			).format(
+				prow.idx,
+				pi_line_name(prow),
+				fmt_qty(prow.qty, qprec),
+				fmt_money(prow.rate, mprec),
+				fmt_money(prow.amount, mprec),
+				currency,
+			)
 		)
 
 	return allocs, errors
@@ -351,10 +365,13 @@ def apply_allocations(buyer, allocs: list[dict], pi_name: str) -> None:
 
 	assert_no_pf_for_pef(buyer)
 	assert_no_pf_for_pi(pi_name)
+	by_row: dict[int, list[dict]] = defaultdict(list)
 	for a in allocs:
-		row = a["buyer_row"]
+		by_row[id(a["buyer_row"])].append(a)
+	for group in by_row.values():
+		row = group[0]["buyer_row"]
 		row.purchase_invoice = pi_name
-		row.pi_detail = a.get("pi_detail") or a["pi_row"].name
+		row.pi_detail = join_child_names(a.get("pi_detail") or a["pi_row"].name for a in group)
 
 
 def delete_allocations_for_pi(pi_name: str) -> list[str]:

@@ -2467,7 +2467,7 @@ class TestEFacturaBuyerPIMatch(FrappeTestCase):
 			)
 		)
 		errors, _ = collect_totals_and_line_errors(buyer, pi, mprec=2, qprec=3)
-		self.assertTrue(any("Item count" in e for e in errors))
+		self.assertTrue(any("not found on e-Factura" in e for e in errors))
 
 	def test_mapped_item_code_mismatch(self):
 		from erpnext_moldova_efactura.utils.pi_match import collect_totals_and_line_errors
@@ -2584,7 +2584,7 @@ class TestEFacturaBuyerPIMatch(FrappeTestCase):
 		self.assertEqual(cint(row.docstatus), 1)
 		self.assertEqual(apply_draft_suffix("In Progress", cint(row.docstatus) == 0), "In Progress")
 
-	def test_split_rows_rejected_as_item_count_mismatch(self):
+	def test_split_rows_cover_one_factura_line(self):
 		from types import SimpleNamespace
 
 		from erpnext_moldova_efactura.utils.pi_match import collect_totals_and_line_errors
@@ -2604,10 +2604,11 @@ class TestEFacturaBuyerPIMatch(FrappeTestCase):
 			SimpleNamespace(idx=2, item_code="ITEM-A", item_name="Item A", qty=4, uom="Nos", rate=50, amount=200),
 		]
 		errors, pairs = collect_totals_and_line_errors(buyer, pi, mprec=2, qprec=3)
-		self.assertTrue(any("Item count" in e for e in errors))
-		self.assertNotEqual(len(pairs), 2)
+		self.assertEqual(errors, [])
+		self.assertEqual(len(pairs), 2)
+		self.assertEqual({p[1].qty for p in pairs}, {6, 4})
 
-	def test_split_amount_rejected_as_item_count_mismatch(self):
+	def test_split_amount_within_tolerance_covers_factura_line(self):
 		from types import SimpleNamespace
 
 		from erpnext_moldova_efactura.utils.pi_match import collect_totals_and_line_errors
@@ -2626,8 +2627,9 @@ class TestEFacturaBuyerPIMatch(FrappeTestCase):
 			SimpleNamespace(idx=1, item_code="ITEM-A", item_name="Item A", qty=6, uom="Nos", rate=50, amount=300.01),
 			SimpleNamespace(idx=2, item_code="ITEM-A", item_name="Item A", qty=4, uom="Nos", rate=50, amount=199.99),
 		]
-		errors, _ = collect_totals_and_line_errors(buyer, pi, mprec=2, qprec=3)
-		self.assertTrue(any("Item count" in e for e in errors))
+		errors, pairs = collect_totals_and_line_errors(buyer, pi, mprec=2, qprec=3)
+		self.assertEqual(errors, [])
+		self.assertEqual(len(pairs), 2)
 
 	def test_split_qty_mismatch(self):
 		from types import SimpleNamespace
@@ -2667,6 +2669,116 @@ class TestEFacturaBuyerPIMatch(FrappeTestCase):
 		self.assertTrue(errors)
 		self.assertEqual(allocs, [])
 		self.assertTrue(any("quantity" in e.lower() for e in errors))
+
+	def test_remaining_match_split_qty(self):
+		from types import SimpleNamespace
+
+		from erpnext_moldova_efactura.utils.pi_alloc import match_pi_to_remaining
+
+		buyer, pi = self._pair()
+		buyer.items[0].name = "BI-1"
+		buyer.items[0].item_code = "ITEM-A"
+		buyer.items[0].qty = 80
+		buyer.items[0].ef_qty = 80
+		buyer.items[0].rate = 10
+		buyer.items[0].rate_with_vat = 11.8
+		buyer.items[0].net_amount = 800
+		buyer.items[0].amount = 944
+		pi.items = [
+			SimpleNamespace(
+				idx=1, name="PII-1", item_code="ITEM-A", item_name="Embroidery", qty=40, uom="Nos", rate=10, amount=400
+			),
+			SimpleNamespace(
+				idx=2, name="PII-2", item_code="ITEM-A", item_name="Embroidery", qty=40, uom="Nos", rate=10, amount=400
+			),
+		]
+		allocs, errors = match_pi_to_remaining(buyer, pi)
+		self.assertEqual(errors, [])
+		self.assertEqual(len(allocs), 2)
+		self.assertEqual({a["pi_detail"] for a in allocs}, {"PII-1", "PII-2"})
+
+	def test_remaining_match_split_qty_uses_pi_rate_when_factura_total_is_gross(self):
+		from types import SimpleNamespace
+
+		from erpnext_moldova_efactura.utils.pi_alloc import match_pi_to_remaining
+
+		buyer, pi = self._pair()
+		buyer.items[0].name = "BI-1"
+		buyer.items[0].item_code = "ITEM-A"
+		buyer.items[0].supplier_item_name = "Servicii de brodat"
+		buyer.items[0].qty = 80
+		buyer.items[0].ef_qty = 80
+		buyer.items[0].rate = 14
+		buyer.items[0].rate_with_vat = 16.8
+		buyer.items[0].net_amount = 0
+		buyer.items[0].amount = 1344
+		pi.items = [
+			SimpleNamespace(
+				idx=1,
+				name="PII-1",
+				item_code="ITEM-A",
+				item_name="Some Important Service",
+				qty=40,
+				uom="Nos",
+				rate=14,
+				amount=560,
+			),
+			SimpleNamespace(
+				idx=2,
+				name="PII-2",
+				item_code="ITEM-A",
+				item_name="Some Important Service",
+				qty=40,
+				uom="Nos",
+				rate=14,
+				amount=560,
+			),
+		]
+		allocs, errors = match_pi_to_remaining(buyer, pi)
+		self.assertEqual(errors, [])
+		self.assertEqual(len(allocs), 2)
+
+	def test_remaining_match_split_qty_unit_vs_nos(self):
+		from types import SimpleNamespace
+
+		from erpnext_moldova_efactura.utils.pi_alloc import match_pi_to_remaining
+
+		buyer, pi = self._pair()
+		buyer.items[0].name = "BI-1"
+		buyer.items[0].item_code = "INV00001"
+		buyer.items[0].uom = "Unit"
+		buyer.items[0].ef_uom = "Unit"
+		buyer.items[0].qty = 80
+		buyer.items[0].ef_qty = 80
+		buyer.items[0].rate = 14
+		buyer.items[0].rate_with_vat = 14
+		buyer.items[0].net_amount = 933.33
+		buyer.items[0].amount = 1120
+		pi.items = [
+			SimpleNamespace(
+				idx=1,
+				name="PII-1",
+				item_code="INV00001",
+				item_name="Some Important Service",
+				qty=40,
+				uom="Unit",
+				rate=14,
+				amount=560,
+			),
+			SimpleNamespace(
+				idx=2,
+				name="PII-2",
+				item_code="INV00001",
+				item_name="Some Important Service",
+				qty=40,
+				uom="Nos",
+				rate=14,
+				amount=560,
+			),
+		]
+		allocs, errors = match_pi_to_remaining(buyer, pi)
+		self.assertEqual(errors, [])
+		self.assertEqual(len(allocs), 2)
 
 	def test_remaining_match_full_qty(self):
 		from erpnext_moldova_efactura.utils.pi_alloc import match_pi_to_remaining

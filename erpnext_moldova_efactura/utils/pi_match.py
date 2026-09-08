@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from itertools import combinations
 from typing import Any
 
 import frappe
@@ -85,7 +86,8 @@ def _maybe_abs(value, abs_qty: bool) -> float:
 	return abs(flt(value)) if abs_qty else flt(value)
 
 
-def rate_matches(buyer_row, pi_row, mprec: int, abs_qty: bool = False) -> bool:
+def unit_rate_compatible(buyer_row, pi_row, mprec: int, abs_qty: bool = False) -> bool:
+	"""Same unit rate, ignoring that a PI row may be only part of the factura qty."""
 	pi_rate = _maybe_abs(pi_row.rate, abs_qty)
 	alts = {
 		_maybe_abs(expected_buyer_rate(buyer_row), abs_qty),
@@ -96,11 +98,15 @@ def rate_matches(buyer_row, pi_row, mprec: int, abs_qty: bool = False) -> bool:
 		_maybe_abs(buying_rate_for_row(buyer_row, False), abs_qty),
 		_maybe_abs(buying_rate_for_row(buyer_row, True), abs_qty),
 	}
-	if any(
+	return any(
 		eq(pi_rate, alt, mprec) or eq(pi_rate, alt, BUYING_RATE_PRECISION)
 		for alt in alts
 		if alt or alt == 0
-	):
+	)
+
+
+def rate_matches(buyer_row, pi_row, mprec: int, abs_qty: bool = False) -> bool:
+	if unit_rate_compatible(buyer_row, pi_row, mprec, abs_qty=abs_qty):
 		return True
 	# Converted UOM (kWh → MWh): compare line extension, not XML unit price.
 	pi_ext = abs(flt(pi_row.qty) * flt(pi_row.rate)) if abs_qty else flt(pi_row.qty) * flt(pi_row.rate)
@@ -173,6 +179,91 @@ def lines_compatible(buyer_row, pi_row, qprec: int, mprec: int, abs_qty: bool = 
 	)
 
 
+def identity_rate_compatible(buyer_row, pi_row, mprec: int, abs_qty: bool = False) -> bool:
+	"""Same ERP item (split PO lines may use Unit vs Nos) or same UOM when unmapped."""
+	if buyer_row.item_code and pi_row.item_code:
+		return buyer_row.item_code == pi_row.item_code
+	return uom_matches(buyer_row, pi_row)
+
+
+def split_child_names(value) -> list[str]:
+	if not value:
+		return []
+	return [part for part in str(value).replace(",", "\n").split() if part]
+
+
+def join_child_names(names) -> str:
+	out: list[str] = []
+	seen: set[str] = set()
+	for name in names or []:
+		if name and name not in seen:
+			seen.add(name)
+			out.append(name)
+	return "\n".join(out)
+
+
+def _signed_qty(row, abs_qty: bool) -> float:
+	return abs(flt(row.qty)) if abs_qty else flt(row.qty)
+
+
+def _signed_amount(row, abs_qty: bool) -> float:
+	amount = flt(getattr(row, "amount", None) or 0)
+	if not amount:
+		amount = flt(getattr(row, "net_amount", None) or 0)
+	return abs(amount) if abs_qty else amount
+
+
+def covering_pi_rows(buyer_row, candidates, qprec: int, mprec: int, abs_qty: bool = False):
+	"""Smallest set of PI rows whose qty and amount sum to the factura row."""
+	if not candidates:
+		return None
+	need_qty = abs(buyer_row_qty(buyer_row)) if abs_qty else buyer_row_qty(buyer_row)
+	n = len(candidates)
+
+	def _ok(combo) -> bool:
+		qty = sum(_signed_qty(candidates[i], abs_qty) for i in combo)
+		amount = sum(_signed_amount(candidates[i], abs_qty) for i in combo)
+		if not eq(qty, need_qty, qprec):
+			return False
+		rates = [_maybe_abs(candidates[i].rate, abs_qty) for i in combo]
+		if rates and not all(
+			eq(rate, rates[0], mprec) or eq(rate, rates[0], BUYING_RATE_PRECISION) for rate in rates
+		):
+			return False
+		pi_rate = rates[0] if rates else 0
+		implied_pi = need_qty * pi_rate if pi_rate else 0
+		buyer_rate = _maybe_abs(buyer_row.rate, abs_qty)
+		implied_buyer = need_qty * buyer_rate if buyer_rate else 0
+		net_like = [
+			_maybe_abs(buyer_row.net_amount, abs_qty),
+			_maybe_abs(getattr(buyer_row, "ef_net_amount", None), abs_qty),
+			implied_buyer,
+		]
+		gross_like = [
+			_maybe_abs(buyer_row.amount, abs_qty),
+			_maybe_abs(getattr(buyer_row, "ef_amount", None), abs_qty),
+		]
+		if any(amount_close(amount, total, mprec) for total in net_like if total):
+			return True
+		if implied_pi and amount_close(amount, implied_pi, mprec):
+			if not buyer_rate or unit_rate_compatible(buyer_row, candidates[combo[0]], mprec, abs_qty=abs_qty):
+				return True
+		return any(amount_close(amount, total, mprec) for total in gross_like if total)
+
+	if n > 12:
+		for i in range(n):
+			if _ok((i,)):
+				return [candidates[i]]
+		if _ok(tuple(range(n))):
+			return list(candidates)
+		return None
+	for size in range(1, n + 1):
+		for combo in combinations(range(n), size):
+			if _ok(combo):
+				return [candidates[i] for i in combo]
+	return None
+
+
 def describe_line_mismatch(
 	buyer_row,
 	pi_row,
@@ -237,65 +328,44 @@ def collect_totals_and_line_errors(
 
 	buyer_items = list(buyer.items or [])
 	pi_items = list(pi.items or [])
-
-	if len(buyer_items) != len(pi_items):
-		errors.append(
-			_("Item count mismatch: e-Factura has {0} row(s), Purchase Invoice has {1} row(s)").format(
-				len(buyer_items), len(pi_items)
-			)
-		)
-
 	used: set[int] = set()
 	pairs: list[tuple[Any, Any]] = []
 
 	for brow in buyer_items:
-		candidate_idx = None
-		if brow.item_code:
-			same = [
-				i
-				for i, prow in enumerate(pi_items)
-				if i not in used and prow.item_code == brow.item_code
-			]
-			compatible = [
-				i for i in same if lines_compatible(brow, pi_items[i], qprec, mprec, abs_qty=abs_qty)
-			]
-			if compatible:
-				candidate_idx = compatible[0]
-			elif same:
-				idx = same[0]
+		open_idx = [
+			i
+			for i, prow in enumerate(pi_items)
+			if i not in used and identity_rate_compatible(brow, prow, mprec, abs_qty=abs_qty)
+		]
+		chosen = covering_pi_rows(
+			brow, [pi_items[i] for i in open_idx], qprec, mprec, abs_qty=abs_qty
+		)
+		if not chosen:
+			if open_idx:
 				errors.append(
-					describe_line_mismatch(brow, pi_items[idx], currency, qprec, mprec, abs_qty=abs_qty)
+					describe_line_mismatch(
+						brow, pi_items[open_idx[0]], currency, qprec, mprec, abs_qty=abs_qty
+					)
 				)
-				used.add(idx)
-				continue
-
-		if candidate_idx is None:
-			for i, prow in enumerate(pi_items):
-				if i in used:
-					continue
-				if brow.item_code and prow.item_code and brow.item_code != prow.item_code:
-					continue
-				if lines_compatible(brow, prow, qprec, mprec, abs_qty=abs_qty):
-					candidate_idx = i
-					break
-
-		if candidate_idx is None:
-			errors.append(
-				_(
-					"e-Factura row {0} «{1}»: qty {2} × rate {3} {5} (net {4}) — no matching Purchase Invoice row"
-				).format(
-					brow.idx,
-					buyer_line_name(brow),
-					fmt_qty(buyer_row_qty(brow), qprec),
-					fmt_money(brow.rate, mprec),
-					fmt_money(brow.net_amount, mprec),
-					currency,
+			else:
+				errors.append(
+					_(
+						"e-Factura row {0} «{1}»: qty {2} × rate {3} {5} (net {4}) — no matching Purchase Invoice row"
+					).format(
+						brow.idx,
+						buyer_line_name(brow),
+						fmt_qty(buyer_row_qty(brow), qprec),
+						fmt_money(brow.rate, mprec),
+						fmt_money(brow.net_amount, mprec),
+						currency,
+					)
 				)
-			)
 			continue
-
-		used.add(candidate_idx)
-		pairs.append((brow, pi_items[candidate_idx]))
+		chosen_ids = {id(row) for row in chosen}
+		for i in open_idx:
+			if id(pi_items[i]) in chosen_ids:
+				used.add(i)
+				pairs.append((brow, pi_items[i]))
 
 	for i, prow in enumerate(pi_items):
 		if i in used:
@@ -463,31 +533,40 @@ def validate_existing_allocations(buyer, pi, submit: bool = True) -> None:
 	errors.extend(collect_document_errors(buyer, pi))
 	pi_by_name = {r.name: r for r in (pi.items or []) if r.name}
 	for brow in linked:
-		prow = pi_by_name.get(brow.pi_detail)
-		if not prow:
-			errors.append(
-				_("Purchase Invoice Item {0} is missing on {1}").format(brow.pi_detail, pi.name)
-			)
+		details = split_child_names(brow.pi_detail)
+		prows = []
+		for detail in details:
+			prow = pi_by_name.get(detail)
+			if not prow:
+				errors.append(_("Purchase Invoice Item {0} is missing on {1}").format(detail, pi.name))
+				continue
+			prows.append(prow)
+		if not prows:
 			continue
-		if brow.item_code and prow.item_code and brow.item_code != prow.item_code:
-			errors.append(
-				_("e-Factura row {0} «{1}»: item {2} vs Purchase Invoice {3}").format(
-					brow.idx, buyer_line_name(brow), brow.item_code, prow.item_code
+		for prow in prows:
+			if brow.item_code and prow.item_code and brow.item_code != prow.item_code:
+				errors.append(
+					_("e-Factura row {0} «{1}»: item {2} vs Purchase Invoice {3}").format(
+						brow.idx, buyer_line_name(brow), brow.item_code, prow.item_code
+					)
 				)
-			)
-		if not uom_matches(brow, prow):
-			errors.append(
-				_("e-Factura row {0} «{1}»: UOM {2} vs Purchase Invoice {3}").format(
-					brow.idx,
-					buyer_line_name(brow),
-					brow.uom or brow.ef_uom or _("empty"),
-					prow.uom or _("empty"),
+			if not (
+				brow.item_code and prow.item_code and brow.item_code == prow.item_code
+			) and not uom_matches(brow, prow):
+				errors.append(
+					_("e-Factura row {0} «{1}»: UOM {2} vs Purchase Invoice {3}").format(
+						brow.idx,
+						buyer_line_name(brow),
+						brow.uom or brow.ef_uom or _("empty"),
+						prow.uom or _("empty"),
+					)
 				)
-			)
-		if not price_matches(brow, prow, mprec, abs_qty=abs_qty):
-			errors.append(describe_rate_mismatch(brow, prow, currency, mprec))
-		if not qty_matches(brow, prow, qprec, abs_qty=abs_qty):
-			errors.append(describe_line_mismatch(brow, prow, currency, qprec, mprec, abs_qty=abs_qty))
+			if not price_matches(brow, prow, mprec, abs_qty=abs_qty):
+				errors.append(describe_rate_mismatch(brow, prow, currency, mprec))
+		need = abs(buyer_row_qty(brow)) if abs_qty else buyer_row_qty(brow)
+		got = sum(_signed_qty(prow, abs_qty) for prow in prows)
+		if not eq(need, got, qprec):
+			errors.append(describe_line_mismatch(brow, prows[0], currency, qprec, mprec, abs_qty=abs_qty))
 	if is_full_cover_existing(buyer, pi.name):
 		errors.extend(collect_total_errors(buyer, pi, mprec, currency))
 	if errors:

@@ -247,7 +247,7 @@
   {
    "allow_on_submit": 1,
    "fieldname": "pi_detail",
-   "fieldtype": "Data",
+   "fieldtype": "Small Text",
    "hidden": 1,
    "label": "Purchase Invoice Item",
    "no_copy": 1,

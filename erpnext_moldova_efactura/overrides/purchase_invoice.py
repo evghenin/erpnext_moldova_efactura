@@ -91,8 +91,6 @@ def _try_auto_allocate(doc):
 	if buyer.company and doc.company and buyer.company != doc.company:
 		return
 	explicit = bool(doc.meta.has_field("purchase_efactura") and doc.get("purchase_efactura") == buyer_name)
-	if not explicit and len(buyer.items or []) != len(doc.items or []):
-		return
 	allocs, errors = match_pi_to_remaining(buyer, doc)
 	if (errors or not allocs) and explicit:
 		allocs = _allocs_by_row_order(buyer, doc)
