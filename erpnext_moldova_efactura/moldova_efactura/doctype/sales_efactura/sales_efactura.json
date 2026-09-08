@@ -135,6 +135,7 @@
    "print_width": "150px",
    "remember_last_selected_value": 1,
    "reqd": 1,
+   "search_index": 1,
    "width": "150px"
   },
   {
@@ -346,7 +347,8 @@
    "fieldtype": "Link",
    "in_standard_filter": 1,
    "label": "Sales Invoice",
-   "options": "Sales Invoice"
+   "options": "Sales Invoice",
+   "search_index": 1
   },
   {
    "default": "0",
@@ -590,7 +592,8 @@
    "label": "eFactura Series",
    "no_copy": 1,
    "print_hide": 1,
-   "read_only": 1
+   "read_only": 1,
+   "search_index": 1
   },
   {
    "fieldname": "ef_number",
@@ -598,7 +601,8 @@
    "label": "eFactura Number",
    "no_copy": 1,
    "print_hide": 1,
-   "read_only": 1
+   "read_only": 1,
+   "search_index": 1
   },
   {
    "fieldname": "connections_tab",

@@ -31,6 +31,7 @@ app_include_js = [
     "/assets/erpnext_moldova_efactura/js/moldsign.js",
     "/assets/erpnext_moldova_efactura/js/skip_price_list_after_mapping.js",
     "/assets/erpnext_moldova_efactura/js/fiscal_status.js",
+    "/assets/erpnext_moldova_efactura/js/timeline_info.js",
 ]
 
 # include js, css files in header of web template

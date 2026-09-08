@@ -1121,3 +1121,166 @@ class TestSaleseFactura(FrappeTestCase):
 		self.assertTrue(
 			any("Purchase Receipt" in (group.get("items") or []) for group in data["transactions"])
 		)
+
+	def test_autofill_party_block_skips_sfs_when_idno_matches(self):
+		from unittest.mock import Mock, patch
+
+		doc = frappe.new_doc("Sales eFactura")
+		doc.ef_supplier_idno = "1002600023594"
+		doc.get_valid_columns = lambda: []
+
+		get_client = Mock(side_effect=AssertionError("SFS client must not be created"))
+		with (
+			patch("frappe.get_meta") as get_meta,
+			patch("frappe.db.get_value", return_value="1002600023594"),
+		):
+			get_meta.return_value.has_field.return_value = True
+			doc._autofill_party_block(get_client, "supplier", "Company", "Acme", "tax_id")
+		get_client.assert_not_called()
+
+	def test_autofill_party_block_calls_sfs_when_idno_missing(self):
+		from unittest.mock import Mock, patch
+
+		doc = frappe.new_doc("Sales eFactura")
+		doc.ef_supplier_idno = ""
+		doc.db_set = Mock()
+		doc.get_valid_columns = lambda: []
+
+		client = Mock()
+		client.get_taxpayers_info.return_value = {
+			"Results": {
+				"Taxpayer": [
+					{
+						"IDNO": "1002600023594",
+						"CodTVA": "",
+						"Name": "Acme",
+						"Address": "Chisinau",
+						"TaxpayerType": 0,
+						"IsEFacturaActor": True,
+					}
+				]
+			}
+		}
+		get_client = Mock(return_value=client)
+		with (
+			patch("frappe.get_meta") as get_meta,
+			patch("frappe.db.get_value", return_value="1002600023594"),
+		):
+			get_meta.return_value.has_field.return_value = True
+			doc._autofill_party_block(get_client, "supplier", "Company", "Acme", "tax_id")
+		get_client.assert_called_once()
+		client.get_taxpayers_info.assert_called_once_with(["1002600023594"])
+
+	def test_update_items_available_qty_uses_bulk_queries(self):
+		from unittest.mock import patch
+
+		doc = frappe.new_doc("Sales eFactura")
+		doc.name = "SEF-TEST-1"
+		doc.sales_invoice = "SI-1"
+		doc.append(
+			"items",
+			{"item_code": "A", "stock_qty": 2, "qty": 2, "uom": "Nos", "ef_uom": "Nos"},
+		)
+		doc.append(
+			"items",
+			{"item_code": "B", "stock_qty": 1, "qty": 1, "uom": "Nos", "ef_uom": "Nos"},
+		)
+
+		calls = []
+
+		def fake_get_all(doctype, **kwargs):
+			calls.append((doctype, kwargs.get("group_by"), kwargs.get("fields")))
+			if doctype == "Sales Invoice Item":
+				return [
+					frappe._dict(item_code="A", stock_qty=10),
+					frappe._dict(item_code="B", stock_qty=5),
+				]
+			return [frappe._dict(item_code="A", stock_qty=3)]
+
+		with (
+			patch(
+				"erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.sales_invoice_of",
+				return_value="SI-1",
+			),
+			patch(
+				"erpnext_moldova_efactura.utils.qty_guard.get_quota_efactura_names",
+				return_value=["SEF-OTHER"],
+			),
+			patch("frappe.get_all", side_effect=fake_get_all),
+		):
+			doc.update_items_available_qty()
+
+		self.assertEqual(len(calls), 2)
+		self.assertEqual(calls[0][0], "Sales Invoice Item")
+		self.assertEqual(calls[0][1], "item_code")
+		self.assertEqual(calls[1][0], "Sales eFactura Item")
+		self.assertEqual(flt(doc.items[0].available_stock_qty), 7.0)
+		self.assertEqual(flt(doc.items[1].available_stock_qty), 5.0)
+
+	def test_draft_set_status_skips_linked_fiscal_when_unchanged(self):
+		from unittest.mock import Mock, patch
+
+		doc = frappe.new_doc("Sales eFactura")
+		doc.name = "SEF-DRAFT-1"
+		doc.docstatus = 0
+		doc.status = "Draft"
+		doc.ef_status = "Pending Registration"
+		doc.sales_invoice = "SI-1"
+		doc.total = 100
+		doc.is_return = 0
+		before = frappe._dict(
+			sales_invoice="SI-1",
+			ef_status="Pending Registration",
+			total=100,
+			docstatus=0,
+			is_return=0,
+		)
+		doc.get_doc_before_save = Mock(return_value=before)
+		doc.db_set = Mock()
+		doc.is_new = Mock(return_value=False)
+
+		with patch.object(doc, "_sync_linked_fiscal_status") as sync:
+			doc.set_status(log=False)
+			sync.assert_not_called()
+
+	def test_submit_set_status_syncs_linked_fiscal(self):
+		from unittest.mock import Mock, patch
+
+		doc = frappe.new_doc("Sales eFactura")
+		doc.name = "SEF-SUB-1"
+		doc.docstatus = 1
+		doc.ef_status = "Pending Registration"
+		doc.is_return = 0
+		doc.db_set = Mock()
+		doc.is_new = Mock(return_value=False)
+
+		with patch.object(doc, "_sync_linked_fiscal_status") as sync:
+			doc.set_status(log=False)
+			sync.assert_called_once()
+		self.assertEqual(doc.status, "Submitted")
+
+	def test_draft_set_status_syncs_when_sales_invoice_changes(self):
+		from unittest.mock import Mock, patch
+
+		doc = frappe.new_doc("Sales eFactura")
+		doc.name = "SEF-DRAFT-2"
+		doc.docstatus = 0
+		doc.ef_status = "Pending Registration"
+		doc.sales_invoice = "SI-2"
+		doc.total = 100
+		doc.is_return = 0
+		doc.get_doc_before_save = Mock(
+			return_value=frappe._dict(
+				sales_invoice="SI-1",
+				ef_status="Pending Registration",
+				total=100,
+				docstatus=0,
+				is_return=0,
+			)
+		)
+		doc.db_set = Mock()
+		doc.is_new = Mock(return_value=False)
+
+		with patch.object(doc, "_sync_linked_fiscal_status") as sync:
+			doc.set_status(log=False)
+			sync.assert_called_once()

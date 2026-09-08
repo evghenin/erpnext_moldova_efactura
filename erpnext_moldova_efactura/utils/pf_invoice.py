@@ -82,8 +82,95 @@ def assert_no_pf_for_pi(pi_name):
 		frappe.throw(_("Purchase Invoice is already allocated to Purchase Factura"))
 
 
-def _close(a, b):
-	return abs(money(a or 0) - money(b or 0)) <= decimal("0.01")
+ROUND_OFF_LIMIT = decimal("0.20")
+
+
+def _close(a, b, tol=None):
+	limit = money(tol) if tol is not None else decimal("0.01")
+	return abs(money(a or 0) - money(b or 0)) <= limit
+
+
+def _uom_eq(a, b):
+	return not a or not b or str(a).strip().casefold() == str(b).strip().casefold()
+
+
+def _line_identity(row, target):
+	return (
+		(not row.item_code or row.item_code == target.item_code)
+		and _uom_eq(row.uom, target.uom)
+		and flt(row.qty, 6) == flt(target.qty, 6)
+	)
+
+
+def _line_amounts_ok(row, target):
+	"""qty * rate on the PI can differ from the printed line; document round-off books the rest."""
+	pi_amount = getattr(target, "amount", None) or 0
+	return (
+		_close(row.net_amount, target.net_amount, ROUND_OFF_LIMIT)
+		or _close(row.amount, pi_amount, ROUND_OFF_LIMIT)
+		or _close(row.net_amount, pi_amount, ROUND_OFF_LIMIT)
+	)
+
+
+def _signed_tax_amount(tax):
+	amount = money(tax.tax_amount or 0)
+	if (getattr(tax, "add_deduct_tax", None) or "Add") == "Deduct" and amount > 0:
+		return -amount
+	return amount
+
+
+def _vat_excluding_round_off(pi):
+	account = frappe.get_cached_value("Company", pi.company, "round_off_account")
+	total = money(0)
+	for tax in pi.get("taxes") or []:
+		if account and tax.account_head == account:
+			continue
+		total += _signed_tax_amount(tax)
+	return total
+
+
+def apply_factura_round_off(pi, pf):
+	"""Book qty*rate vs printed factura payable on Company Round Off Account."""
+	account = frappe.get_cached_value("Company", pi.company, "round_off_account")
+	cost_center = frappe.get_cached_value("Company", pi.company, "round_off_cost_center")
+	if not cost_center:
+		cost_center = frappe.get_cached_value("Company", pi.company, "cost_center")
+	for tax in list(pi.get("taxes") or []):
+		if account and tax.account_head == account:
+			pi.remove(tax)
+	if hasattr(pi, "calculate_taxes_and_totals"):
+		pi.calculate_taxes_and_totals()
+	delta = money(pf.total or 0) - money(pi.grand_total or 0)
+	if abs(delta) <= decimal("0.01"):
+		return
+	if abs(delta) > ROUND_OFF_LIMIT:
+		frappe.throw(
+			_("Purchase Invoice differs from the factura by {0}; that is more than rounding").format(delta)
+		)
+	if not account:
+		frappe.throw(
+			_("Set Round Off Account on Company {0} to book the factura rounding difference").format(pi.company)
+		)
+	row = pi.append("taxes", {})
+	row.charge_type = "Actual"
+	row.account_head = account
+	row.description = _("Factura rounding")
+	if row.meta.has_field("add_deduct_tax"):
+		if delta < 0:
+			row.add_deduct_tax = "Deduct"
+			row.tax_amount = float(-delta)
+		else:
+			row.add_deduct_tax = "Add"
+			row.tax_amount = float(delta)
+	else:
+		row.tax_amount = float(delta)
+	if row.meta.has_field("category"):
+		row.category = "Total"
+	if row.meta.has_field("included_in_print_rate"):
+		row.included_in_print_rate = 0
+	if cost_center and row.meta.has_field("cost_center"):
+		row.cost_center = cost_center
+	pi.calculate_taxes_and_totals()
 
 
 def match_invoice(pf, pi):
@@ -97,33 +184,31 @@ def match_invoice(pf, pi):
 		)
 	if len(pf.items) != len(pi.items):
 		frappe.throw(_("Purchase Factura and Purchase Invoice must have the same item count"))
-	for value, other, label in (
-		(pf.net_total, pi.net_total, "Net Total"),
-		(pf.vat_total, pi.total_taxes_and_charges, "VAT Total"),
-		(pf.total, pi.grand_total, "Grand Total"),
-	):
-		if not _close(value, other):
-			frappe.throw(
-				_("{0} does not match the original factura ({1} vs {2})").format(_(label), value, other)
+	if not _close(pf.total, pi.grand_total):
+		frappe.throw(
+			_("Grand Total does not match the original factura ({0} vs {1})").format(pf.total, pi.grand_total)
+		)
+	if not _close(pf.vat_total, _vat_excluding_round_off(pi)):
+		frappe.throw(
+			_("VAT Total does not match the original factura ({0} vs {1})").format(
+				pf.vat_total, _vat_excluding_round_off(pi)
 			)
+		)
 	remaining = list(pi.items)
 	pairs = []
 	for row in pf.items:
 		matches = [
 			target
 			for target in remaining
-			if (
-				(not row.item_code or row.item_code == target.item_code)
-				and (not row.uom or row.uom == target.uom)
-				and flt(row.qty, 6) == flt(target.qty, 6)
-				and _close(row.net_amount, target.net_amount)
-			)
+			if _line_identity(row, target) and _line_amounts_ok(row, target)
 		]
 		if not matches:
 			frappe.throw(
-				_("Row {0}: no matching Purchase Invoice item, UOM, quantity and net amount").format(row.idx)
+				_(
+					"Row {0}: no matching Purchase Invoice item, UOM, quantity and net amount ({1} {2}, net {3})"
+				).format(row.idx, row.qty, row.uom or "", row.net_amount)
 			)
-		target = matches[0]
+		target = min(matches, key=lambda t: abs(money(row.net_amount or 0) - money(t.net_amount or 0)))
 		if row.conversion_factor and flt(row.conversion_factor, 9) != flt(target.conversion_factor, 9):
 			frappe.throw(_("Row {0}: UOM conversion factor changed").format(row.idx))
 		pairs.append((row, target))
@@ -145,10 +230,12 @@ def validate_pi(doc, method=None):
 	pf = _get_pf(doc.purchase_factura)
 	_lock_company(pf.company)
 	pf.reload()
-	pf.require_reviewed()
+	if not pf.supplier_party:
+		frappe.throw(_("Select a Supplier before creating or linking a Purchase Invoice"))
 	if pf.purchase_invoice and pf.purchase_invoice != doc.name:
 		frappe.throw(_("Purchase Factura already has a Purchase Invoice"))
 	assert_no_pef(pf)
+	apply_factura_round_off(doc, pf)
 	match_invoice(pf, doc)
 	if doc.bill_no != pf.f_series + pf.f_number or getdate(doc.bill_date) != getdate(pf.issue_date):
 		frappe.throw(_("Supplier invoice number/date must match the original factura"))
@@ -196,7 +283,8 @@ def make_purchase_invoice(source_name, target_doc=None):
 	pf = _get_pf(source_name)
 	_lock_company(pf.company)
 	pf.reload()
-	pf.require_reviewed()
+	if not pf.supplier_party:
+		frappe.throw(_("Select a Supplier before creating or linking a Purchase Invoice"))
 	if pf.purchase_invoice:
 		pi = frappe.get_doc("Purchase Invoice", pf.purchase_invoice)
 		pi.check_permission("read")
@@ -270,8 +358,52 @@ def make_purchase_invoice(source_name, target_doc=None):
 	pi.set("taxes", [])
 	apply_buying_taxes(pi, tax_source(pf))
 	pi.calculate_taxes_and_totals()
+	apply_factura_round_off(pi, pf)
 	pi.set_onload("load_after_mapping", True)
 	return pi
+
+
+@frappe.whitelist()
+def make_purchase_order(source_name, target_doc=None):
+	from frappe.utils import today
+
+	frappe.has_permission("Purchase Order", "create", throw=True)
+	pf = _get_pf(source_name)
+	_lock_company(pf.company)
+	pf.reload()
+	if not pf.supplier_party:
+		frappe.throw(_("Select a Supplier before creating a Purchase Order"))
+	if flt(pf.total) < 0:
+		frappe.throw(_("Purchase Order cannot be created from a Purchase Factura with a negative total"))
+
+	from erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura import (
+		_apply_buying_line_vals,
+		_buying_line_from_buyer,
+		_apply_posting_from_factura,
+		_prepare_mapped_buying_doc,
+	)
+	from erpnext_moldova_efactura.utils.buying_taxes import apply_buying_taxes
+
+	po = frappe.new_doc("Purchase Order")
+	po.company = pf.company
+	po.supplier = pf.supplier_party
+	po.currency = pf.currency
+	po.transaction_date = today()
+	schedule = pf.delivery_date or pf.issue_date or today()
+	if po.meta.has_field("schedule_date"):
+		po.schedule_date = schedule
+	_apply_posting_from_factura(po, pf)
+	if po.meta.has_field("ignore_pricing_rule"):
+		po.ignore_pricing_rule = 1
+	vat_included = bool(frappe.db.get_single_value("eFactura Settings", "vat_included_in_rate"))
+	for row in pf.items:
+		if not row.item_code or not row.uom or flt(row.qty) <= 0:
+			frappe.throw(_("Row {0}: map an ERP Item, UOM and quantity first").format(row.idx))
+		item = po.append("items", {})
+		_apply_buying_line_vals(item, _buying_line_from_buyer(row, vat_included), schedule)
+	apply_buying_taxes(po, tax_source(pf))
+	_prepare_mapped_buying_doc(po)
+	return po
 
 
 @frappe.whitelist()
@@ -279,20 +411,24 @@ def link_purchase_invoice(name, purchase_invoice):
 	pf = _get_pf(name)
 	_lock_company(pf.company)
 	pf.reload()
-	pf.require_reviewed()
+	if not pf.supplier_party:
+		frappe.throw(_("Select a Supplier before creating or linking a Purchase Invoice"))
 	if pf.docstatus != 0 or (pf.purchase_invoice and pf.purchase_invoice != purchase_invoice):
 		frappe.throw(_("Only an unallocated draft Purchase Factura can be linked"))
 	pi = frappe.get_doc("Purchase Invoice", purchase_invoice)
 	pi.check_permission("write")
 	assert_no_pef(pf)
-	pairs = match_invoice(pf, pi)
 	if pi.bill_no and pi.bill_no != pf.f_series + pf.f_number:
 		frappe.throw(_("Supplier invoice number differs from the factura"))
 	if pi.bill_date and getdate(pi.bill_date) != getdate(pf.issue_date):
 		frappe.throw(_("Supplier invoice date differs from the factura"))
 	if not pi.bill_no or not pi.bill_date:
 		frappe.throw(_("Fill Supplier Invoice No and Date on the Purchase Invoice before linking"))
-	frappe.db.set_value("Purchase Invoice", pi.name, "purchase_factura", pf.name)
+	apply_factura_round_off(pi, pf)
+	pairs = match_invoice(pf, pi)
+	pi.flags.pf_link_action = True
+	pi.purchase_factura = pf.name
+	pi.save()
 	pf.purchase_invoice = pi.name
 	for row, target in pairs:
 		row.item_code, row.uom, row.qty = target.item_code, target.uom, target.qty

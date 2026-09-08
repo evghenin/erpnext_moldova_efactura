@@ -91,7 +91,7 @@ Neither a visible stamp nor the `.signed.pdf` suffix is the signature check. Ora
 
 ## Consequences for the SF/PF design
 
-1. **Start with PF for services.** Both examples naturally map to a Purchase Factura and a non-stock Purchase Invoice, subject to the existing accounting setup. Nothing in these examples requires a PR or stock movement. They do not validate outgoing SF or return workflows.
+1. **Start with PF for services on the PDF samples.** Orange and ARAX map to a Purchase Factura and a non-stock Purchase Invoice. They do not validate outgoing SF or return workflows. The METRO paper sample (below) is goods and may require stock after review; it still does not post ledgers from the PF itself.
 2. **Keep identifiers separate.** Original series/number, provider reference, customer account, contract, and related act need distinct storage. Supplier profiles should be scoped by Company and issuer IDNO, with contract/account refinements when needed.
 3. **Separate original and ERP UOM.** Orange lacks a UOM and ARAX bills `1 GB` as shown. Preserve source values while mapping to an approved ERP service Item/UOM; flag missing or ambiguous mappings.
 4. **Separate all dates.** Issue, delivery, service period, signature time, email receipt and PI posting dates have different meanings. Do not derive a monthly period or change posting dates merely from signing time.
@@ -108,7 +108,62 @@ Neither a visible stamp nor the `.signed.pdf` suffix is the signature check. Ora
 - Signature handling: detect both embedded formats; expose local integrity success separately from unchecked trust/revocation; report Orange padding without modifying the original.
 - Repeat import: the same file, a renamed copy, or a matching factura fetched through SFS cannot create a second accounting transaction or duplicate coverage.
 
-Further samples are needed for multiple charged rows, discounts, other VAT rates, multi-page documents, credit/return documents, stock transactions, outgoing facturas, scans, and separate signature containers. Analyze original email/attachment bundles separately when defining mailbox intake.
+The MAGAS TRANS paper photos in `examples/` (`IMG_20260906_115807.jpg` and the two AAY itemized goods photos) already cover the numbered bilingual form, including one 0% VAT transport row and multi-row goods. They do not cover retail till layouts.
+
+Further samples are still needed for other VAT rates on a single document, multi-page documents, credit/return documents, outgoing facturas, and separate signature containers. Analyze original email/attachment bundles separately when defining mailbox intake.
+
+## METRO Cash & Carry paper factura (retail till layout)
+
+Analysis date: 2026-09-07. File: [IMG_20260907_210310.jpg](../erpnext_moldova_efactura/examples/IMG_20260907_210310.jpg). Photograph of a printed **Factură Fiscală** from METRO Cash & Carry, issued to **HOTEL LIFE SRL**. This is not the bilingual numbered SFS form used by MAGAS/Orange/ARAX. It is a store till printout: monospaced columns, METRO header, cash-register metadata, EAN item codes, packing codes, and footer quantity/weight/net totals.
+
+| Field | Observed value |
+| --- | --- |
+| Issuer legal name | I.C.S METRO CASH & CARRY MOLDOVA S.R.L. |
+| Issuer IDNO | 1004601002738 |
+| Issuer VAT code | Not seen as a `13-digit/7-digit` pair on this photo; do not invent one |
+| Issuer legal address | Str. Chișinău 5, MD-4839 Chișinău |
+| Store / branch | METRO CASH & CARRY CHISINAU 2, Bd. Dacia nr. 61, MD-2072 Chișinău |
+| Issuer bank | BC Victoriabank SA, fil. nr. 12 Chișinău; IBAN MD29VI000002251921103MDL |
+| Buyer | HOTEL LIFE SRL |
+| Buyer IDNO / VAT | 1024600026571 / 0211775 |
+| Buyer address | Strada Grenoble 128/2 Ap.31, Codru, Chișinău |
+| Buyer bank | BC Moldova-Agroindbank SA, suc. nr. 93; IBAN MD46AG000000022516020091 |
+| Fiscal series / number | **AAQ** / **1838180** (printed `SERIA AAQ NR. 1838180`) |
+| Related till receipt | Bon fiscal nr. **36** — not the factura number |
+| Client number | 002 802279 SC |
+| Internal till reference | 0/0(002)0005/003808 (526839) |
+| Issue date / time | 29-08-2026, 13:32 |
+| Cashier / register | Casier 22831, Casa 5 |
+| Line VAT | 20% on sampled rows; discount column 0,00 |
+| Printed net (`Val. tot. fara TVA`) | 1251,02 (verify on import; photo rounding vs `Total pagina` 1251,13) |
+| Total quantity | 69 |
+| Total weight | 0,000 KG |
+| Currency | MDL implied (lei, Moldovan document); no ISO code printed |
+| Signature | Paper original. No PDF, no embedded CMS. `signature_status` remains Not Applicable |
+
+### Layout differences that break the current paper OCR
+
+The existing image importer assumes a numbered form: `1. Furnizor` / `2. Cumpărător`, UOM `buc` or `serv`, and a `12. Total` row. This METRO sheet has none of those anchors.
+
+- Party blocks are unlabeled retail headers (legal entity + store vs client), not sections 1 and 2.
+- Item identity is a 13-digit **Cod articol** (EAN-style) plus **Denumire articol**. Store packing (`Mod amb.`: IM, ST, BU, TP) and `Unit vanz.` are not ERP UOMs and are not `buc`/`serv`.
+- Amount columns are: quantity, unit price, pack price, net, VAT %, VAT amount, discount, gross. Positional parsing built for columns 10.3–10.8 will misread pack price and discount.
+- Sub-lines such as `PL/PA: 2.3400 / 35.04%` are markup notes, not extra charged rows.
+- Footer uses `Total cantitate`, `Total greutate`, `Val. tot. fara TVA`, `Total pagina`. Do not treat quantity, weight, or page total as additional charges. Prefer document net/VAT/gross reconciliation over a page-total label that can disagree by a few bani in a photo.
+- Keep **bon fiscal**, client number, till reference, cashier and casa as separate references. Fiscal identity is AAQ + 1838180.
+
+### Consequences for PF / goods import
+
+1. **This sample is goods, not a service bill.** Stationery/office supplies from a cash-and-carry can justify a stock or mixed Purchase Invoice after review. It still must not post ledgers from the PF itself.
+2. **Preserve supplier item code.** Map ERP Item from issuer IDNO + EAN/`Cod articol` via supplier item maps. Do not use the packing code as UOM.
+3. **Preserve original UOM empty or as printed packing code**, and require an approved map to ERP UOM. `Unit vanz. = 1` is a pack factor, not quantity 1.
+4. **Many charged rows.** Image import must accept dozens of lines and still fail closed if any row or the document totals cannot be reconciled. A draft with a subset of METRO lines is not acceptable.
+5. **Seller VAT may be absent.** Match the Company buyer by IDNO 1024600026571. Match or create the Supplier by IDNO 1004601002738. Missing issuer VAT is a review field, not a reason to invent 7800xxx-style codes.
+6. **Branch address ≠ legal address.** Store Dacia 61 is the place of sale; legal address remains Chișinău 5. Do not overwrite Supplier master address from the branch block without review.
+7. **Related document: bon fiscal 36.** Same pattern as ARAX act / Orange account: store type/number, do not replace series/number.
+8. **Retail till photos.** Gemini extraction plus local reconciliation is used for paper images. Fiscal identity is `SERIA AAQ NR. 1838180`; bon fiscal stays a related document; EAN is `supplier_item_code`; packing codes are the source UOM. The importer still fails closed unless every charged row and document qty/net (or net/VAT/gross) reconcile.
+
+Suggested acceptance fixture: series AAQ, number 1838180, issue date 2026-08-29, buyer IDNO 1024600026571, supplier IDNO 1004601002738, original format Paper, every charged row with EAN + net/VAT/gross at 20%, document totals matching printed net/VAT/gross after decimal rounding, bon fiscal 36 retained separately, PL/PA notes ignored.
 
 ## File identity and method
 
@@ -116,5 +171,6 @@ Further samples are needed for multiple charged rows, discounts, other VAT rates
 | --- | --- |
 | 74085315_1_FiscalInvoice.pdf | a3d9f25d1fb33d1d08143721a3353d8cf52a208753f8ccb6e3b713fd01d5f8db |
 | AAY9977940.signed.pdf | 97375cef33f5c6cc6389bd7d50322245483726e22e9f941011cb8b0f61bb1bd2 |
+| IMG_20260907_210310.jpg | 152e85d808954b06ebd95e117e3fee32cc74cf236dcba31d10f8d775ac901fd9 |
 
-Method: local text extraction with pypdf 6.17.0 and PyMuPDF 1.28.2; rendered-page inspection; PDF field, attachment and ByteRange inspection; certificate inspection; local OpenSSL CMS integrity checks; decimal total/VAT reconciliation. PDF contents were not uploaded to a remote extraction or signature service. Original example files were not modified.
+Method: local text extraction with pypdf 6.17.0 and PyMuPDF 1.28.2; rendered-page inspection; PDF field, attachment and ByteRange inspection; certificate inspection; local OpenSSL CMS integrity checks; decimal total/VAT reconciliation. Paper METRO sample: visual reading of the photograph (no Tesseract run in this analysis). PDF and image contents were not uploaded to a remote extraction or signature service. Original example files were not modified.

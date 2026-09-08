@@ -618,7 +618,7 @@ def _filter_pef_names(names, skip_reason):
 def fetch_details(name: str):
 	doc = _get_purchase_efactura(name)
 	doc.refresh_from_api()
-	log_event(doc, _("Fetched invoice details from e-Factura."))
+	log_event(doc, "fetched invoice details from e-Factura")
 	return doc.as_dict()
 
 
@@ -635,7 +635,7 @@ def accept_invoice(name: str):
 	if err:
 		frappe.throw(_("e-Factura API Error: {0}").format(err))
 	_refresh_status(doc)
-	log_event(doc, _("Accepted invoice in e-Factura."))
+	log_event(doc, "accepted this document in e-Factura")
 	return {"status": doc.status, "ef_status": doc.ef_status}
 
 
@@ -667,7 +667,7 @@ def reject_invoice(name: str, reason: str | None = None):
 	doc.db_set("rejection_reason", comment, update_modified=False)
 	doc.rejection_reason = comment
 	_refresh_status(doc)
-	log_event(doc, _("Rejected invoice in e-Factura: {0}").format(comment))
+	log_event(doc, "rejected this document in e-Factura: {0}", comment)
 	return {"status": doc.status, "ef_status": doc.ef_status, "rejection_reason": comment}
 
 
@@ -787,7 +787,7 @@ def process_signed_xml(name: str, signature: str, content: str):
 		invoices_xml_status=1,
 	)
 	_refresh_status(doc)
-	log_event(doc, _("Signed invoice in e-Factura (buyer)."))
+	log_event(doc, "signed this document in e-Factura (buyer)")
 	return {"status": doc.status, "ef_status": doc.ef_status}
 
 
@@ -1234,7 +1234,7 @@ def link_purchase_invoice(name: str, purchase_invoice: str):
 	from erpnext_moldova_efactura.utils.fiscal_status import sync_pi_fiscal_status
 
 	sync_pi_fiscal_status(purchase_invoice)
-	log_event(doc, _("Linked Purchase Invoice {0}.").format(purchase_invoice))
+	log_event(doc, "linked Purchase Invoice {0}", purchase_invoice)
 	return doc.as_dict()
 
 
@@ -1289,7 +1289,7 @@ def _link_stock_document(name: str, target_name: str, spec):
 	set_stock_buyer_link(target_name, doc.name, spec)
 	doc.set_status(update=False)
 	_save_buyer_links(doc)
-	log_event(doc, _("Linked {0} {1}.").format(_(spec.label), target_name))
+	log_event(doc, "linked {0} {1}", spec.label, target_name, translate_args=[0])
 	return doc.as_dict()
 
 
@@ -1350,7 +1350,7 @@ def unlink_purchase_invoice(name: str):
 		clear_pi_buyer_link(pi_name)
 		if frappe.db.exists("Purchase Invoice", pi_name):
 			sync_pi_fiscal_status(pi_name)
-	log_event(doc, _("Unlinked Purchase Invoice."))
+	log_event(doc, "unlinked Purchase Invoice")
 	return doc.as_dict()
 
 
@@ -1364,7 +1364,7 @@ def _unlink_stock_document(name: str, spec):
 	_save_buyer_links(doc)
 	for doc_name in docs:
 		clear_stock_buyer_link(doc_name, spec)
-	log_event(doc, _("Unlinked {0}.").format(_(spec.label)))
+	log_event(doc, "unlinked {0}", spec.label, translate_args=[0])
 	return doc.as_dict()
 
 
@@ -1395,7 +1395,7 @@ def unlink_purchase_order(name: str):
 	if doc.meta.has_field("purchase_order"):
 		doc.purchase_order = None
 	_save_buyer_links(doc)
-	log_event(doc, _("Unlinked Purchase Order."))
+	log_event(doc, "unlinked Purchase Order")
 	return doc.as_dict()
 
 
@@ -1430,7 +1430,7 @@ def _set_pef_return(name: str, is_return: int):
 	doc.is_return = want_return
 	resolve_xml_supplier_party(doc)
 	_save_buyer_links(doc)
-	log_event(doc, _("Unmarked as return.") if not want_return else _("Marked as return."))
+	log_event(doc, "unmarked this document as return" if not want_return else "marked this document as return")
 	return doc.as_dict()
 
 

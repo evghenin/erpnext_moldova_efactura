@@ -1,39 +1,46 @@
 {
+ "actions": [],
+ "creation": "2026-09-06 11:48:26.732507",
  "doctype": "DocType",
- "name": "Purchase Factura Item",
- "module": "Moldova eFactura",
- "istable": 1,
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "supplier_item_code",
-  "supplier_item_name",
   "item_code",
   "item_name",
+  "supplier_item_code",
+  "supplier_item_name",
   "section_quantity",
   "supplier_uom",
-  "f_uom",
-  "f_qty",
-  "f_conversion_factor",
-  "stock_uom",
-  "stock_qty",
   "uom",
   "qty",
   "conversion_factor",
-  "section_amounts",
-  "f_rate",
-  "f_rate_with_vat",
-  "f_vat_rate",
-  "f_net_amount",
-  "f_vat_amount",
-  "f_amount",
-  "rate",
+  "column_break_lbdl",
+  "stock_uom",
+  "stock_qty",
+  "column_break_qxfl",
+  "f_uom",
+  "f_qty",
+  "f_conversion_factor",
+  "section_break_acfh",
   "rate_with_vat",
-  "net_amount",
-  "vat_amount",
   "amount",
+  "column_break_ixwb",
+  "f_rate_with_vat",
+  "f_amount",
+  "column_break_pcsa",
+  "f_vat_rate",
+  "section_amounts",
+  "rate",
+  "f_rate",
+  "column_break_kemt",
+  "net_amount",
+  "f_net_amount",
+  "column_break_ajzr",
+  "vat_amount",
+  "f_vat_amount",
   "mapping_section",
   "purchase_invoice",
+  "column_break_ovmw",
   "pi_detail"
  ],
  "fields": [
@@ -43,13 +50,12 @@
    "label": "Supplier Item Code"
   },
   {
+   "columns": 3,
    "fieldname": "supplier_item_name",
    "fieldtype": "Small Text",
    "in_list_view": 1,
    "label": "Supplier Item Name",
-   "read_only": 0,
-   "reqd": 1,
-   "columns": 3
+   "reqd": 1
   },
   {
    "fieldname": "item_code",
@@ -74,8 +80,7 @@
    "fieldname": "supplier_uom",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Supplier UOM",
-   "read_only": 0
+   "label": "Supplier UOM"
   },
   {
    "fieldname": "f_uom",
@@ -84,22 +89,21 @@
    "options": "UOM"
   },
   {
+   "default": "1",
    "fieldname": "f_qty",
    "fieldtype": "Float",
    "label": "Quantity In Factura UOM",
-   "read_only": 0,
-   "reqd": 1,
    "precision": "6",
-   "default": "1"
+   "reqd": 1
   },
   {
    "depends_on": "eval:doc.uom != doc.stock_uom || doc.uom != doc.f_uom",
    "fieldname": "f_conversion_factor",
    "fieldtype": "Float",
    "label": "Factura UOM Conversion Factor",
+   "precision": "9",
    "print_hide": 1,
-   "read_only": 1,
-   "precision": "9"
+   "read_only": 1
   },
   {
    "fetch_from": "item_code.stock_uom",
@@ -127,18 +131,18 @@
    "fieldtype": "Float",
    "in_list_view": 1,
    "label": "Quantity",
+   "precision": "6",
    "read_only": 1,
-   "reqd": 1,
-   "precision": "6"
+   "reqd": 1
   },
   {
    "depends_on": "eval:doc.uom != doc.stock_uom || doc.uom != doc.f_uom",
    "fieldname": "conversion_factor",
    "fieldtype": "Float",
    "label": "UOM Conversion Factor",
+   "precision": "9",
    "print_hide": 1,
-   "read_only": 1,
-   "precision": "9"
+   "read_only": 1
   },
   {
    "fieldname": "section_amounts",
@@ -151,7 +155,6 @@
    "fieldtype": "Currency",
    "label": "Net Rate (Factura Currency)",
    "options": "f_currency",
-   "read_only": 0,
    "precision": "6"
   },
   {
@@ -160,15 +163,14 @@
    "fieldtype": "Currency",
    "label": "Rate (Factura Currency)",
    "options": "f_currency",
-   "read_only": 1,
-   "precision": "6"
+   "precision": "6",
+   "read_only": 1
   },
   {
+   "default": "20",
    "fieldname": "f_vat_rate",
    "fieldtype": "Percent",
-   "label": "VAT Rate",
-   "read_only": 0,
-   "default": "20"
+   "label": "VAT Rate"
   },
   {
    "depends_on": "eval:parent.currency !== parent.f_currency",
@@ -176,7 +178,6 @@
    "fieldtype": "Currency",
    "label": "Net Amount (Factura Currency)",
    "options": "f_currency",
-   "read_only": 0,
    "precision": "2"
   },
   {
@@ -185,7 +186,6 @@
    "fieldtype": "Currency",
    "label": "VAT Amount (Factura Currency)",
    "options": "f_currency",
-   "read_only": 0,
    "precision": "2"
   },
   {
@@ -194,16 +194,16 @@
    "fieldtype": "Currency",
    "label": "Amount (Factura Currency)",
    "options": "f_currency",
-   "read_only": 1,
-   "precision": "2"
+   "precision": "2",
+   "read_only": 1
   },
   {
    "fieldname": "rate",
    "fieldtype": "Currency",
    "label": "Net Rate",
    "options": "currency",
-   "read_only": 1,
-   "precision": "6"
+   "precision": "6",
+   "read_only": 1
   },
   {
    "fieldname": "rate_with_vat",
@@ -211,24 +211,24 @@
    "in_list_view": 1,
    "label": "Rate",
    "options": "currency",
-   "read_only": 1,
-   "precision": "6"
+   "precision": "6",
+   "read_only": 1
   },
   {
    "fieldname": "net_amount",
    "fieldtype": "Currency",
    "label": "Net Amount",
    "options": "currency",
-   "read_only": 1,
-   "precision": "2"
+   "precision": "2",
+   "read_only": 1
   },
   {
    "fieldname": "vat_amount",
    "fieldtype": "Currency",
    "label": "VAT Amount",
    "options": "currency",
-   "read_only": 1,
-   "precision": "2"
+   "precision": "2",
+   "read_only": 1
   },
   {
    "fieldname": "amount",
@@ -236,8 +236,8 @@
    "in_list_view": 1,
    "label": "Amount",
    "options": "currency",
-   "read_only": 1,
-   "precision": "2"
+   "precision": "2",
+   "read_only": 1
   },
   {
    "fieldname": "mapping_section",
@@ -257,12 +257,53 @@
    "fieldname": "purchase_invoice",
    "fieldtype": "Link",
    "label": "Purchase Invoice",
+   "no_copy": 1,
    "options": "Purchase Invoice",
-   "read_only": 1,
-   "no_copy": 1
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_lbdl",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_qxfl",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_acfh",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_ixwb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_pcsa",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_kemt",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_ajzr",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_ovmw",
+   "fieldtype": "Column Break"
   }
  ],
- "permissions": [],
+ "istable": 1,
  "links": [],
- "actions": []
+ "modified": "2026-09-06 23:40:47.113250",
+ "modified_by": "Administrator",
+ "module": "Moldova eFactura",
+ "name": "Purchase Factura Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
 }

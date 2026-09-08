@@ -10,6 +10,7 @@ erpnext_moldova_efactura.patches.v2_0.rename_sef_customer_to_party
 erpnext_moldova_efactura.patches.v3_0.rename_pf_original_prefix
 erpnext_moldova_efactura.patches.v3_0.align_pf_currency_uom
 erpnext_moldova_efactura.patches.v3_0.unify_pf_header_fields
+erpnext_moldova_efactura.patches.v3_0.add_sef_lookup_indexes
 # Patches added in this section will be executed after doctypes are migrated
 erpnext_moldova_efactura.patches.v1_0.migrate_sales_invoice_fiscal_status
 erpnext_moldova_efactura.patches.v1_0.fix_efactura_cancelled_status_spelling

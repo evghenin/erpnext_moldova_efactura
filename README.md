@@ -46,7 +46,7 @@ Version 3 adds **Purchase Factura (PF)** for fiscal invoices received outside th
 #### Purchase Factura (version 3)
 
 - Manually register a Moldovan purchase factura received on paper. Preserve its original series, number, dates, issuer/recipient IDNO, VAT details, item values, references, and an optional private scan.
-- Import the observed **Orange Moldova** and **ARAX-IMPEX** PDFs, or a photographed/scanned paper factura, from **Purchase Factura → Import Document**. PDF import prefers the embedded text layer; JPG/JPEG/PNG import uses local Tesseract OCR (`ron`, `rus`, and `eng`) after orientation and contrast normalization and table-line suppression. The importer preserves the private original and its hash and creates a PF draft only when the required requisites and all extracted arithmetic reconcile.
+- Import the observed **Orange Moldova** and **ARAX-IMPEX** PDFs, or a photographed/scanned paper factura, from **Purchase Factura → Import Document**. PDF import prefers the embedded text layer. JPG/JPEG/PNG import sends a copy of the image to **Google Gemini** (API key in eFactura Settings → Purchase → Paper Import) and validates the returned JSON locally. Numbered bilingual forms and retail till facturas (for example METRO: `SERIA … NR.`, `Bon fiscal`, EAN `Cod articol`, packing `Mod amb.`) are both supported. The private original and its hash stay in ERPNext. A PF draft is created only when the required requisites and all extracted arithmetic reconcile.
 - Detect embedded PDF signature fields and retain their format and declared time. Imported signatures remain `Not Checked`: PDF import does not claim certificate trust, revocation, trusted timestamp, or complete signature validity.
 - Match Company and Supplier through the configured IDNO fields. Creating a Supplier from PF prefills its name, configured IDNO field and fiscal territory, as in PEF. Reuse an existing supplier Item/UOM mapping when one is unambiguous; otherwise the user maps the Item, Factura UOM, purchase UOM before review.
 - PF header fields follow PEF naming: `supplier_party_type` / `supplier_party` identify the ERP party, while values read from the original use `f_*` counterparts of PEF's `ef_*` fields. This includes `f_series`, `f_number`, and separate supplier/buyer names, IDNO, VAT IDs, taxpayer types, addresses, bank accounts, bank names, and bank codes. Party detail blocks show these source requisites together. Buyer bank fields extend the current PEF schema because the supported PDF originals contain them and PF must preserve all available source information.
@@ -54,8 +54,8 @@ Version 3 adds **Purchase Factura (PF)** for fiscal invoices received outside th
 - Item fields follow PEF: Supplier Item Name, Supplier UOM, Factura UOM (`f_uom`), Quantity In Factura UOM (`f_qty`), Stock UOM/Quantity and purchase UOM/Quantity. `stock_qty = f_qty × f_conversion_factor`; `qty = stock_qty ÷ conversion_factor`. Mapping captures both factors and preserves them against later Item master changes. Quantities and amounts recalculate in the form and on the server.
 - Original prices, VAT and totals use `f_*` counterparts of PEF’s `ef_*` fields; `rate`, `rate_with_vat`, `net_amount`, `vat_amount`, `amount` and document totals hold converted values. The existing **VAT Included in Rate** setting also applies to PF. Purchase Invoice unit prices are derived from the converted line amount and purchase quantity. Its Company-currency exchange rate uses the factura rate when the original currency is the Company currency, otherwise the standard ERPNext exchange-rate lookup.
 - Record who reviewed the original and mapping. Imported source fields and source item values are immutable after import; ERP mapping remains editable in a draft and resets the review when changed.
-- Photo/scan OCR fills the PF draft with the best complete result it can obtain; it does not introduce a separate confirmation flow for individual rows. The user reviews and corrects the resulting document through the normal PF form before marking it Reviewed and submitting it.
-- OCR fails without creating a PF when critical data cannot be read reliably. Critical failures include missing or ambiguous supplier/customer identity and requisites, missing factura identity or totals, item arithmetic that does not reconcile, and row totals that do not reconcile with document totals. The error asks the user to provide a clearer, properly oriented photo or scan of the complete document.
+- Photo/scan AI extraction fills the PF draft with the best complete result it can obtain; it does not introduce a separate confirmation flow for individual rows. The user reviews and corrects the resulting document through the normal PF form before marking it Reviewed and submitting it.
+- Image import fails without creating a PF when critical data cannot be read reliably. Critical failures include missing or ambiguous supplier/customer identity and requisites, missing factura identity or totals, item arithmetic that does not reconcile, and row totals that do not reconcile with document totals. The error asks the user to provide a clearer, properly oriented photo or scan of the complete document. A Gemini API key must be set; extraction does not approve the contents.
 - Create a draft Purchase Invoice or link an existing draft/submitted Purchase Invoice. The PF and PI must match Company, Supplier, currency, every item/UOM/quantity/net amount, VAT total, and grand total. The PI receives the original `series + number` as Supplier Invoice No and the issue date as Supplier Invoice Date.
 - The standard Purchase Invoice creates all General Ledger entries. PF itself creates no accounting or stock entries. A submitted PI linked to a PF shows `Pending (Draft)` until the reviewed PF is submitted, then `Completed`.
 - Prevent a PF and PEF from allocating the same original or Purchase Invoice. Repeated PDF import returns the existing active PF; concurrent creation is serialized per Company. A cancelled original remains in duplicate history and must be amended rather than registered as a new unrelated document.
@@ -203,14 +203,14 @@ Extend existing sales, purchase, accounting, and manager role patterns to SF/PF,
 
 Add settings for supplier processing rules, default accounting mappings, date handling, and enabled intake channels within this app. SF/PF manual entry must work without an API account. Keep original receipt/dispatch, extraction, business review, signature checking, and accounting creation as distinct tracked events so failed automation can be retried without replaying completed actions.
 
-Email intake will associate the message and relevant attachments with a draft and preserve provenance. Extraction should prefer embedded PDF text and use OCR for scans as needed. A critically incomplete or inconsistent extraction fails and requests a better document instead of creating a partial draft. Neither email arrival nor successful OCR approves the contents; the user reviews and corrects the complete draft before submission.
+Email intake will associate the message and relevant attachments with a draft and preserve provenance. Extraction should prefer embedded PDF text and use Gemini for scans as needed. A critically incomplete or inconsistent extraction fails and requests a better document instead of creating a partial draft. Neither email arrival nor successful extraction approves the contents; the user reviews and corrects the complete draft before submission.
 
 #### Delivery stages and acceptance criteria
 
 1. **Examples and field design.** Review documents in [examples](erpnext_moldova_efactura/examples/): paper scans, signed provider PDFs, itemized goods, recurring services, and returns/corrections as available. Record layouts, requisites, signature packaging, VAT/rounding patterns, numbering, and expected ERP mappings. Use findings to finalize the schema and parsing fixtures; do not assume every example is a fiscal original.
 2. **PF manual workflow.** Add PF/items, originals, permissions, review, duplicate checks, PI creation/linking, allocation, and shared Fiscalization. Acceptance: a provider factura can be entered, reviewed, accounted for once, and fully traced from PF to PI and back; cancellation recalculates coverage.
 3. **SF and extended transaction flows.** Add SF/items and SI creation/linking, then validated PR/DN, return, partial, and multiple-document allocation flows. Acceptance: sales, purchases, and their supported returns preserve accounting and stock behavior and enforce coverage limits across all four fiscal types.
-4. **Recurring supplier assistance.** Add Company/Supplier rules, PDF text extraction/OCR, and suggested mappings. Acceptance: supported documents produce complete editable drafts; critical omissions and arithmetic discrepancies reject the import with a request for a better photo or scan; the user reviews the entire PF before submission without a separate row-confirmation workflow.
+4. **Recurring supplier assistance.** Add Company/Supplier rules, PDF text extraction/Gemini image extraction, and suggested mappings. Acceptance: supported documents produce complete editable drafts; critical omissions and arithmetic discrepancies reject the import with a request for a better photo or scan; the user reviews the entire PF before submission without a separate row-confirmation workflow.
 5. **Email intake and signature integration.** Add configured mailbox intake, repeat-safe processing, provenance, and signature verification for supported formats. Acceptance: retries/forwarded copies do not create duplicate facturas or invoices, and failed/unsupported signature checks are accurately reported.
 
 Validation should cover manual paper and signed-PDF workflows; permissions and Company isolation; number/date preservation; VAT, currencies, UOMs and rounding; repeated/concurrent imports; cross-route duplicates and SFS reconciliation; partial/mixed coverage; cancellation/amendment and returns; PI-to-PR propagation; and regression of existing SEF/PEF fetch, sync, signing and allocations. Add targeted tests as each stage is implemented. No SF/PF migration or behavior change is included by documenting this plan.
@@ -224,21 +224,20 @@ bench --site $SITE install-app erpnext_moldova_efactura
 bench --site $SITE migrate
 ```
 
-Then open **eFactura Settings**, set the API URL, and add a **Company API Accounts** row for each legal entity.
+Then open **eFactura Settings**, set the SFS API URL, add a **Company API Accounts** row for each legal entity, and set the **Gemini API Key** under Purchase → Paper Import if you import photographed facturas.
 
 ### Upgrade from 2.x to version 3
 
 Version 3 adds the `pypdf` runtime dependency, the Purchase Factura DocTypes, a Purchase Invoice link, and purchase workspace entries:
 
 ```bash
-sudo apt-get install tesseract-ocr tesseract-ocr-ron tesseract-ocr-rus tesseract-ocr-eng
 cd $PATH_TO_YOUR_BENCH
 bench setup requirements --python erpnext_moldova_efactura
 bench --site $SITE migrate
 bench build --app erpnext_moldova_efactura
 ```
 
-Confirm that **Company IDNO Field** and **Supplier IDNO Field** are configured in eFactura Settings before creating or importing PF records. Configure the existing Purchase Tax Settings and supplier Item/UOM mappings used to create Purchase Invoices.
+Confirm that **Company IDNO Field** and **Supplier IDNO Field** are configured in eFactura Settings before creating or importing PF records. For paper photos, set **Gemini API Key** (and optionally **Gemini Model**, default `gemini-3.6-flash`). Configure the existing Purchase Tax Settings and supplier Item/UOM mappings used to create Purchase Invoices.
 
 The v3 PF currency/UOM migration copies earlier PF originals into the `f_*` fields and preserves their currency, totals, original quantities, purchase quantities and existing links, including submitted records. Records from the first single-currency PF schema start with matching original/document currencies and rate 1; they are not rebooked. Supplier payable-account currency must match its billing currency under the normal ERPNext rules.
 

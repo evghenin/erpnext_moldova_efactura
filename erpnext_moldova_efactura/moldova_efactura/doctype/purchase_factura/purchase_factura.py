@@ -5,7 +5,7 @@ import hashlib
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import cint, flt, now_datetime
+from frappe.utils import cint, flt
 
 from erpnext_moldova_efactura.utils.factura_pdf import FacturaImportError, decimal, money, parse_pdf
 from erpnext_moldova_efactura.utils.party import normalize_idno
@@ -23,7 +23,6 @@ ORIGINAL_FIELDS = (
 	"f_series",
 	"f_number",
 	"issue_date",
-	"issue_time",
 	"delivery_date",
 	"f_supplier_idno",
 	"f_supplier_name",
@@ -62,16 +61,6 @@ ORIGINAL_ITEM_FIELDS = (
 	"f_vat_rate",
 	"f_vat_amount",
 )
-MAPPING_FIELDS = (
-	"item_code",
-	"f_uom",
-	"uom",
-	"qty",
-	"conversion_factor",
-	"f_conversion_factor",
-)
-
-
 def _get_pf(name):
 	doc = frappe.get_doc("Purchase Factura", name)
 	doc.check_permission("write")
@@ -102,6 +91,8 @@ def _identity(company, f_supplier_idno, f_series, f_number):
 
 def _changed(current, previous, key):
 	field = current.meta.get_field(key)
+	if key in {"f_supplier_idno", "f_customer_idno"}:
+		return normalize_idno(current.get(key)) != normalize_idno(previous.get(key))
 	if field and field.fieldtype in ("Currency", "Float", "Percent", "Int", "Check"):
 		return flt(current.get(key), 9) != flt(previous.get(key), 9)
 	return str(current.get(key) or "") != str(previous.get(key) or "")
@@ -122,10 +113,6 @@ class PurchaseFactura(Document):
 			row.purchase_invoice = self.purchase_invoice
 			if not self.purchase_invoice:
 				row.pi_detail = None
-		if self.amended_from:
-			self.reviewed = 0
-			self.reviewed_by = None
-			self.reviewed_on = None
 
 	def validate(self):
 		if not self.company:
@@ -172,41 +159,37 @@ class PurchaseFactura(Document):
 			from erpnext_moldova_efactura.utils.pf_invoice import match_invoice
 
 			match_invoice(self, frappe.get_doc("Purchase Invoice", self.purchase_invoice))
-		if previous and not self.flags.get("linking_pi"):
-			changed_items = len(self.items) != len(previous.items) or any(
-				_changed(a, b, k)
-				for a, b in zip(self.items, previous.items, strict=True)
-				for k in ORIGINAL_ITEM_FIELDS + MAPPING_FIELDS
-			)
-			content_changed = changed_items or any(
-				_changed(self, previous, k)
-				for k in (*ORIGINAL_FIELDS, "company", "supplier_party", "currency", "f_conversion_rate")
-			)
-			new_review = cint(self.reviewed) and not cint(previous.reviewed)
-			if content_changed and not new_review:
-				self.reviewed = 0
-		if cint(self.reviewed) and (not previous or not cint(previous.reviewed)):
-			self.reviewed_by = frappe.session.user
-			self.reviewed_on = now_datetime()
-		elif not cint(self.reviewed):
-			self.reviewed_by = None
-			self.reviewed_on = None
 
 	def _validate_original(self):
 		previous = self.get_doc_before_save()
 		if not previous and self.amended_from:
 			previous = frappe.get_doc("Purchase Factura", self.amended_from)
 		if previous and previous.provider:
-			if any(_changed(self, previous, k) for k in ORIGINAL_FIELDS):
+			changed_fields = [
+				self.meta.get_field(key).label or key
+				for key in ORIGINAL_FIELDS
+				if _changed(self, previous, key)
+			]
+			if changed_fields:
 				frappe.throw(
-					_("Imported original fields cannot be changed; register a corrected original separately")
+					_("Imported original fields changed: {0}; register a corrected original separately").format(
+						", ".join(changed_fields)
+					)
 				)
-			if len(self.items) != len(previous.items) or any(
-				_changed(a, b, k)
-				for a, b in zip(self.items, previous.items, strict=True)
-				for k in ORIGINAL_ITEM_FIELDS
-			):
+			if len(self.items) != len(previous.items):
 				frappe.throw(_("Imported original item values cannot be changed"))
+			for current, old in zip(self.items, previous.items, strict=True):
+				changed_item_fields = [
+					current.meta.get_field(key).label or key
+					for key in ORIGINAL_ITEM_FIELDS
+					if _changed(current, old, key)
+				]
+				if changed_item_fields:
+					frappe.throw(
+						_("Imported original item field changed: {0}; register a corrected original separately").format(
+							", ".join(changed_item_fields)
+						)
+					)
 		elif self.provider and not self.flags.get("pdf_import"):
 			frappe.throw(_("Use Import PDF to set imported original metadata"))
 		self.signature_status = "Not Applicable" if self.original_format == "Paper" else "Not Checked"
@@ -233,7 +216,7 @@ class PurchaseFactura(Document):
 				vat = money(row.f_vat_amount) if row.f_vat_amount else money(net * vat_rate / 100)
 				if abs(net - money(qty * rate)) > decimal("0.01") or abs(
 					vat - money(net * vat_rate / 100)
-				) > decimal("0.01"):
+				) > decimal("0.05"):
 					frappe.throw(
 						_("Row {0}: original quantity, rate, net and VAT amounts do not reconcile").format(
 							row.idx
@@ -244,22 +227,28 @@ class PurchaseFactura(Document):
 				frappe.throw(str(exc))
 			row.f_rate_with_vat = flt(row.f_amount) / flt(row.f_qty)
 			apply_quantities(self, row)
-		self.f_net_total = sum(flt(r.f_net_amount) for r in self.items)
-		self.f_vat_total = sum(flt(r.f_vat_amount) for r in self.items)
-		self.f_total = sum(flt(r.f_amount) for r in self.items)
+		item_net = money(sum(decimal(r.f_net_amount or 0) for r in self.items))
+		item_vat = money(sum(decimal(r.f_vat_amount or 0) for r in self.items))
+		item_total = money(sum(decimal(r.f_amount or 0) for r in self.items))
+		printed_net = money(self.f_net_total) if self.f_net_total else item_net
+		if self.original_format == "Paper" and abs(printed_net - item_net) <= decimal("0.20"):
+			self.f_net_total = float(printed_net)
+			self.f_total = float(item_total)
+			self.f_vat_total = float(money(item_total - printed_net))
+		else:
+			self.f_net_total = float(item_net)
+			self.f_vat_total = float(item_vat)
+			self.f_total = float(item_total)
 		convert_amounts(self)
 
 	def before_submit(self):
-		self.require_reviewed()
+		if self.docstatus == 2 or not self.supplier_party:
+			frappe.throw(_("Select a Supplier before submitting this factura"))
 		if (
 			not self.purchase_invoice
 			or frappe.db.get_value("Purchase Invoice", self.purchase_invoice, "docstatus") != 1
 		):
 			frappe.throw(_("Link and submit the Purchase Invoice before submitting this factura"))
-
-	def require_reviewed(self):
-		if self.docstatus == 2 or not self.reviewed or not self.supplier_party:
-			frappe.throw(_("Select a Supplier and review the original and mapping first"))
 
 	def on_update(self):
 		self._refresh_fiscal_status()
@@ -336,7 +325,7 @@ def import_pdf(file_url: str, company: str):
 
 		for row in data["items"]:
 			item_code, mapped_uom = resolve_item_and_uom(
-				data["supplier_party"], None, row["supplier_item_name"]
+				data["supplier_party"], row.get("supplier_item_code"), row["supplier_item_name"]
 			)
 			if not item_code:
 				continue

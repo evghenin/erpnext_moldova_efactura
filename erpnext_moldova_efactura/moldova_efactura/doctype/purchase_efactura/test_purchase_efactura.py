@@ -435,6 +435,18 @@ class TestEFacturaBuyerUtils(FrappeTestCase):
 		self.assertEqual(normalize_supplier_title("SA MOLDOVA-AGRO"), "MOLDOVA-AGRO SA")
 		self.assertEqual(normalize_supplier_title('S.C. "PRIM-LOGIST" S.R.L.'), "PRIM-LOGIST SRL")
 		self.assertEqual(normalize_supplier_title("SC PRIM-LOGIST SRL"), "PRIM-LOGIST SRL")
+		self.assertEqual(
+			normalize_supplier_title("I.C.S METRO CASH & CARRY MOLDOVA S.R.L."),
+			"METRO CASH & CARRY MOLDOVA SRL",
+		)
+		self.assertEqual(
+			normalize_supplier_title("I.C.S. METRO CASH & CARRY MOLDOVA SRL"),
+			"METRO CASH & CARRY MOLDOVA SRL",
+		)
+		self.assertEqual(
+			normalize_supplier_title("ICS METRO CASH & CARRY MOLDOVA SRL"),
+			"METRO CASH & CARRY MOLDOVA SRL",
+		)
 		self.assertEqual(normalize_supplier_title("SCANIA MOLDOVA"), "SCANIA MOLDOVA")
 		self.assertEqual(normalize_supplier_title(""), "")
 

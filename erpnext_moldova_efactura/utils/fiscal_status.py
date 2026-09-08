@@ -92,7 +92,11 @@ def determine_fiscal_status(si):
     if si.docstatus != 1:
         return None
 
-    customer = frappe.get_doc("Customer", si.customer)
+    customer = frappe.db.get_value(
+        "Customer", si.customer, ["customer_type", "territory"], as_dict=True
+    )
+    if not customer:
+        return None
 
     # 1) Not Company
     if customer.customer_type != "Company":
@@ -166,7 +170,7 @@ def territory_in_fiscal_scope(customer_territory: str) -> bool:
     if not customer_territory:
         return False
 
-    settings = frappe.get_single("eFactura Settings")
+    settings = frappe.get_cached_doc("eFactura Settings")
     fiscal_root = settings.get("fiscal_territory")
 
     if not fiscal_root:
@@ -201,7 +205,7 @@ def territory_in_fiscal_scope(customer_territory: str) -> bool:
     )
 
 def ensure_fiscal_territory_configured(doc=None):
-    settings = frappe.get_single("eFactura Settings")
+    settings = frappe.get_cached_doc("eFactura Settings")
 
     if settings.get("fiscal_territory"):
         return
@@ -211,8 +215,8 @@ def ensure_fiscal_territory_configured(doc=None):
         "Please set Fiscal Territory in eFactura Settings."
     )
 
-    # Add comment to document
-    doc.add_comment("Comment", message)
+    # Activity log (not a Comment card)
+    doc.add_comment("Info", message)
 
     frappe.throw(
         message,

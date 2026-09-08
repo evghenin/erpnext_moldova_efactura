@@ -358,7 +358,7 @@ function normalize_supplier_title(name) {
 		return "";
 	}
 	let text = String(name).replace(/["'«»„“”‘’`]/g, "");
-	text = text.replace(/^\s*(?:S\s*\.\s*C\s*\.?|SC\b)\s*/i, "");
+	text = text.replace(/^\s*(?:S\s*\.\s*C\s*\.?|SC\b|I\s*\.\s*C\s*\.\s*S\s*\.?|ICS\b)\s*/i, "");
 	const hadSrl = /\bS\s*\.\s*R\s*\.\s*L\s*\.?/i.test(text) || /\bSRL\b/i.test(text);
 	const hadSa = /\bS\s*\.\s*A\s*\.?/i.test(text) || /\bSA\b/i.test(text);
 	text = text

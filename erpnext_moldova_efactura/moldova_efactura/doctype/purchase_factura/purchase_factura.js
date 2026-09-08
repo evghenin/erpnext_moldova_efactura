@@ -14,18 +14,18 @@ frappe.ui.form.on("Purchase Factura", {
 		pf_setup_new_supplier(frm);
 		pf_setup_new_item(frm);
 		pf_currency_labels(frm);
-		pf_render_party_details(frm, "supplier");
-		pf_render_party_details(frm, "customer");
 		if (frappe.model.can_create("Purchase Factura")) {
 			frm.add_custom_button(__("Import Document"), erpnext_moldova_efactura.pf.import_pdf);
 		}
-		if (frm.doc.provider) {
+		if (frm.doc.provider && frm.doc.docstatus === 0) {
 			frm.set_intro(
 				__(
-					"Imported original values are preserved. Map the ERP items, check quantities and amounts, then mark the document reviewed. Digital signature verification has not been performed."
+					"Imported original values are preserved. Map the ERP items and check quantities and amounts before submission. Digital signature verification has not been performed."
 				),
 				"blue"
 			);
+		} else {
+			frm.set_intro();
 		}
 		const originals = [
 			"original_format",
@@ -33,7 +33,6 @@ frappe.ui.form.on("Purchase Factura", {
 			"f_series",
 			"f_number",
 			"issue_date",
-			"issue_time",
 			"delivery_date",
 			"f_supplier_idno",
 			"f_supplier_name",
@@ -93,6 +92,19 @@ frappe.ui.form.on("Purchase Factura", {
 				__("Actions")
 			);
 		} else {
+			if (frappe.model.can_create("Purchase Order")) {
+				frm.add_custom_button(
+					__("Purchase Order"),
+					() => {
+						if (frm.is_dirty()) return frappe.msgprint(__("Save the factura first"));
+						frappe.model.open_mapped_doc({
+							method: pf_invoice_api + "make_purchase_order",
+							frm,
+						});
+					},
+					__("Create")
+				);
+			}
 			if (frappe.model.can_create("Purchase Invoice")) {
 				frm.add_custom_button(
 					__("Purchase Invoice"),
@@ -151,7 +163,7 @@ frappe.ui.form.on("Purchase Factura", {
 function pf_supplier_title(name) {
 	// Use the same legal-name normalization as Purchase eFactura.
 	let text = String(name || "").replace(/["'«»„“”‘’`]/g, "");
-	text = text.replace(/^\s*(?:S\s*\.\s*C\s*\.?|SC\b)\s*/i, "");
+	text = text.replace(/^\s*(?:S\s*\.\s*C\s*\.?|SC\b|I\s*\.\s*C\s*\.\s*S\s*\.?|ICS\b)\s*/i, "");
 	const hadSrl = /\bS\s*\.\s*R\s*\.\s*L\s*\.?/i.test(text) || /\bSRL\b/i.test(text);
 	const hadSa = /\bS\s*\.\s*A\s*\.?/i.test(text) || /\bSA\b/i.test(text);
 	text = text
@@ -220,31 +232,6 @@ async function pf_party_defaults(frm) {
 	await frm.set_value(values);
 }
 
-function pf_render_party_details(frm, party) {
-	const prefix = `f_${party}_`;
-	const rows = [
-		[party === "supplier" ? __("Supplier Name") : __("Buyer Name"), frm.doc[prefix + "name"]],
-		[__("IDNO"), frm.doc[prefix + "idno"]],
-		[__("VAT ID"), frm.doc[prefix + "vat_id"]],
-		[__("Taxpayer Type"), frm.doc[prefix + "taxpayer_type"]],
-		[__("Address"), frm.doc[prefix + "address"]],
-		[__("Bank account"), frm.doc[prefix + "bank_account"]],
-		[__("Bank name"), frm.doc[prefix + "bank_name"]],
-		[__("Bank code"), frm.doc[prefix + "bank_code"]],
-	].filter((row) => row[1]);
-	const html = rows.length
-		? `<table class="table table-bordered">${rows
-				.map(
-					([label, value]) =>
-						`<tr><td style="width: 35%"><strong>${frappe.utils.escape_html(
-							label
-						)}</strong></td><td>${frappe.utils.escape_html(String(value))}</td></tr>`
-				)
-				.join("")}</table>`
-		: `<p class="text-muted">${__("No original party details")}</p>`;
-	frm.set_df_property(prefix + "details", "options", html);
-}
-
 function pf_currency_labels(frm) {
 	frm.set_currency_labels(["net_total", "vat_total", "total"], frm.doc.currency);
 	frm.set_currency_labels(["f_net_total", "f_vat_total", "f_total"], frm.doc.f_currency);
@@ -273,7 +260,6 @@ function pf_currency_changed(frm) {
 
 async function pf_preview(frm) {
 	if (frm._pf_preview_running || frm.doc.docstatus !== 0) return;
-	frm.set_value("reviewed", 0);
 	pf_currency_labels(frm);
 	if (!frm.doc.company || !(frm.doc.items || []).length) return;
 	if (frm.doc.items.some((r) => !flt(r.f_qty))) return;

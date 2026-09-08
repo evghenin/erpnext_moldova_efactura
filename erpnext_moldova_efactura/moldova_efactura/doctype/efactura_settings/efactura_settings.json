@@ -39,6 +39,9 @@
   "do_not_create_cancelled_invoices",
   "purchases_docs_section",
   "copy_date_from_factura",
+  "paper_import_section",
+  "gemini_api_key",
+  "gemini_model",
   "buying_tax_section",
   "company_settings"
  ],
@@ -236,6 +239,26 @@
    "label": "Copy Issue Date to Purchase Invoice / Order"
   },
   {
+   "fieldname": "paper_import_section",
+   "fieldtype": "Section Break",
+   "label": "Paper Import"
+  },
+  {
+   "description": "Google Gemini API key used to read photographed or scanned Purchase Factura images. The original file stays in ERPNext; a copy of the image is sent to Google for extraction.",
+   "fieldname": "gemini_api_key",
+   "fieldtype": "Password",
+   "label": "Gemini API Key",
+   "permlevel": 1
+  },
+  {
+   "default": "gemini-3.6-flash",
+   "description": "Gemini model used for paper factura extraction. Retired names such as gemini-2.5-flash are mapped automatically.",
+   "fieldname": "gemini_model",
+   "fieldtype": "Data",
+   "label": "Gemini Model",
+   "permlevel": 1
+  },
+  {
    "fieldname": "buying_tax_section",
    "fieldtype": "Section Break",
    "label": "Purchase Tax Settings"
@@ -271,7 +294,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-08-23 19:45:00.000000",
+ "modified": "2026-09-07 22:55:00.000000",
  "modified_by": "Administrator",
  "module": "Moldova eFactura",
  "name": "eFactura Settings",

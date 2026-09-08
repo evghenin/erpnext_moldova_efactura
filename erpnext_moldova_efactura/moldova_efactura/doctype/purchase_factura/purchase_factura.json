@@ -1,60 +1,54 @@
 {
- "doctype": "DocType",
- "name": "Purchase Factura",
- "module": "Moldova eFactura",
+ "actions": [],
  "autoname": "naming_series:",
- "naming_rule": "By \"Naming Series\" field",
- "is_submittable": 1,
- "track_changes": 1,
- "allow_rename": 0,
+ "creation": "2026-09-06 23:17:50.310913",
+ "doctype": "DocType",
  "engine": "InnoDB",
- "sort_field": "modified",
- "sort_order": "DESC",
  "field_order": [
   "main_section",
   "naming_series",
-  "company",
-  "supplier_party_type",
-  "supplier_party",
-  "original_format",
-  "column_main",
   "f_series",
   "f_number",
+  "column_main",
   "issue_date",
   "delivery_date",
-  "issue_time",
+  "column_break_lvcm",
+  "company",
+  "purchase_invoice",
   "section_currency",
   "currency",
+  "column_break_bnxa",
   "f_currency",
   "f_conversion_rate",
   "original_section",
+  "original_format",
   "original_file",
-  "provider",
+  "column_break_sapi",
   "signature_status",
-  "reviewed",
-  "reviewed_by",
-  "reviewed_on",
-  "purchase_invoice",
+  "provider",
   "party_section",
-  "f_supplier_details",
-  "f_supplier_idno",
+  "supplier_party_type",
+  "supplier_party",
   "f_supplier_name",
+  "f_supplier_idno",
   "f_supplier_vat_id",
   "f_supplier_taxpayer_type",
-  "f_supplier_address",
+  "column_break_rxdr",
   "f_supplier_bank_account",
   "f_supplier_bank_name",
   "f_supplier_bank_code",
+  "f_supplier_address",
+  "section_break_loez",
   "column_party",
-  "f_customer_details",
-  "f_customer_idno",
   "f_customer_name",
+  "f_customer_idno",
   "f_customer_vat_id",
   "f_customer_taxpayer_type",
-  "f_customer_address",
+  "column_break_saqe",
   "f_customer_bank_account",
   "f_customer_bank_name",
   "f_customer_bank_code",
+  "f_customer_address",
   "references_section",
   "f_provider_reference",
   "f_provider_account",
@@ -66,13 +60,13 @@
   "items",
   "totals_section",
   "net_total",
-  "vat_total",
-  "total",
-  "column_totals",
   "f_net_total",
+  "column_totals",
+  "vat_total",
   "f_vat_total",
+  "column_break_cael",
+  "total",
   "f_total",
-  "notes",
   "audit_section",
   "signature_details",
   "extracted_text",
@@ -86,35 +80,35 @@
    "fieldtype": "Section Break"
   },
   {
+   "default": "ACC-PF-.YYYY.-",
    "fieldname": "naming_series",
    "fieldtype": "Select",
    "label": "Series",
    "options": "ACC-PF-.YYYY.-",
-   "default": "ACC-PF-.YYYY.-",
    "reqd": 1
   },
   {
    "fieldname": "company",
    "fieldtype": "Link",
+   "in_standard_filter": 1,
    "label": "Company",
    "options": "Company",
-   "reqd": 1,
-   "in_standard_filter": 1
+   "reqd": 1
   },
   {
    "fieldname": "supplier_party",
    "fieldtype": "Dynamic Link",
-   "label": "Party",
-   "options": "supplier_party_type",
    "in_list_view": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "label": "Supplier Party",
+   "options": "supplier_party_type"
   },
   {
+   "default": "Paper",
    "fieldname": "original_format",
    "fieldtype": "Select",
    "label": "Original Format",
    "options": "Paper\nDigitally Signed PDF\nOther Electronic",
-   "default": "Paper",
    "reqd": 1
   },
   {
@@ -124,16 +118,16 @@
   {
    "fieldname": "f_series",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Factura Series",
-   "reqd": 1,
-   "in_list_view": 1
+   "reqd": 1
   },
   {
    "fieldname": "f_number",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Factura Number",
-   "reqd": 1,
-   "in_list_view": 1
+   "reqd": 1
   },
   {
    "fieldname": "issue_date",
@@ -155,7 +149,8 @@
   },
   {
    "fieldname": "original_section",
-   "fieldtype": "Section Break"
+   "fieldtype": "Section Break",
+   "label": "Original Source"
   },
   {
    "fieldname": "original_file",
@@ -169,46 +164,25 @@
    "read_only": 1
   },
   {
+   "default": "Not Applicable",
    "fieldname": "signature_status",
    "fieldtype": "Data",
    "label": "Signature Status",
-   "default": "Not Applicable",
    "read_only": 1
-  },
-  {
-   "fieldname": "reviewed",
-   "fieldtype": "Check",
-   "label": "Original and Mapping Reviewed",
-   "default": "0",
-   "description": "Confirm requisites, item mapping and amounts before creating a Purchase Invoice or submitting."
-  },
-  {
-   "fieldname": "reviewed_by",
-   "fieldtype": "Link",
-   "label": "Reviewed By",
-   "options": "User",
-   "read_only": 1,
-   "no_copy": 1
-  },
-  {
-   "fieldname": "reviewed_on",
-   "fieldtype": "Datetime",
-   "label": "Reviewed On",
-   "read_only": 1,
-   "no_copy": 1
   },
   {
    "fieldname": "purchase_invoice",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "Purchase Invoice",
-   "options": "Purchase Invoice",
-   "read_only": 1,
    "no_copy": 1,
-   "in_list_view": 1
+   "options": "Purchase Invoice",
+   "read_only": 1
   },
   {
    "fieldname": "party_section",
-   "fieldtype": "Section Break"
+   "fieldtype": "Section Break",
+   "label": "Supplier"
   },
   {
    "fieldname": "f_supplier_idno",
@@ -233,18 +207,18 @@
   {
    "fieldname": "f_customer_idno",
    "fieldtype": "Data",
-   "label": "Buyer IDNO",
+   "label": "Customer IDNO",
    "reqd": 1
   },
   {
    "fieldname": "f_customer_vat_id",
    "fieldtype": "Data",
-   "label": "Buyer VAT ID"
+   "label": "Customer VAT ID"
   },
   {
+   "collapsible": 1,
    "fieldname": "references_section",
-   "fieldtype": "Section Break",
-   "collapsible": 1
+   "fieldtype": "Section Break"
   },
   {
    "fieldname": "f_provider_reference",
@@ -310,24 +284,20 @@
   {
    "fieldname": "total",
    "fieldtype": "Currency",
+   "in_list_view": 1,
    "label": "Total",
    "options": "currency",
-   "read_only": 1,
-   "in_list_view": 1
+   "read_only": 1
   },
   {
-   "fieldname": "notes",
-   "fieldtype": "Small Text",
-   "label": "Notes"
-  },
-  {
+   "collapsible": 1,
    "fieldname": "audit_section",
-   "fieldtype": "Section Break",
-   "collapsible": 1
+   "fieldtype": "Section Break"
   },
   {
    "fieldname": "signature_details",
    "fieldtype": "Code",
+   "hidden": 1,
    "label": "Signature Details",
    "options": "JSON",
    "read_only": 1
@@ -335,30 +305,32 @@
   {
    "fieldname": "extracted_text",
    "fieldtype": "Long Text",
+   "hidden": 1,
    "label": "Extracted Text",
    "read_only": 1
   },
   {
    "fieldname": "file_hash",
    "fieldtype": "Data",
+   "hidden": 1,
    "label": "File Hash",
    "read_only": 1
   },
   {
    "fieldname": "identity_key",
    "fieldtype": "Data",
-   "label": "Identity Key",
    "hidden": 1,
-   "read_only": 1,
-   "no_copy": 1
+   "label": "Identity Key",
+   "no_copy": 1,
+   "read_only": 1
   },
   {
    "fieldname": "amended_from",
    "fieldtype": "Link",
    "label": "Amended From",
+   "no_copy": 1,
    "options": "Purchase Factura",
-   "read_only": 1,
-   "no_copy": 1
+   "read_only": 1
   },
   {
    "depends_on": "eval:doc.currency!==doc.f_currency",
@@ -366,7 +338,6 @@
    "fieldtype": "Link",
    "label": "Factura Currency",
    "options": "Currency",
-   "read_only": 0,
    "reqd": 1
   },
   {
@@ -415,17 +386,12 @@
    "fieldtype": "Column Break"
   },
   {
+   "default": "Supplier",
    "fieldname": "supplier_party_type",
    "fieldtype": "Select",
-   "label": "Party Type",
+   "label": "Supplier Party Type",
    "options": "Supplier",
-   "default": "Supplier",
    "read_only": 1
-  },
-  {
-   "fieldname": "f_supplier_details",
-   "fieldtype": "HTML",
-   "label": "Supplier Details"
   },
   {
    "fieldname": "f_supplier_taxpayer_type",
@@ -454,51 +420,79 @@
    "label": "Supplier Bank Code"
   },
   {
-   "fieldname": "f_customer_details",
-   "fieldtype": "HTML",
-   "label": "Buyer Details"
-  },
-  {
    "fieldname": "f_customer_name",
    "fieldtype": "Data",
-   "label": "Buyer Name"
+   "label": "Customer Name"
   },
   {
    "fieldname": "f_customer_taxpayer_type",
    "fieldtype": "Select",
-   "label": "Buyer Taxpayer Type",
+   "label": "Customer Taxpayer Type",
    "options": "\nCompany\nIndividual\nNon-Resident"
   },
   {
    "fieldname": "f_customer_address",
    "fieldtype": "Small Text",
-   "label": "Buyer Address"
+   "label": "Customer Address"
   },
   {
    "fieldname": "f_customer_bank_account",
    "fieldtype": "Data",
-   "label": "Buyer Bank Account"
+   "label": "Customer Bank Account"
   },
   {
    "fieldname": "f_customer_bank_name",
    "fieldtype": "Data",
-   "label": "Buyer Bank Name"
+   "label": "Customer Bank Name"
   },
   {
    "fieldname": "f_customer_bank_code",
    "fieldtype": "Data",
-   "label": "Buyer Bank Code"
+   "label": "Customer Bank Code"
   },
   {
-   "fieldname": "issue_time",
-   "fieldtype": "Time",
-   "label": "Issue Time"
+   "fieldname": "section_break_loez",
+   "fieldtype": "Section Break",
+   "label": "Customer"
+  },
+  {
+   "fieldname": "column_break_saqe",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_rxdr",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_lvcm",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_cael",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_bnxa",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_sapi",
+   "fieldtype": "Column Break"
   }
  ],
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-09-06 23:33:28.314771",
+ "modified_by": "Administrator",
+ "module": "Moldova eFactura",
+ "name": "Purchase Factura",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
  "permissions": [
   {
    "amend": 1,
    "cancel": 1,
+   "create": 1,
    "delete": 1,
    "email": 1,
    "export": 1,
@@ -508,12 +502,12 @@
    "role": "System Manager",
    "share": 1,
    "submit": 1,
-   "write": 1,
-   "create": 1
+   "write": 1
   },
   {
    "amend": 1,
    "cancel": 1,
+   "create": 1,
    "delete": 1,
    "email": 1,
    "export": 1,
@@ -523,12 +517,12 @@
    "role": "eFactura Manager",
    "share": 1,
    "submit": 1,
-   "write": 1,
-   "create": 1
+   "write": 1
   },
   {
    "amend": 1,
    "cancel": 1,
+   "create": 1,
    "delete": 1,
    "email": 1,
    "export": 1,
@@ -538,12 +532,12 @@
    "role": "Accounts Manager",
    "share": 1,
    "submit": 1,
-   "write": 1,
-   "create": 1
+   "write": 1
   },
   {
    "amend": 1,
    "cancel": 1,
+   "create": 1,
    "email": 1,
    "print": 1,
    "read": 1,
@@ -551,12 +545,12 @@
    "role": "Accounts User",
    "share": 1,
    "submit": 1,
-   "write": 1,
-   "create": 1
+   "write": 1
   },
   {
    "amend": 1,
    "cancel": 1,
+   "create": 1,
    "delete": 1,
    "email": 1,
    "export": 1,
@@ -566,10 +560,10 @@
    "role": "Purchase Manager",
    "share": 1,
    "submit": 1,
-   "write": 1,
-   "create": 1
+   "write": 1
   },
   {
+   "create": 1,
    "email": 1,
    "print": 1,
    "read": 1,
@@ -577,11 +571,12 @@
    "role": "Purchase User",
    "share": 1,
    "submit": 1,
-   "write": 1,
-   "create": 1
+   "write": 1
   }
  ],
- "links": [],
- "actions": [],
- "states": []
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
 }

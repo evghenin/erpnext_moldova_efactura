@@ -8,7 +8,10 @@ import frappe
 from frappe import _
 
 _QUOTE_CHARS = '"\'«»„“”‘’`'
-_LEADING_SC = re.compile(r"^\s*(?:S\s*\.\s*C\s*\.?|SC\b)\s*", flags=re.IGNORECASE)
+_LEADING_SC = re.compile(
+	r"^\s*(?:S\s*\.\s*C\s*\.?|SC\b|I\s*\.\s*C\s*\.\s*S\s*\.?|ICS\b)\s*",
+	flags=re.IGNORECASE,
+)
 _SRL_DOTTED = re.compile(r"\bS\s*\.\s*R\s*\.\s*L\s*\.?", flags=re.IGNORECASE)
 _SRL_WORD = re.compile(r"\bSRL\b", flags=re.IGNORECASE)
 _SA_DOTTED = re.compile(r"\bS\s*\.\s*A\s*\.?", flags=re.IGNORECASE)
@@ -16,7 +19,7 @@ _SA_WORD = re.compile(r"\bSA\b", flags=re.IGNORECASE)
 
 
 def normalize_supplier_title(name: str | None) -> str:
-	"""Uppercase supplier title: strip quotes, drop leading S.C./SC, move S.R.L./S.A. to the end."""
+	"""Uppercase supplier title: strip quotes, drop leading S.C./SC/I.C.S, move S.R.L./S.A. to the end."""
 	if not name:
 		return ""
 	text = str(name).translate({ord(ch): None for ch in _QUOTE_CHARS})

@@ -20,7 +20,6 @@ from frappe.model.mapper import get_mapped_doc
 from frappe.utils import cint, flt
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient, EFacturaAPIError
 from erpnext_moldova_efactura.utils.api_response import invoice_status_map, sfs_action_error
-from erpnext_moldova_efactura.utils.invoice_xml import unescape_sfs_text
 from erpnext_moldova_efactura.utils.taxpayer_type import taxpayer_type_from_sfs, taxpayer_type_to_sfs
 from erpnext_moldova_efactura.utils.timeline import log_event, log_status_change
 from lxml import etree
@@ -275,7 +274,27 @@ class SaleseFactura(Document):
         if log:
             log_status_change(self, old_ef, self.ef_status)
 
-        # --- Update linked Sales Invoice fiscal status ---
+        # Linked SI/PR fiscalization is expensive and grows with document volume.
+        # Skip it on routine draft saves; run on submit/cancel or coverage changes.
+        if not self._should_sync_linked_fiscal():
+            return
+
+        self._sync_linked_fiscal_status()
+
+    def _should_sync_linked_fiscal(self) -> bool:
+        if self.flags.get("sync_linked_fiscal"):
+            return True
+        if cint(self.docstatus) != 0:
+            return True
+        before = self.get_doc_before_save()
+        if not before:
+            return bool(sales_invoice_of(self) or self.get("items"))
+        for field in ("sales_invoice", "ef_status", "total", "docstatus", "is_return"):
+            if self.get(field) != before.get(field):
+                return True
+        return False
+
+    def _sync_linked_fiscal_status(self):
         si_name = sales_invoice_of(self)
         if si_name:
             try:
@@ -319,6 +338,10 @@ class SaleseFactura(Document):
         if not si_name:
             return
 
+        item_codes = list({row.item_code for row in self.items if row.item_code})
+        if not item_codes:
+            return
+
         current_qty = {}
         for item in self.items:
             if not item.item_code:
@@ -330,29 +353,36 @@ class SaleseFactura(Document):
         exclude_name = self.name if self.name and not self.is_new() else None
         efactura_names = get_quota_efactura_names(si_name, exclude_name=exclude_name)
 
+        si_qty_by_item = {
+            row.item_code: flt(row.stock_qty)
+            for row in frappe.get_all(
+                "Sales Invoice Item",
+                filters={"parent": si_name, "item_code": ["in", item_codes]},
+                fields=["item_code", "sum(stock_qty) as stock_qty"],
+                group_by="item_code",
+            )
+        }
+        used_qty_by_item: dict[str, float] = {}
+        if efactura_names:
+            used_qty_by_item = {
+                row.item_code: flt(row.stock_qty)
+                for row in frappe.get_all(
+                    "Sales eFactura Item",
+                    filters={"item_code": ["in", item_codes], "parent": ["in", efactura_names]},
+                    fields=["item_code", "sum(stock_qty) as stock_qty"],
+                    group_by="item_code",
+                )
+            }
+
         for item in self.items:
             if not item.item_code:
                 continue
-            total_si_stock_qty = (
-                frappe.db.get_value(
-                    "Sales Invoice Item",
-                    {"parent": si_name, "item_code": item.item_code},
-                    "sum(stock_qty)",
-                )
-                or 0
-            )
-            used_stock_qty = 0
-            if efactura_names:
-                used_stock_qty = (
-                    frappe.db.get_value(
-                        "Sales eFactura Item",
-                        {"item_code": item.item_code, "parent": ["in", efactura_names]},
-                        "sum(stock_qty)",
-                    )
-                    or 0
-                )
             sibling_qty = current_qty.get(item.item_code, 0) - flt(item.stock_qty)
-            item.available_stock_qty = flt(total_si_stock_qty) - flt(used_stock_qty) - flt(sibling_qty)
+            item.available_stock_qty = (
+                si_qty_by_item.get(item.item_code, 0.0)
+                - used_qty_by_item.get(item.item_code, 0.0)
+                - sibling_qty
+            )
 
     def set_ef_currency_from_settings(self):
         ef_cur = frappe.db.get_single_value("eFactura Settings", "currency")
@@ -621,34 +651,30 @@ class SaleseFactura(Document):
         if self.docstatus == 2:
             return
 
-        idno_fields = {}
-
-        idno_fields['Company'] = frappe.db.get_single_value(
-            "eFactura Settings", "company_idno_field"
-        )
-        if not idno_fields['Company']:
-            return
-
-        idno_fields["Supplier"] = frappe.db.get_single_value(
-            "eFactura Settings", "supplier_idno_field"
-        )
-        if not idno_fields["Supplier"]:
-            return
-
-        idno_fields["Customer"] = frappe.db.get_single_value(
-            "eFactura Settings", "customer_idno_field"
-        )
-        if not idno_fields["Customer"]:
+        settings = frappe.get_cached_doc("eFactura Settings")
+        idno_fields = {
+            "Company": settings.get("company_idno_field"),
+            "Supplier": settings.get("supplier_idno_field"),
+            "Customer": settings.get("customer_idno_field"),
+        }
+        if not all(idno_fields.values()):
             return
 
         self.flags.ef_autofill_running = True
+        client = None
+
+        def get_client():
+            # Lazy: loading the SOAP WSDL is expensive; skip when nothing needs SFS.
+            nonlocal client
+            if client is None:
+                from erpnext_moldova_efactura.api_client import EFacturaAPIClient
+
+                client = EFacturaAPIClient.from_settings(company=self.company)
+            return client
+
         try:
-            from erpnext_moldova_efactura.api_client import EFacturaAPIClient
-
-            client = EFacturaAPIClient.from_settings(company=self.company)
-
             self._autofill_party_block(
-                client,
+                get_client,
                 "supplier",
                 "Company",
                 self.company,
@@ -656,7 +682,7 @@ class SaleseFactura(Document):
             )
             ptype = sef_party_type(self)
             self._autofill_party_block(
-                client,
+                get_client,
                 "customer",
                 ptype,
                 sef_customer(self) or self.get("customer_party") or self.get("customer"),
@@ -665,7 +691,7 @@ class SaleseFactura(Document):
 
             if self.transporter_party_type and self.transporter_party:
                 self._autofill_party_block(
-                    client,
+                    get_client,
                     "transporter",
                     self.transporter_party_type,
                     self.transporter_party,
@@ -680,20 +706,26 @@ class SaleseFactura(Document):
         finally:
             self.flags.ef_autofill_running = False
 
-
     def _clear_party_block(self, prefix):
-        self.db_set(f"ef_{prefix}_idno", "", update_modified=False)
-        self.db_set(f"ef_{prefix}_vat_id", "", update_modified=False)
-        self.db_set(f"ef_{prefix}_name", "", update_modified=False)
-        self.db_set(f"ef_{prefix}_address", "", update_modified=False)
-        self.db_set(f"ef_{prefix}_taxpayer_type", "", update_modified=False)
-        self.db_set(f"ef_{prefix}_is_user", "", update_modified=False)
-        self.db_set(f"ef_{prefix}_bank_account", "", update_modified=False)
-        self.db_set(f"ef_{prefix}_bank_name", "", update_modified=False)
-        self.db_set(f"ef_{prefix}_bank_code", "", update_modified=False)
+        fields = (
+            f"ef_{prefix}_idno",
+            f"ef_{prefix}_vat_id",
+            f"ef_{prefix}_name",
+            f"ef_{prefix}_address",
+            f"ef_{prefix}_taxpayer_type",
+            f"ef_{prefix}_is_user",
+            f"ef_{prefix}_bank_account",
+            f"ef_{prefix}_bank_name",
+            f"ef_{prefix}_bank_code",
+        )
+        values = {field: getattr(self, field, None) or "" for field in fields}
+        if not any(values.values()):
+            return
+        for field in fields:
+            if values[field]:
+                self.db_set(field, "", update_modified=False)
 
-
-    def _autofill_party_block(self, client, prefix, party_doctype, party_name, idno_fieldname):
+    def _autofill_party_block(self, get_client, prefix, party_doctype, party_name, idno_fieldname):
         if not party_doctype or not party_name or not idno_fieldname:
             return
 
@@ -705,12 +737,10 @@ class SaleseFactura(Document):
         if not party_idno:
             return
 
-        # If IDNO already filled and equal to party IDNO do not overwrite
+        # If IDNO already filled and equal to party IDNO do not overwrite / call SFS.
         idno_value = getattr(self, f"ef_{prefix}_idno", None)
-
         if not idno_value or party_idno != idno_value:
-            # 1) GetTaxpayersInfo
-            tax_resp = client.get_taxpayers_info([party_idno])
+            tax_resp = get_client().get_taxpayers_info([party_idno])
             taxpayers = (tax_resp.get("Results") or {}).get("Taxpayer") or []
             taxpayer = taxpayers[0] if taxpayers else {}
 
@@ -728,8 +758,7 @@ class SaleseFactura(Document):
             self.db_set(f"ef_{prefix}_taxpayer_type", taxpayer_type, update_modified=False)
             self.db_set(f"ef_{prefix}_is_user", is_user, update_modified=False)
 
-        # 2) GetBankAccountInfo when the form has a Bank Account link
-        # (supplier uses company_bank_account after the v2 rename).
+        # Bank from local Bank Account only on save (no GetBankAccountInfo / WSDL).
         ba_field = _party_bank_link_field(prefix)
         if ba_field not in self.get_valid_columns():
             return
@@ -742,29 +771,14 @@ class SaleseFactura(Document):
         if not bank_account:
             return
 
-        current_account = getattr(self, f"ef_{prefix}_bank_account", None) or ""
-        if bank_account and (
-            bank_account != current_account
-            or not getattr(self, f"ef_{prefix}_bank_name", None)
-            or not getattr(self, f"ef_{prefix}_bank_code", None)
-        ):
-            try:
-                bank_resp = client.get_bank_account_info(
-                    idno=party_idno, account_number=bank_account
-                )
-                for bank in (bank_resp.get("Results") or {}).get("BankAccount") or []:
-                    if bank.get("AccountNumber") == bank_account:
-                        bank_name = unescape_sfs_text(bank.get("BranchTitle") or "") or bank_name
-                        bank_code = bank.get("BranchCode") or bank_code
-                        break
-            except Exception:
-                frappe.log_error(
-                    frappe.get_traceback(), "eFactura: GetBankAccountInfo failed"
-                )
-
-        self.db_set(f"ef_{prefix}_bank_account", bank_account, update_modified=False)
-        self.db_set(f"ef_{prefix}_bank_name", bank_name, update_modified=False)
-        self.db_set(f"ef_{prefix}_bank_code", bank_code, update_modified=False)
+        updates = {
+            f"ef_{prefix}_bank_account": bank_account,
+            f"ef_{prefix}_bank_name": bank_name,
+            f"ef_{prefix}_bank_code": bank_code,
+        }
+        for field, value in updates.items():
+            if (getattr(self, field, None) or "") != (value or ""):
+                self.db_set(field, value or "", update_modified=False)
 
 @frappe.whitelist()
 def download_xml(efactura_name):
@@ -820,9 +834,9 @@ def update_ef_status(efactura_name):
                 if assigned:
                     log_event(
                         efactura,
-                        _("Assigned series and number {0}{1} from e-Factura.").format(
-                            remote_series, remote_number
-                        ),
+                        "assigned series and number {0}{1} from e-Factura",
+                        remote_series,
+                        remote_number,
                     ) 
 
     else:
@@ -917,7 +931,7 @@ def cancel_invoice(name: str, reason: str | None = None):
     doc.db_set("cancellation_reason", comment, update_modified=False)
     doc.cancellation_reason = comment
     _refresh_sfs_status(doc)
-    log_event(doc, _("Canceled invoice in e-Factura: {0}").format(comment))
+    log_event(doc, "canceled this document in e-Factura: {0}", comment)
     return {"status": doc.status, "ef_status": doc.ef_status, "cancellation_reason": comment}
 
 
@@ -976,9 +990,9 @@ def get_for_sign(efactura_name):
 
         log_event(
             efactura,
-            _("Assigned series and number {0}{1} for signing.").format(
-                efactura.ef_series, efactura.ef_number
-            ),
+            "assigned series and number {0}{1} for signing this document",
+            efactura.ef_series,
+            efactura.ef_number,
         )
 
     xml_content = _generate_invoice_xml(
@@ -1041,7 +1055,7 @@ def send_unsigned(efactura_name):
         # so we need to clear them for unsigned invoices to avoid confusion
         efactura.db_set("ef_series", None, update_modified=False)
         efactura.db_set("ef_number", None, update_modified=False)
-        log_event(efactura, _("Sent unsigned invoice to e-Factura (draft)."))
+        log_event(efactura, "sent unsigned invoice to e-Factura (draft)")
         return {
             "message": _("Successfully sent {0} unsigned invoice(s) to e-Factura system.").format(
                 posted
@@ -1072,9 +1086,11 @@ def update_dates(efactura_name, issue_date, delivery_date):
     ef.db_set("delivery_date", delivery_date, update_modified=False)
     log_event(
         ef,
-        _("Issue Date / Delivery Date updated: {0} / {1} → {2} / {3}").format(
-            old_issue or "—", old_delivery or "—", issue_date, delivery_date
-        ),
+        "updated Issue Date / Delivery Date: {0} / {1} → {2} / {3}",
+        old_issue or "—",
+        old_delivery or "—",
+        issue_date,
+        delivery_date,
     )
 
     return {
@@ -1172,7 +1188,7 @@ def process_signed_xml(name, signature, content):
     # Update status
     ef.db_set("ef_status", sef_status_label(1), update_modified=False)
     ef.set_status()
-    log_event(ef, _("Sent signed invoice to e-Factura."))
+    log_event(ef, "sent signed invoice to e-Factura")
 
     return {
         "message": _("Successfully sent {0} signed invoice(s) to e-Factura system.").format(posted),
@@ -1575,7 +1591,7 @@ def _set_sef_return(name: str, is_return: int):
     # Party is required on the form; a type switch may leave no matching Customer/Supplier.
     doc.flags.ignore_mandatory = True
     _save_sef_links(doc)
-    log_event(doc, _("Unmarked as return.") if not want_return else _("Marked as return."))
+    log_event(doc, "unmarked this document as return" if not want_return else "marked this document as return")
     return doc.as_dict()
 
 
@@ -1622,7 +1638,7 @@ def link_purchase_receipt_return(name: str, purchase_receipt: str):
     from erpnext_moldova_efactura.utils.fiscal_status import sync_pr_fiscal_status
 
     sync_pr_fiscal_status(purchase_receipt)
-    log_event(doc, _("Linked Purchase Receipt Return {0}.").format(purchase_receipt))
+    log_event(doc, "linked Purchase Receipt Return {0}", purchase_receipt)
     return doc.as_dict()
 
 
@@ -1647,7 +1663,7 @@ def unlink_purchase_receipt_return(name: str):
         from erpnext_moldova_efactura.utils.fiscal_status import sync_pr_fiscal_status
 
         sync_pr_fiscal_status(pr_name)
-    log_event(doc, _("Unlinked Purchase Receipt Return."))
+    log_event(doc, "unlinked Purchase Receipt Return")
     return doc.as_dict()
 
 
@@ -1915,7 +1931,14 @@ def _local_bank_details(ba_name: str) -> tuple[str, str, str]:
     """IBAN, bank title and branch code from a Bank Account, without calling SFS."""
     if not ba_name:
         return "", "", ""
-    ba = frappe.get_doc("Bank Account", ba_name)
+    ba = frappe.db.get_value(
+        "Bank Account",
+        ba_name,
+        ["iban", "bank_account_no", "branch_code", "bank"],
+        as_dict=True,
+    )
+    if not ba:
+        return "", "", ""
     account = (ba.iban or ba.bank_account_no or "").strip()
     branch_code = (ba.branch_code or "").strip()
     bank_name = ""

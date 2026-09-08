@@ -60,6 +60,7 @@ frappe.ui.form.on("Purchase Invoice", {
 
 	on_submit(frm) {
 		offer_return_to_purchase_efactura(frm);
+		offer_return_to_purchase_factura(frm);
 	},
 });
 
@@ -69,6 +70,14 @@ function open_purchase_efactura(name) {
 	}
 	frappe.model.clear_doc("Purchase eFactura", name);
 	frappe.set_route("Form", "Purchase eFactura", name);
+}
+
+function open_purchase_factura(name) {
+	if (!name) {
+		return;
+	}
+	frappe.model.clear_doc("Purchase Factura", name);
+	frappe.set_route("Form", "Purchase Factura", name);
 }
 
 function first_purchase_order(frm) {
@@ -201,4 +210,39 @@ function offer_return_to_purchase_efactura(frm) {
 	}
 
 	ask_from_buyers();
+}
+
+function offer_return_to_purchase_factura(frm) {
+	if (!frm.doc || cint(frm.doc.docstatus) !== 1) {
+		return;
+	}
+	if (!frm.doc.purchase_factura || !frappe.model.can_read("Purchase Factura")) {
+		return;
+	}
+
+	const name = frm.doc.purchase_factura;
+	frappe.db.get_value("Purchase Factura", name, "docstatus").then((r) => {
+		if (cint(r?.message?.docstatus) !== 0) {
+			return;
+		}
+		const dialog = new frappe.ui.Dialog({
+			title: __("Return to Purchase Factura"),
+			primary_action_label: __("Open Purchase Factura"),
+			primary_action() {
+				dialog.hide();
+				open_purchase_factura(name);
+			},
+			secondary_action_label: __("Stay here"),
+			secondary_action() {
+				dialog.hide();
+			},
+		});
+		dialog.$body.append(
+			`<p class="frappe-confirm-message">${__(
+				"Purchase Invoice {0} is submitted. Open Purchase Factura {1} to review the linked invoice?",
+				[frappe.utils.escape_html(frm.doc.name), frappe.utils.escape_html(name)]
+			)}</p>`
+		);
+		dialog.show();
+	});
 }

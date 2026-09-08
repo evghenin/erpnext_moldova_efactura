@@ -127,6 +127,7 @@ def imported_fields(data):
 	for row in data["items"]:
 		for old, new in (
 			("description", "supplier_item_name"),
+			("supplier_item_code", "supplier_item_code"),
 			("source_uom", "supplier_uom"),
 			("source_qty", "f_qty"),
 			("source_rate", "f_rate"),
@@ -135,7 +136,8 @@ def imported_fields(data):
 			("vat_amount", "f_vat_amount"),
 			("amount", "f_amount"),
 		):
-			row[new] = row.pop(old)
+			if old in row:
+				row[new] = row.pop(old)
 	return data
 
 
