@@ -2059,6 +2059,35 @@ class TestEFacturaBuyerDoc(FrappeTestCase):
 			unlink_purchase_invoice(doc.name)
 		self.assertIn("before submitting", str(ctx.exception))
 
+	def test_cancel_unlinks_purchase_invoice(self):
+		from erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura import (
+			link_purchase_invoice,
+		)
+
+		item = frappe.db.get_value("Item", {"disabled": 0}, ["name", "stock_uom"], as_dict=True)
+		sup = frappe.db.get_value("Supplier", {}, "name")
+		if not item or not sup:
+			self.skipTest("Need Item and Supplier")
+
+		doc = self._make_buyer("000067024", sup, item, qty=2)
+		prev_incl = frappe.db.get_single_value("eFactura Settings", "vat_included_in_rate")
+		frappe.db.set_single_value("eFactura Settings", "vat_included_in_rate", 0)
+		try:
+			pi = self._make_pi(sup, item.name, 2, item.stock_uom, rate=50)
+			self._align_pi_totals(pi, doc)
+			link_purchase_invoice(doc.name, pi.name)
+			doc.reload()
+			doc.flags.ignore_links = True
+			doc.submit()
+			doc.cancel()
+			doc.reload()
+			self.assertFalse(doc.items[0].purchase_invoice)
+			self.assertFalse(doc.items[0].pi_detail)
+			if frappe.get_meta("Purchase Invoice").has_field("purchase_efactura"):
+				self.assertFalse(frappe.db.get_value("Purchase Invoice", pi.name, "purchase_efactura"))
+		finally:
+			frappe.db.set_single_value("eFactura Settings", "vat_included_in_rate", prev_incl)
+
 	def test_unlink_purchase_receipt_clears_rows(self):
 		from erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura import (
 			unlink_purchase_receipt,

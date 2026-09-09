@@ -810,6 +810,83 @@ class TestSaleseFactura(FrappeTestCase):
 		if territory and frappe.db.exists("Territory", territory):
 			self.assertEqual(defaults.get("territory"), territory)
 
+	def test_cancel_unlinks_sales_documents(self):
+		from erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura import (
+			make_sales_invoice,
+			make_sales_order,
+		)
+
+		company = frappe.db.get_single_value("Global Defaults", "default_company") or frappe.db.get_value(
+			"Company", {}, "name"
+		)
+		item = frappe.db.get_value("Item", {"disabled": 0}, ["name", "stock_uom"], as_dict=True)
+		customer = frappe.db.get_value("Customer", {"disabled": 0}, "name")
+		bank = frappe.db.get_value("Bank Account", {"company": company, "is_company_account": 1}, "name")
+		if not company or not item or not customer or not bank:
+			self.skipTest("Need Company, Item, Customer, and Company Bank Account")
+
+		name = frappe.db.exists(
+			"Sales eFactura",
+			{"company": company, "ef_series": "AA", "ef_number": "99002"},
+		)
+		if name:
+			existing = frappe.get_doc("Sales eFactura", name)
+			if existing.docstatus == 1:
+				existing.cancel()
+			frappe.delete_doc("Sales eFactura", name, force=1)
+
+		xml = """<?xml version="1.0" encoding="UTF-8"?>
+<Document>
+  <SupplierInfo>
+    <Seria>AA</Seria>
+    <Number>99002</Number>
+    <IssuedDate>2026-08-20T10:00:00</IssuedDate>
+    <DeliveryDate>2026-08-20T10:00:00</DeliveryDate>
+    <Supplier IDNO="1000000000001" Title="Seller" Address="Chisinau" CodTVA="123" TaxpayerType="1"/>
+    <Buyer IDNO="1000000000002" Title="Buyer" Address="Balti" CodTVA="456" TaxpayerType="1"/>
+    <Total>118.00</Total>
+    <TotalTVA>18.00</TotalTVA>
+    <Merchandises>
+      <Row Code="X1" Name="Widget" UnitOfMeasure="buc" Quantity="1"
+           UnitPriceWithoutTVA="100" TotalPriceWithoutTVA="100" TVA="18" TotalTVA="18" TotalPrice="118"/>
+    </Merchandises>
+  </SupplierInfo>
+</Document>
+"""
+		doc = frappe.get_doc(
+			{
+				"doctype": "Sales eFactura",
+				"company": company,
+				"customer": customer,
+				"company_bank_account": bank,
+				"ef_conversion_rate": 1,
+				"ef_status": 8,
+			}
+		)
+		doc.fill_from_xml(xml)
+		doc.ef_customer_idno = None
+		doc.customer = customer
+		doc.items[0].item_code = item.name
+		doc.items[0].uom = item.stock_uom
+		doc.items[0].ef_uom = item.stock_uom
+		doc.items[0].stock_uom = item.stock_uom
+		doc.insert()
+		si = make_sales_invoice(doc.name)
+		si.insert()
+		so = make_sales_order(doc.name)
+		so.insert()
+		doc.reload()
+		doc.submit()
+		doc.cancel()
+		doc.reload()
+		self.assertFalse(doc.sales_invoice)
+		self.assertFalse(doc.items[0].sales_invoice)
+		self.assertFalse(doc.items[0].si_detail)
+		if si.meta.has_field("sales_efactura"):
+			self.assertFalse(frappe.db.get_value("Sales Invoice", si.name, "sales_efactura"))
+		if so.meta.has_field("sales_efactura"):
+			self.assertFalse(frappe.db.get_value("Sales Order", so.name, "sales_efactura"))
+
 	def test_is_sef_cancelable_status(self):
 		from erpnext_moldova_efactura.utils.fiscal_status import is_sef_cancelable_status
 

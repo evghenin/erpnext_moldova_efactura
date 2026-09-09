@@ -223,7 +223,55 @@ class SaleseFactura(Document):
         self.set_status(log=False)
 
     def on_cancel(self):
+        self._unlink_linked_documents()
         self.set_status(log=False)
+
+    def _unlink_linked_documents(self):
+        from erpnext_moldova_efactura.utils.doc_unlink import (
+            clear_header_fields,
+            clear_item_fields,
+            clear_reverse,
+            merge_unique,
+            reverse_names,
+        )
+        from erpnext_moldova_efactura.utils.fiscal_status import (
+            determine_fiscal_status,
+            sync_pr_fiscal_status,
+            sync_prs_for_sales_invoice,
+        )
+        from erpnext_moldova_efactura.utils.sef_pr_alloc import unique_purchase_receipts
+
+        invoices = merge_unique(
+            [sales_invoice_of(self)], reverse_names("Sales Invoice", "sales_efactura", self.name)
+        )
+        orders = reverse_names("Sales Order", "sales_efactura", self.name)
+        receipts = merge_unique(
+            unique_purchase_receipts(self), reverse_names("Purchase Receipt", "sales_efactura", self.name)
+        )
+        clear_item_fields(
+            self,
+            ("sales_invoice", "si_detail", "delivery_note", "dn_detail", "purchase_receipt", "pr_detail"),
+        )
+        clear_header_fields(self, ("sales_invoice",))
+        clear_reverse("Sales Invoice", "sales_efactura", invoices, self.name)
+        clear_reverse("Sales Order", "sales_efactura", orders, self.name)
+        clear_reverse("Purchase Receipt", "sales_efactura", receipts, self.name)
+        for si_name in invoices:
+            if not frappe.db.exists("Sales Invoice", si_name):
+                continue
+            if frappe.get_meta("Sales Invoice").has_field("fiscal_status"):
+                si = frappe.get_doc("Sales Invoice", si_name)
+                frappe.db.set_value(
+                    "Sales Invoice",
+                    si_name,
+                    "fiscal_status",
+                    determine_fiscal_status(si),
+                    update_modified=False,
+                )
+            sync_prs_for_sales_invoice(si_name)
+        for pr_name in receipts:
+            if frappe.db.exists("Purchase Receipt", pr_name):
+                sync_pr_fiscal_status(pr_name)
 
     def on_update(self):
         # Auto-fill parties data after saving the document (draft included).
@@ -324,6 +372,7 @@ class SaleseFactura(Document):
                 "ef_series": self.ef_series,
                 "ef_number": self.ef_number,
                 "name": ["!=", self.name],
+                "docstatus": ["<", 2],
             },
         )
         if existing:

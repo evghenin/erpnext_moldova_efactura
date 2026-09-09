@@ -1,7 +1,7 @@
 [
  {
   "charts": [],
-  "content": "[{\"id\":\"ef-h1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">eFactura</span>\",\"col\":12}},{\"id\":\"ef-nc1\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Pending\",\"col\":6}},{\"id\":\"ef-nc2\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Awaiting Action\",\"col\":6}},{\"id\":\"ef-sp1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"ef-h2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Shortcuts</b></span>\",\"col\":12}},{\"id\":\"ef-sc1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Sales\",\"col\":4}},{\"id\":\"ef-sc2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Purchase\",\"col\":4}},{\"id\":\"ef-sc3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"eFactura Settings\",\"col\":4}},{\"id\":\"ef-sp2\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"ef-h3\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports &amp; Masters</b></span>\",\"col\":12}},{\"id\":\"ef-cd1\",\"type\":\"card\",\"data\":{\"card_name\":\"Documents\",\"col\":4}},{\"id\":\"ef-cd2\",\"type\":\"card\",\"data\":{\"card_name\":\"Setup\",\"col\":4}}]",
+  "content": "[{\"id\":\"ef-h1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">eFactura</span>\",\"col\":12}},{\"id\":\"ef-nc1\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Pending\",\"col\":6}},{\"id\":\"ef-nc2\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Awaiting Action\",\"col\":6}},{\"id\":\"ef-sp1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"ef-h2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Shortcuts</b></span>\",\"col\":12}},{\"id\":\"ef-sc1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Sales\",\"col\":4}},{\"id\":\"ef-sc2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Purchase\",\"col\":4}},{\"id\":\"ef-sc4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Factura Purchase\",\"col\":4}},{\"id\":\"ef-sc3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"eFactura Settings\",\"col\":4}},{\"id\":\"ef-sp2\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"ef-h3\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports &amp; Masters</b></span>\",\"col\":12}},{\"id\":\"ef-cd1\",\"type\":\"card\",\"data\":{\"card_name\":\"Documents\",\"col\":4}},{\"id\":\"ef-cd2\",\"type\":\"card\",\"data\":{\"card_name\":\"Setup\",\"col\":4}}]",
   "custom_blocks": [],
   "docstatus": 0,
   "doctype": "Workspace",
@@ -16,7 +16,7 @@
     "hidden": 0,
     "is_query_report": 0,
     "label": "Documents",
-    "link_count": 2,
+    "link_count": 3,
     "link_type": "DocType",
     "onboard": 0,
     "parent": "eFactura",
@@ -43,6 +43,19 @@
     "label": "Purchase eFactura",
     "link_count": 0,
     "link_to": "Purchase eFactura",
+    "link_type": "DocType",
+    "onboard": 0,
+    "parent": "eFactura",
+    "parentfield": "links",
+    "parenttype": "Workspace",
+    "type": "Link"
+   },
+   {
+    "hidden": 0,
+    "is_query_report": 0,
+    "label": "Purchase Factura",
+    "link_count": 0,
+    "link_to": "Purchase Factura",
     "link_type": "DocType",
     "onboard": 0,
     "parent": "eFactura",
@@ -89,7 +102,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2026-08-14 19:30:00.000000",
+  "modified": "2026-09-08 21:00:00.000000",
   "module": "Moldova eFactura",
   "name": "eFactura",
   "number_cards": [
@@ -203,6 +216,23 @@
     "stats_filter": null,
     "type": "URL",
     "url": "/app/efactura-purchase"
+   },
+   {
+    "color": "Blue",
+    "doc_view": null,
+    "format": null,
+    "icon": null,
+    "kanban_board": null,
+    "label": "Factura Purchase",
+    "link_to": null,
+    "parent": "eFactura",
+    "parentfield": "shortcuts",
+    "parenttype": "Workspace",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": null,
+    "type": "URL",
+    "url": "/app/factura-purchase"
    },
    {
     "color": "Grey",
@@ -849,5 +879,287 @@
    }
   ],
   "title": "eFactura Purchase"
+ },
+ {
+  "charts": [
+   {
+    "chart_name": "Purchase Factura Statuses",
+    "label": "Original Format",
+    "parent": "Factura Purchase",
+    "parentfield": "charts",
+    "parenttype": "Workspace"
+   }
+  ],
+  "content": "[{\"id\":\"pf-h1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Purchase Factura</span>\",\"col\":12}},{\"id\":\"pf-ch\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Original Format\",\"col\":12}},{\"id\":\"pf-nc1\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Draft\",\"col\":3}},{\"id\":\"pf-nc2\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"No Supplier\",\"col\":3}},{\"id\":\"pf-nc3\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Need Purchase Invoice\",\"col\":3}},{\"id\":\"pf-nc4\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Linked to PI\",\"col\":3}},{\"id\":\"pf-sp1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"pf-h2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Shortcuts</b></span>\",\"col\":12}},{\"id\":\"pf-sc1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"All Purchase Factura\",\"col\":4}},{\"id\":\"pf-sc2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"New Purchase Factura\",\"col\":4}},{\"id\":\"pf-sc3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Draft\",\"col\":4}},{\"id\":\"pf-sc4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"No Supplier\",\"col\":4}},{\"id\":\"pf-sc5\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Need Purchase Invoice\",\"col\":4}},{\"id\":\"pf-sc6\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Linked to PI\",\"col\":4}},{\"id\":\"pf-sp2\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"pf-h3\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports &amp; Masters</b></span>\",\"col\":12}},{\"id\":\"pf-cd1\",\"type\":\"card\",\"data\":{\"card_name\":\"Documents\",\"col\":4}},{\"id\":\"pf-cd2\",\"type\":\"card\",\"data\":{\"card_name\":\"Setup\",\"col\":4}}]",
+  "custom_blocks": [],
+  "docstatus": 0,
+  "doctype": "Workspace",
+  "for_user": "",
+  "hide_custom": 0,
+  "icon": "file",
+  "indicator_color": "",
+  "is_hidden": 0,
+  "label": "Factura Purchase",
+  "links": [
+   {
+    "hidden": 0,
+    "is_query_report": 0,
+    "label": "Documents",
+    "link_count": 2,
+    "link_to": null,
+    "link_type": "DocType",
+    "onboard": 0,
+    "parent": "Factura Purchase",
+    "parentfield": "links",
+    "parenttype": "Workspace",
+    "type": "Card Break"
+   },
+   {
+    "hidden": 0,
+    "is_query_report": 0,
+    "label": "Purchase Factura",
+    "link_count": 0,
+    "link_to": "Purchase Factura",
+    "link_type": "DocType",
+    "onboard": 0,
+    "parent": "Factura Purchase",
+    "parentfield": "links",
+    "parenttype": "Workspace",
+    "type": "Link"
+   },
+   {
+    "hidden": 0,
+    "is_query_report": 0,
+    "label": "Purchase Invoice",
+    "link_count": 0,
+    "link_to": "Purchase Invoice",
+    "link_type": "DocType",
+    "onboard": 0,
+    "parent": "Factura Purchase",
+    "parentfield": "links",
+    "parenttype": "Workspace",
+    "type": "Link"
+   },
+   {
+    "hidden": 0,
+    "is_query_report": 0,
+    "label": "Setup",
+    "link_count": 2,
+    "link_to": null,
+    "link_type": "DocType",
+    "onboard": 0,
+    "parent": "Factura Purchase",
+    "parentfield": "links",
+    "parenttype": "Workspace",
+    "type": "Card Break"
+   },
+   {
+    "hidden": 0,
+    "is_query_report": 0,
+    "label": "eFactura Settings",
+    "link_count": 0,
+    "link_to": "eFactura Settings",
+    "link_type": "DocType",
+    "onboard": 0,
+    "parent": "Factura Purchase",
+    "parentfield": "links",
+    "parenttype": "Workspace",
+    "type": "Link"
+   },
+   {
+    "hidden": 0,
+    "is_query_report": 0,
+    "label": "eFactura Supplier Item Map",
+    "link_count": 0,
+    "link_to": "eFactura Supplier Item Map",
+    "link_type": "DocType",
+    "onboard": 0,
+    "parent": "Factura Purchase",
+    "parentfield": "links",
+    "parenttype": "Workspace",
+    "type": "Link"
+   }
+  ],
+  "modified": "2026-09-08 21:50:00.000000",
+  "module": "Moldova eFactura",
+  "name": "Factura Purchase",
+  "number_cards": [
+   {
+    "label": "Draft",
+    "number_card_name": "Purchase Factura Draft",
+    "parent": "Factura Purchase",
+    "parentfield": "number_cards",
+    "parenttype": "Workspace"
+   },
+   {
+    "label": "No Supplier",
+    "number_card_name": "Purchase Factura No Supplier",
+    "parent": "Factura Purchase",
+    "parentfield": "number_cards",
+    "parenttype": "Workspace"
+   },
+   {
+    "label": "Need Purchase Invoice",
+    "number_card_name": "Purchase Factura Need PI",
+    "parent": "Factura Purchase",
+    "parentfield": "number_cards",
+    "parenttype": "Workspace"
+   },
+   {
+    "label": "Linked to PI",
+    "number_card_name": "Purchase Factura Linked to PI",
+    "parent": "Factura Purchase",
+    "parentfield": "number_cards",
+    "parenttype": "Workspace"
+   }
+  ],
+  "parent_page": "eFactura",
+  "public": 1,
+  "quick_lists": [],
+  "restrict_to_domain": null,
+  "roles": [
+   {
+    "role": "System Manager",
+    "parent": "Factura Purchase",
+    "parentfield": "roles",
+    "parenttype": "Workspace"
+   },
+   {
+    "role": "eFactura Manager",
+    "parent": "Factura Purchase",
+    "parentfield": "roles",
+    "parenttype": "Workspace"
+   },
+   {
+    "role": "Accounts Manager",
+    "parent": "Factura Purchase",
+    "parentfield": "roles",
+    "parenttype": "Workspace"
+   },
+   {
+    "role": "Accounts User",
+    "parent": "Factura Purchase",
+    "parentfield": "roles",
+    "parenttype": "Workspace"
+   },
+   {
+    "role": "Purchase Manager",
+    "parent": "Factura Purchase",
+    "parentfield": "roles",
+    "parenttype": "Workspace"
+   },
+   {
+    "role": "Purchase User",
+    "parent": "Factura Purchase",
+    "parentfield": "roles",
+    "parenttype": "Workspace"
+   }
+  ],
+  "sequence_id": 3.3,
+  "shortcuts": [
+   {
+    "color": "Grey",
+    "doc_view": "List",
+    "format": "{}",
+    "icon": null,
+    "kanban_board": null,
+    "label": "All Purchase Factura",
+    "link_to": "Purchase Factura",
+    "parent": "Factura Purchase",
+    "parentfield": "shortcuts",
+    "parenttype": "Workspace",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": "[]",
+    "type": "DocType",
+    "url": null
+   },
+   {
+    "color": "Grey",
+    "doc_view": "New",
+    "format": "{}",
+    "icon": null,
+    "kanban_board": null,
+    "label": "New Purchase Factura",
+    "link_to": "Purchase Factura",
+    "parent": "Factura Purchase",
+    "parentfield": "shortcuts",
+    "parenttype": "Workspace",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": "[]",
+    "type": "DocType",
+    "url": null
+   },
+   {
+    "color": "Orange",
+    "doc_view": "List",
+    "format": "{}",
+    "icon": null,
+    "kanban_board": null,
+    "label": "Draft",
+    "link_to": "Purchase Factura",
+    "parent": "Factura Purchase",
+    "parentfield": "shortcuts",
+    "parenttype": "Workspace",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": "[[\"Purchase Factura\", \"docstatus\", \"=\", 0]]",
+    "type": "DocType",
+    "url": null
+   },
+   {
+    "color": "Red",
+    "doc_view": "List",
+    "format": "{}",
+    "icon": null,
+    "kanban_board": null,
+    "label": "No Supplier",
+    "link_to": "Purchase Factura",
+    "parent": "Factura Purchase",
+    "parentfield": "shortcuts",
+    "parenttype": "Workspace",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": "[[\"Purchase Factura\", \"supplier_party\", \"is\", \"not set\"]]",
+    "type": "DocType",
+    "url": null
+   },
+   {
+    "color": "Yellow",
+    "doc_view": "List",
+    "format": "{}",
+    "icon": null,
+    "kanban_board": null,
+    "label": "Need Purchase Invoice",
+    "link_to": "Purchase Factura",
+    "parent": "Factura Purchase",
+    "parentfield": "shortcuts",
+    "parenttype": "Workspace",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": "[[\"Purchase Factura\", \"docstatus\", \"<\", 2], [\"Purchase Factura\", \"purchase_invoice\", \"is\", \"not set\"]]",
+    "type": "DocType",
+    "url": null
+   },
+   {
+    "color": "Blue",
+    "doc_view": "List",
+    "format": "{}",
+    "icon": null,
+    "kanban_board": null,
+    "label": "Linked to PI",
+    "link_to": "Purchase Factura",
+    "parent": "Factura Purchase",
+    "parentfield": "shortcuts",
+    "parenttype": "Workspace",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": "[[\"Purchase Factura\", \"purchase_invoice\", \"is\", \"set\"]]",
+    "type": "DocType",
+    "url": null
+   }
+  ],
+  "title": "Factura Purchase"
  }
 ]

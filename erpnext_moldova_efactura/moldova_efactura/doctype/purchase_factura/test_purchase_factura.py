@@ -1,3 +1,5 @@
+import hashlib
+import io
 import os
 import re
 import unittest
@@ -10,18 +12,11 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 from frappe.utils import flt, nowdate
 
-from erpnext_moldova_efactura.moldova_efactura.doctype.purchase_factura.purchase_factura import import_pdf
-from erpnext_moldova_efactura.utils.factura_ocr import (
-	OCR_ERROR,
-	_bank_details,
-	_is_total_row,
-	_items,
-	_missing_image_dependencies,
-	_party_address,
-	_party_name,
-	_totals,
-	parse_image,
+from erpnext_moldova_efactura.moldova_efactura.doctype.purchase_factura.purchase_factura import (
+	import_pdf,
+	verify_pdf_signature,
 )
+from erpnext_moldova_efactura.utils.factura_ai import OCR_ERROR, parse_image
 from erpnext_moldova_efactura.utils.factura_pdf import FacturaImportError, decimal, parse_pdf, parse_text
 from erpnext_moldova_efactura.utils.pf_invoice import (
 	assert_no_pf_for_pef,
@@ -56,6 +51,19 @@ class TestFacturaPDF(TestCase):
 		self.assertEqual(data["related_document_number"], "365411")
 		self.assertEqual(data["supplier_name"], "ARAX-IMPEX SRL")
 
+	def test_arax_header_can_come_from_layout(self):
+		data = parse_text("", "Factură fiscală\n" + ARAX_TEXT + "\n" + ARAX_LAYOUT)
+		self.assertEqual((data["series"], data["number"], data["total"]), ("AAY", "9977940", "270.00"))
+
+	def test_signed_arax_example_pdf(self):
+		path = EXAMPLES / "AAY9977940.signed.pdf"
+		if not path.exists():
+			self.skipTest("Private example PDF is not available")
+		data = parse_pdf(path.read_bytes())
+		self.assertEqual(data["series"], "AAY")
+		self.assertEqual(data["number"], "9977940")
+		self.assertEqual((data["provider"], data["total"]), ("ARAX", "270.00"))
+
 	def test_bad_totals_or_missing_rows_fail(self):
 		for layout in (
 			ARAX_LAYOUT.replace("270.00", "280.00"),
@@ -74,55 +82,10 @@ class TestFacturaPDF(TestCase):
 		with self.assertRaises(FacturaImportError):
 			parse_pdf(b"not a pdf")
 
-	def test_ocr_rows_and_totals_are_accepted_only_when_they_reconcile(self):
-		text = """Schimb bec auto stop  buc  1  66-67  66-67  20-00  13-33  80-00
-12. Total (pe factura fiscala) 66-67 x 13-33 80-00"""
-		rows = _items(text)
-		self.assertEqual(len(rows), 1)
-		self.assertEqual((rows[0]["description"], rows[0]["amount"]), ("Schimb bec auto stop", "80.00"))
-		self.assertEqual(_totals(text), [(decimal("66.67"), decimal("13.33"), decimal("80.00"))])
-		self.assertFalse(_items(text.replace("80-00", "81-00", 1)))
-
-	def test_ocr_rows_allow_table_separators(self):
-		text = "Servicii de transport auto international | Serv. | 1 | 4,800.00 | 4,800.00 | 0 | 0.00 | 4,800.00 |"
-		rows = _items(text)
-		self.assertEqual(len(rows), 1)
-		self.assertEqual(rows[0]["amount"], "4800.00")
-
-	def test_ocr_rows_recover_numbers_separated_by_noise(self):
-		text = "Schimb bec auto stop buc 1 66-67 ruido 66-67 ruido 20 ruido 13-33 ruido 80-00"
-		rows = _items(text)
-		self.assertEqual(len(rows), 1)
-		self.assertEqual(rows[0]["amount"], "80.00")
-
-	def test_ocr_totals_accept_item_totals_when_detected_net_has_ocr_error(self):
-		from erpnext_moldova_efactura.utils.factura_ocr import _totals_reconcile
-
-		self.assertTrue(
-			_totals_reconcile(
-				tuple(map(decimal, ("482.51", "96.49", "579.00"))),
-				tuple(map(decimal, ("482.61", "96.49", "579.00"))),
-			)
-		)
-		self.assertFalse(
-			_totals_reconcile(
-				tuple(map(decimal, ("482.51", "96.49", "579.00"))),
-				tuple(map(decimal, ("482.61", "96.49", "573.00"))),
-			)
-		)
-
-	def test_ocr_item_name_strips_table_artifacts(self):
-		text = "= Servicii de transport auto international | Serv. | 1 | 4,800.00 | 4,800.00 | 0 | 0.00 | 4,800.00 |"
-		self.assertEqual(_items(text)[0]["description"], "Servicii de transport auto international")
-
-	def test_grid_total_rows_are_not_counted_as_items_when_label_is_partial(self):
-		self.assertTrue(_is_total_row("11. TOTAL (pe pagină)"))
-		self.assertTrue(_is_total_row("12. TOTAL"))
-		self.assertFalse(_is_total_row("Servicii de transport auto international"))
-
 	def test_invalid_scan_returns_quality_error(self):
 		with self.assertRaisesRegex(
-			FacturaImportError, re.escape(f"{OCR_ERROR}: the source is not a supported JPEG or PNG image")
+			FacturaImportError,
+			re.escape(f"{OCR_ERROR}: the source is not a supported JPEG, PNG or PDF file"),
 		):
 			parse_image(b"not an image")
 
@@ -363,6 +326,39 @@ class TestFacturaPDF(TestCase):
 		self.assertEqual(data["provider"], "Gemini")
 		self.assertEqual((data["series"], data["number"], data["total"]), ("AAZ", "1606962", "4800.00"))
 		generate.assert_called_once()
+		self.assertEqual(generate.call_args[0][1], "image/jpeg")
+
+	@patch("erpnext_moldova_efactura.utils.factura_ai._credentials", return_value=("key", "gemini-3.6-flash"))
+	@patch("erpnext_moldova_efactura.utils.factura_ai._generate")
+	def test_parse_image_accepts_pdf(self, generate, _credentials):
+		generate.return_value = {
+			"series": "AAZ",
+			"number": "1606962",
+			"issue_date": "29.08.2026",
+			"supplier_name": "MAGAS TRANS S.R.L.",
+			"supplier_idno": "1004600061235",
+			"buyer_name": "HOTEL LIFE SRL",
+			"buyer_idno": "1024600026571",
+			"net_total": "4800.00",
+			"vat_total": "0.00",
+			"total": "4800.00",
+			"items": [
+				{
+					"description": "Servicii de transport",
+					"source_uom": "serv",
+					"source_qty": "1",
+					"source_rate": "4800.00",
+					"net_amount": "4800.00",
+					"vat_rate": "0",
+					"vat_amount": "0.00",
+					"amount": "4800.00",
+				}
+			],
+		}
+		data = parse_image(b"%PDF-1.4 dummy")
+		self.assertEqual(data["provider"], "Gemini")
+		generate.assert_called_once()
+		self.assertEqual(generate.call_args[0][1], "application/pdf")
 
 	def test_retired_gemini_model_is_remapped(self):
 		from erpnext_moldova_efactura.utils.factura_ai import RETIRED_MODELS, _suggested_model
@@ -407,178 +403,6 @@ class TestFacturaPDF(TestCase):
 			payload = _post_gemini(b"{}", "key", "gemini-2.5-flash")
 		self.assertIn("candidates", payload)
 
-	@patch("erpnext_moldova_efactura.utils.factura_ocr.import_module")
-	def test_missing_image_dependencies_are_reported(self, import_module):
-		import_module.side_effect = [ImportError, ImportError, ImportError]
-		self.assertEqual(
-			_missing_image_dependencies(), ["opencv-python-headless", "numpy", "pytesseract"]
-		)
-
-	def test_ocr_party_name_stops_before_requisites(self):
-		block = (
-			"MAGAS TRANS S.R.L., R.M., MD-2009, mun. Chisinau, str. Ion Ganea 1/A, "
-			"c/d ef/nr.TVA 1004600061235/0207163 A 1. Поставщик"
-		)
-		self.assertEqual(_party_name(block), "MAGAS TRANS S.R.L.")
-		self.assertEqual(_party_name("i HOTEL LIFE SRL, R.M., MD-2011, mun. Chisinau"), "HOTEL LIFE SRL")
-		self.assertEqual(_party_address(block), "R.M., MD-2009, mun. Chisinau, str. Ion Ganea 1/A")
-		self.assertEqual(_party_address("i HOTEL LIFE SRL, R.M., MD-2011, mun. Chisinau, c/d MD46AG"), "R.M., MD-2011, mun. Chisinau")
-		self.assertEqual(
-			_party_name("‘Hotel Life’ S.R.L. mun.Chisinau or.Codru str.Grenoble 128/2 ap.31"),
-			"‘Hotel Life’ S.R.L.",
-		)
-		self.assertEqual(
-			_party_name("SRL 'Nifestcom’ m.Chisinau, str.Padurii 6/1 IBAN MD52MO2224ASV12246927100"),
-			"SRL 'Nifestcom’",
-		)
-		self.assertEqual(
-			_party_address(
-				"‘Hotel Life’ S.R.L. mun.Chisinau or.Codru str.Grenoble 128/2 ap.31 "
-				"IBAN MD46AG000000022516020091 in BC Moldova"
-			),
-			"mun.Chisinau or.Codru str.Grenoble 128/2 ap.31",
-		)
-		self.assertEqual(
-			_party_address("BIC c"),
-			"",
-		)
-
-	def test_ocr_extracts_source_bank_names_and_codes(self):
-		self.assertEqual(
-			_bank_details("IBAN MD52MO2224ASV12246927100 In BC Moblasbanca-OTP Group SA PRCBMD22"),
-			('BC "MOBLASBANCA-OTP GROUP" SA', "PRCBMD22"),
-		)
-		self.assertEqual(
-			_bank_details("IBAN MD46AG000000022516020091 in BC Moldova Agroindbank SA AGRNMD2X805"),
-			("BC MOLDOVA AGROINDBANK SA", "AGRNMD2X805"),
-		)
-		self.assertEqual(
-			_bank_details(
-				"IBAN MD52MO2224ASV12246927100 In BC Moblasbanca-OTP Group ” SA PRCBMD22"
-			),
-			('BC "MOBLASBANCA-OTP GROUP" SA', "PRCBMD22"),
-		)
-		self.assertEqual(
-			_bank_details(
-				"IBAN MD46AG000000022516020091 in BC Moldova Agroindbank — |O.F./NR.TVA "
-				"MOKYNARENV/NONYUAREN» SA CHISINAU AGRNMD2X805"
-			),
-			("BC MOLDOVA AGROINDBANK SA", "AGRNMD2X805"),
-		)
-
-	def test_retail_till_factura_ocr(self):
-		from erpnext_moldova_efactura.utils.factura_ocr import parse_retail_text
-
-		text = """
-FACTURA FISCALA
-I.C.S METRO CASH & CARRY MOLDOVA S.R.L.
-IDNO 1004601002738
-Str. Chisinau 5, MD-4839
-IBAN MD29VI000002251921103MDL in BC Victoriabank SA VIEXMD2X
-HOTEL LIFE SRL
-Strada Grenoble 128/2 Ap.31
-1024600026571 / 0211775
-IBAN MD46AG000000022516020091 in BC Moldova Agroindbank SA AGRNMD2X
-SERIA AAQ NR. 1838180 Bon fiscal nr. 36
-Client 002 802279 SC
-29-08-2026 13:32
-Cod articol Denumire articol Unit vanz Mod amb Cant Pret unitar Pret colet Valoare fara TVA % TVA Valoare TVA Reducere Valoare incl. TVA
-4000005319066 BIC RADIERA GALET 1 IM 3 20.75 62.25 62.25 20 12.45 0.00 74.70
-PL/PA: 2.3400 / 35.04%
-6931597514035 BIBLIORAFT CLASSIC 50MM VERDE 1 ST 1 29.92 29.92 29.92 20 5.98 0.00 35.90
-4840842033998 CAIET 24 FILE LINIE COLOR 1 BU 4 3.12 12.48 12.48 20 2.50 0.00 14.98
-Total cantitate 8
-Val. tot. fara TVA 104.65
-"""
-		data = parse_retail_text(text)
-		self.assertEqual((data["series"], data["number"], data["total"]), ("AAQ", "1838180", "125.58"))
-		self.assertEqual(data["supplier_idno"], "1004601002738")
-		self.assertEqual(data["buyer_idno"], "1024600026571")
-		self.assertEqual(data["related_document_number"], "36")
-		self.assertEqual(len(data["items"]), 3)
-		self.assertEqual(data["items"][0]["supplier_item_code"], "4000005319066")
-		self.assertEqual(data["items"][0]["source_uom"], "IM")
-		self.assertIn("Chisinau", data["supplier_address"])
-		self.assertIn("Grenoble", data["buyer_address"])
-
-	def test_retail_ocr_uses_footer_totals_not_column_headers(self):
-		from erpnext_moldova_efactura.utils.factura_ocr import parse_retail_text
-
-		text = """
-I.C.S METRO CASH & CARRY MOLDOVA S.R.L. 1004601002738
-HOTEL LIFE SRL 1024600026571 / 0211775
-SERIA AAQ NR. 1838180 Bon fiscal nr. 36
-29-08-2026
-Cod articol Valoare fara TVA % TVA Valoare TVA Valoare incl. TVA
-4000005319066 BIC RADIERA GALET IM 3 20.75 62.25 20 12.45 0.00 74.70
-6931597514035 BIBLIORAFT CLASSIC 50MM VERDE 1 29.92 20 35.90
-4000005319000 MARKER 2
-12.50 20 15.00
-Total cantitate 6
-Val. tot. fara TVA 104.67
-"""
-		data = parse_retail_text(text)
-		self.assertEqual(data["total"], "125.60")
-		self.assertEqual(len(data["items"]), 3)
-		self.assertEqual(data["items"][1]["description"], "BIBLIORAFT CLASSIC 50MM VERDE")
-		self.assertEqual(data["items"][2]["supplier_item_code"], "4000005319000")
-
-	def test_retail_ocr_does_not_double_count_two_ocr_passes(self):
-		from erpnext_moldova_efactura.utils.factura_ocr import parse_retail_text
-
-		once = """
-I.C.S METRO CASH & CARRY MOLDOVA S.R.L. 1004601002738
-HOTEL LIFE SRL 1024600026571 / 0211775
-SERIA AAQ NR. 1838180 Bon fiscal nr. 36
-29-08-2026
-4000005319066 BIC RADIERA GALET IM 3 20.75 62.25 20 12.45 0.00 74.70
-6931597514035 BIBLIORAFT CLASSIC 50MM VERDE ST 1 29.92 20 5.98 0.00 35.90
-4840842033998 CAIET 24 FILE LINIE COLOR BU 4 3.12 12.48 20 2.50 0.00 14.98
-Total cantitate 8
-Val. tot. fara TVA 104.65
-"""
-		noisy = once.replace("3.12 12.48 20 2.50 0.00 14.98", "3.10 12.40 20 2.48 0.00 14.88")
-		data = parse_retail_text(once, noisy)
-		self.assertEqual((data["total"], len(data["items"])), ("125.58", 3))
-		self.assertEqual(sum(float(row["source_qty"]) for row in data["items"]), 8)
-
-	def test_retail_ocr_rejects_incomplete_rows_against_footer(self):
-		from erpnext_moldova_efactura.utils.factura_ocr import parse_retail_text
-
-		text = """
-I.C.S METRO CASH & CARRY MOLDOVA S.R.L. 1004601002738
-HOTEL LIFE SRL 1024600026571 / 0211775
-SERIA AAQ NR. 1838180
-29-08-2026 Bon fiscal nr. 36
-4000005319066 BIC RADIERA GALET IM 3 20.75 62.25 20 12.45 0.00 74.70
-Total cantitate 69
-Val tot fara TVA 1251,02
-"""
-		with self.assertRaises(FacturaImportError) as ctx:
-			parse_retail_text(text)
-		self.assertIn("printed net 1251.02", str(ctx.exception))
-
-	def test_retail_layout_is_not_used_for_numbered_forms(self):
-		from erpnext_moldova_efactura.utils.factura_ocr import _is_retail
-
-		self.assertFalse(
-			_is_retail("1. Furnizor MAGAS TRANS S.R.L.\n12. TOTAL (pe factura fiscala) 4800.00 X 0.00 4800.00")
-		)
-		self.assertTrue(_is_retail("METRO CASH & CARRY SERIA AAQ NR. 1838180 Bon fiscal nr. 36"))
-
-	def test_ocr_party_labels_allow_photo_variants(self):
-		from erpnext_moldova_efactura.utils.factura_ocr import _party
-
-		text = (
-			"1.Furnizor: MAGAS TRANS S.R.L.\n"
-			"2 Cumpărător/i. HOTEL LIFE SRL\n"
-			"3. Delegaţie"
-		)
-		supplier = _party(text, r"1[.:\s]+Fur(?:n|m)izor", r"2[.:\s]+Cump(?:arator|ărător)(?:i)?")
-		customer = _party(text, r"2[.:\s]+Cump(?:arator|ărător)(?:i)?(?:\s*/\s*beneficiar)?", r"3[.:\s]+Deleg")
-		self.assertEqual(supplier, "MAGAS TRANS S.R.L.")
-		self.assertEqual(customer, "HOTEL LIFE SRL")
-
 	def test_imported_idno_formatting_does_not_count_as_original_change(self):
 		from erpnext_moldova_efactura.moldova_efactura.doctype.purchase_factura.purchase_factura import _changed
 
@@ -586,10 +410,6 @@ Val tot fara TVA 1251,02
 		previous = frappe._dict(f_supplier_idno="1002600041697")
 		current.meta = previous.meta = frappe.get_meta("Purchase Factura")
 		self.assertFalse(_changed(current, previous, "f_supplier_idno"))
-		self.assertEqual(
-			_party_address("HOTEL LIFE SRL, R.M., MD-2011, mun. Chișinău, or. Codru, Grenoble, 128/2, ap.(of.) 31, ‘"),
-			"R.M., MD-2011, mun. Chișinău, or. Codru, Grenoble, 128/2, ap.(of.) 31",
-		)
 
 	@unittest.skipUnless(os.environ.get("GEMINI_API_KEY"), "GEMINI_API_KEY is not set")
 	def test_actual_photographed_facturas(self):
@@ -616,7 +436,10 @@ Val tot fara TVA 1251,02
 				self.assertEqual((data["series"], data["number"], data["total"]), (series, number, total))
 				self.assertEqual(data["items"][0]["source_uom"], uom)
 				self.assertEqual(data["signature_status"], "Not Checked")
-				self.assertEqual(len(data["signature_details"]), 1)
+				self.assertIn(data["original_format"], ("Digitally Signed PDF", "Other Electronic"))
+				self.assertTrue(data["signature_format"])
+				self.assertTrue(data["signature_field"])
+				self.assertTrue(data["signature_coverage"])
 				self.assertTrue(data["supplier_address"])
 				self.assertTrue(data["buyer_address"])
 				self.assertTrue(data["supplier_bank_account"])
@@ -756,26 +579,52 @@ class TestPurchaseFactura(FrappeTestCase):
 			pi.cancel()
 		pf.cancel()
 		self.assertEqual(pi.reload().docstatus, 1)
+		self.assertFalse(pi.purchase_factura)
+		self.assertFalse(pf.reload().purchase_invoice)
+		self.assertFalse(pf.items[0].purchase_invoice)
+		self.assertFalse(pf.items[0].pi_detail)
 		self.assertEqual(pi.fiscal_status, "Pending")
-		with self.assertRaises(frappe.ValidationError):
-			self.factura(f_series=pf.f_series, f_number=pf.f_number)
+		replacement = self.factura(f_series=pf.f_series, f_number=pf.f_number)
+		self.assertNotEqual(replacement.name, pf.name)
+		self.assertEqual(replacement.docstatus, 0)
 		pi.cancel()
+
+	def test_amend_copies_original_file_and_allows_delete(self):
+		content = b"%PDF-1.4 factura-original-bytes"
+		source = frappe.get_doc(
+			{"doctype": "File", "file_name": "pf-original.bin", "is_private": 1, "content": content}
+		).insert()
+		pf = self.factura(original_format="Paper", original_file=source.file_url)
+		self.assertNotEqual(pf.original_file, source.file_url)
+		pi = make_purchase_invoice(pf.name)
+		pi.insert()
+		pi.submit()
+		pf.reload().submit()
+		pf.cancel()
 		amended = frappe.copy_doc(pf)
-		amended.docstatus = 0
 		amended.amended_from = pf.name
-		amended.purchase_invoice = None
+		amended.docstatus = 0
 		amended.insert()
-		amended.save()
-		replacement_pi = make_purchase_invoice(amended.name).insert()
-		replacement_pi.submit()
-		amended.reload().submit()
-		amended.cancel()
-		replacement_pi.cancel()
-		second_amendment = frappe.copy_doc(amended)
-		second_amendment.docstatus = 0
-		second_amendment.amended_from = amended.name
-		second_amendment.purchase_invoice = None
-		second_amendment.insert()
+		self.assertNotEqual(amended.original_file, pf.reload().original_file)
+		copied = frappe.get_doc("File", {"file_url": amended.original_file})
+		copied_bytes = copied.get_content()
+		if isinstance(copied_bytes, str):
+			copied_bytes = copied_bytes.encode()
+		self.assertEqual(copied_bytes, content)
+		self.assertEqual(copied.attached_to_name, amended.name)
+		amended_name = amended.name
+		amended_url = amended.original_file
+		original_url = pf.original_file
+		amended.delete()
+		self.assertFalse(frappe.db.exists("Purchase Factura", amended_name))
+		self.assertFalse(frappe.db.exists("File", {"file_url": amended_url}))
+		kept = frappe.get_doc("File", {"file_url": original_url}).get_content()
+		if isinstance(kept, str):
+			kept = kept.encode()
+		self.assertEqual(kept, content)
+		pf.delete()
+		self.assertFalse(frappe.db.exists("Purchase Factura", pf.name))
+		self.assertFalse(frappe.db.exists("File", {"file_url": original_url}))
 
 	def test_duplicate_and_cross_route_allocation_blocked(self):
 		pf = self.factura(f_number="000001")
@@ -848,7 +697,27 @@ class TestPurchaseFactura(FrappeTestCase):
 		name = import_pdf(file.file_url, self.company.name)
 		self.assertEqual(import_pdf(file.file_url, self.company.name), name)
 		pf = frappe.get_doc("Purchase Factura", name)
-		self.assertEqual(pf.signature_status, "Not Checked")
+		self.assertNotEqual(pf.original_file, file.file_url)
+		owned_name = frappe.db.get_value(
+			"File",
+			{
+				"attached_to_doctype": "Purchase Factura",
+				"attached_to_name": pf.name,
+				"attached_to_field": "original_file",
+			},
+			"name",
+		)
+		self.assertTrue(owned_name)
+		self.assertEqual(frappe.db.get_value("File", owned_name, "file_url"), pf.original_file)
+		self.assertEqual(pf.signature_status, "Indeterminate")
+		self.assertEqual(pf.signature_integrity, "Passed")
+		self.assertEqual(pf.signature_format, "adbe.pkcs7.detached")
+		verified = verify_pdf_signature(pf.name)
+		self.assertEqual(verified["signature_integrity"], "Passed")
+		self.assertEqual(verified["signature_status"], "Indeterminate")
+		self.assertNotEqual(verified["signature_status"], "Valid")
+		pf.reload()
+		self.assertEqual(pf.signature_status, "Indeterminate")
 		self.assertEqual(pf.supplier_party, self.supplier.name)
 		self.assertEqual(pf.f_supplier_address, "str.M. Dosoftei 118, mun.Chisi")
 		self.assertEqual(pf.f_supplier_bank_account, "MD77FT222420100000415498")
@@ -856,12 +725,11 @@ class TestPurchaseFactura(FrappeTestCase):
 		self.assertEqual(flt(pf.total), 270)
 		self.assertEqual(pf.items[0].supplier_uom, "GB")
 		self.assertEqual((pf.items[0].item_code, pf.items[0].uom), (self.item.name, "Nos"))
-		with self.assertRaises(frappe.ValidationError):
-			file.delete()
 		pf.currency = "EUR"
 		pf.f_conversion_rate = 20
 		pf.save()
 		self.assertEqual((pf.total, pf.f_total, pf.f_currency), (13.5, 270, "MDL"))
+		self.assertEqual(pf.signature_status, "Indeterminate")
 		self.assertEqual(pf.items[0].f_rate, 225)
 		pf.items[0].f_rate = 226
 		with self.assertRaises(frappe.ValidationError):
@@ -874,6 +742,90 @@ class TestPurchaseFactura(FrappeTestCase):
 		frappe.set_user("Guest")
 		with self.assertRaises(frappe.PermissionError):
 			import_pdf("/private/files/unknown.pdf", self.company.name)
+
+	@patch("erpnext_moldova_efactura.utils.factura_ai._generate")
+	def test_parser_import_does_not_call_ai(self, generate):
+		file = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": "scan.jpg",
+				"is_private": 1,
+				"content": b"\xff\xd8\xffdummy",
+			}
+		).insert()
+		with self.assertRaisesRegex(frappe.ValidationError, "accepts only PDF files"):
+			import_pdf(file.file_url, self.company.name)
+		generate.assert_not_called()
+
+	def _ai_extraction(self):
+		return {
+			"provider": "Gemini",
+			"series": "AAZ",
+			"number": "1606962",
+			"issue_date": "2026-08-29",
+			"delivery_date": "2026-08-29",
+			"supplier_name": "ARAX-IMPEX SRL",
+			"supplier_idno": "1002600041697",
+			"buyer_name": "HOTEL LIFE SRL",
+			"buyer_idno": "1024600026571",
+			"currency": "MDL",
+			"net_total": "225.00",
+			"vat_total": "45.00",
+			"total": "270.00",
+			"original_format": "Paper",
+			"signature_status": "Not Applicable",
+			"file_hash": "0" * 64,
+			"items": [
+				{
+					"description": "Access internet",
+					"source_uom": "GB",
+					"source_qty": "1",
+					"source_rate": "225.00",
+					"net_amount": "225.00",
+					"vat_rate": "20",
+					"vat_amount": "45.00",
+					"amount": "270.00",
+				}
+			],
+		}
+
+	@patch("erpnext_moldova_efactura.utils.factura_ai.parse_image")
+	def test_ai_text_pdf_import_verifies_signatures(self, parse_image):
+		path = EXAMPLES / "AAY9977940.signed.pdf"
+		if not path.exists():
+			self.skipTest("Private example PDF is not available")
+		parsed = self._ai_extraction()
+		parsed["file_hash"] = hashlib.sha256(path.read_bytes()).hexdigest()
+		parse_image.return_value = parsed
+		file = frappe.get_doc(
+			{"doctype": "File", "file_name": "ai-signed.pdf", "is_private": 1, "content": path.read_bytes()}
+		).insert()
+		name = import_pdf(file.file_url, self.company.name, use_ai=1)
+		pf = frappe.get_doc("Purchase Factura", name)
+		self.assertEqual(pf.original_format, "Digitally Signed PDF")
+		self.assertEqual(pf.signature_integrity, "Passed")
+		self.assertEqual(pf.signature_status, "Indeterminate")
+		self.assertEqual(pf.signature_format, "adbe.pkcs7.detached")
+
+	@patch("erpnext_moldova_efactura.utils.factura_ai.parse_image")
+	def test_ai_scan_pdf_import_skips_signature_check(self, parse_image):
+		from pypdf import PdfWriter
+
+		buffer = io.BytesIO()
+		writer = PdfWriter()
+		writer.add_blank_page(width=100, height=100)
+		writer.write(buffer)
+		content = buffer.getvalue()
+		parsed = self._ai_extraction()
+		parsed["file_hash"] = hashlib.sha256(content).hexdigest()
+		parse_image.return_value = parsed
+		file = frappe.get_doc(
+			{"doctype": "File", "file_name": "ai-scan.pdf", "is_private": 1, "content": content}
+		).insert()
+		name = import_pdf(file.file_url, self.company.name, use_ai=1)
+		pf = frappe.get_doc("Purchase Factura", name)
+		self.assertEqual(pf.original_format, "Paper")
+		self.assertEqual(pf.signature_status, "Not Applicable")
 
 	def test_pf_schema_uses_original_prefix_and_invoice_link(self):
 		for doctype in ("Purchase Factura", "Purchase Factura Item"):

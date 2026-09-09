@@ -7,7 +7,14 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import cint, flt
 
-from erpnext_moldova_efactura.utils.factura_pdf import FacturaImportError, decimal, money, parse_pdf
+from erpnext_moldova_efactura.utils.factura_pdf import (
+	FacturaImportError,
+	decimal,
+	is_pdf_image_scan,
+	money,
+	parse_pdf,
+)
+from erpnext_moldova_efactura.utils.factura_pdf_signature import verify_pdf_signatures
 from erpnext_moldova_efactura.utils.party import normalize_idno
 from erpnext_moldova_efactura.utils.pf_amounts import (
 	apply_quantities,
@@ -15,6 +22,7 @@ from erpnext_moldova_efactura.utils.pf_amounts import (
 	imported_fields,
 	prepare_currency,
 )
+from erpnext_moldova_efactura.utils.timeline import log_event
 
 ORIGINAL_FIELDS = (
 	"provider",
@@ -47,8 +55,6 @@ ORIGINAL_FIELDS = (
 	"f_related_document_type",
 	"f_related_document_number",
 	"f_related_document_date",
-	"signature_details",
-	"extracted_text",
 	"file_hash",
 )
 ORIGINAL_ITEM_FIELDS = (
@@ -61,6 +67,8 @@ ORIGINAL_ITEM_FIELDS = (
 	"f_vat_rate",
 	"f_vat_amount",
 )
+
+
 def _get_pf(name):
 	doc = frappe.get_doc("Purchase Factura", name)
 	doc.check_permission("write")
@@ -114,6 +122,16 @@ class PurchaseFactura(Document):
 			if not self.purchase_invoice:
 				row.pi_detail = None
 
+	def after_insert(self):
+		if not self.original_file:
+			return
+		from erpnext_moldova_efactura.utils.pf_original import copy_original_file
+
+		copied = copy_original_file(self)
+		if copied and copied != self.original_file:
+			self.db_set("original_file", copied, update_modified=False)
+			self.original_file = copied
+
 	def validate(self):
 		if not self.company:
 			frappe.throw(_("Select a Company"))
@@ -137,19 +155,11 @@ class PurchaseFactura(Document):
 		self.identity_key = _identity(self.company, self.f_supplier_idno, self.f_series, self.f_number)
 		duplicates = frappe.get_all(
 			"Purchase Factura",
-			filters={"identity_key": self.identity_key, "name": ["!=", self.name]},
+			filters={"identity_key": self.identity_key, "name": ["!=", self.name], "docstatus": ["<", 2]},
 			fields=["name", "docstatus"],
 		)
-		active = next((row for row in duplicates if cint(row.docstatus) < 2), None)
-		valid_amendment = self.amended_from and any(
-			row.name == self.amended_from and cint(row.docstatus) == 2 for row in duplicates
-		)
-		if active or (duplicates and not valid_amendment):
-			frappe.throw(
-				_("This factura is already registered as {0}").format(
-					active.name if active else duplicates[0].name
-				)
-			)
+		if duplicates:
+			frappe.throw(_("This factura is already registered as {0}").format(duplicates[0].name))
 		previous = self.get_doc_before_save()
 		if not self.flags.get("linking_pi") and self.purchase_invoice != (
 			previous.purchase_invoice if previous else None
@@ -192,7 +202,11 @@ class PurchaseFactura(Document):
 					)
 		elif self.provider and not self.flags.get("pdf_import"):
 			frappe.throw(_("Use Import PDF to set imported original metadata"))
-		self.signature_status = "Not Applicable" if self.original_format == "Paper" else "Not Checked"
+		if self.original_format == "Paper":
+			self.signature_status = "Not Applicable"
+			self.signature_integrity = self.signature_integrity or "Not Applicable"
+		elif not self.signature_status:
+			self.signature_status = "Not Checked"
 		if self.original_format != "Paper" and not self.original_file:
 			frappe.throw(_("Attach the electronic original"))
 		if self.original_file:
@@ -257,21 +271,56 @@ class PurchaseFactura(Document):
 		self._refresh_fiscal_status()
 
 	def on_cancel(self):
-		if self.purchase_invoice:
-			frappe.db.set_value(
-				"Purchase Invoice", self.purchase_invoice, "purchase_factura", None, update_modified=False
-			)
-		self._refresh_fiscal_status()
+		self._clear_purchase_invoice_link()
 
 	def on_trash(self):
-		if self.purchase_invoice:
-			frappe.throw(_("Unlink the Purchase Invoice before deleting this draft"))
+		frappe.flags.pf_deleting = self.name
+		self._clear_purchase_invoice_link()
+
+	def _clear_purchase_invoice_link(self):
+		from erpnext_moldova_efactura.utils.doc_unlink import clear_header_fields, clear_item_fields
+		from erpnext_moldova_efactura.utils.fiscal_status import sync_pi_fiscal_status
+
+		pi_name = self.purchase_invoice
+		if pi_name:
+			frappe.db.set_value(
+				"Purchase Invoice", pi_name, "purchase_factura", None, update_modified=False
+			)
+		clear_item_fields(self, ("purchase_invoice", "pi_detail"))
+		clear_header_fields(self, ("purchase_invoice",))
+		if pi_name:
+			sync_pi_fiscal_status(pi_name)
 
 	def _refresh_fiscal_status(self):
 		if self.purchase_invoice:
 			from erpnext_moldova_efactura.utils.fiscal_status import sync_pi_fiscal_status
 
 			sync_pi_fiscal_status(self.purchase_invoice)
+
+
+SIGNATURE_FIELDS = (
+	"signature_status",
+	"signature_integrity",
+	"signature_format",
+	"signature_field",
+	"signature_declared_time",
+	"signature_coverage",
+	"signature_certificate_trust",
+	"signature_revocation",
+	"signature_timestamp_check",
+	"signature_evidence",
+	"signature_checked_on",
+	"signature_checked_by",
+)
+
+
+def _verified_signature_values(content: bytes) -> dict:
+	result = verify_pdf_signatures(content)
+	from frappe.utils import now_datetime
+
+	result["signature_checked_on"] = now_datetime()
+	result["signature_checked_by"] = frappe.session.user
+	return result
 
 
 def _read_original(file_url):
@@ -287,18 +336,20 @@ def _read_original(file_url):
 
 
 @frappe.whitelist()
-def import_pdf(file_url: str, company: str):
+def import_pdf(file_url: str, company: str, use_ai: int | str | None = None):
 	frappe.has_permission("Purchase Factura", "create", throw=True)
 	frappe.get_doc("Company", company).check_permission("read")
 	file_doc = _read_original(file_url)
 	try:
 		content = file_doc.get_content()
-		if content.startswith(b"%PDF-"):
-			parsed = parse_pdf(content)
-		else:
-			from erpnext_moldova_efactura.utils.factura_ocr import parse_image
+		if cint(use_ai):
+			from erpnext_moldova_efactura.utils.factura_ai import parse_image
 
 			parsed = parse_image(content)
+		else:
+			if not content.startswith(b"%PDF-"):
+				raise FacturaImportError("PDF Orange / Arax import accepts only PDF files")
+			parsed = parse_pdf(content)
 		data = imported_fields(parsed)
 	except FacturaImportError as exc:
 		frappe.throw(_(str(exc)), title=_("Cannot read factura"))
@@ -310,6 +361,20 @@ def import_pdf(file_url: str, company: str):
 	if existing:
 		frappe.get_doc("Purchase Factura", existing).check_permission("read")
 		return existing
+	check_signatures = content.startswith(b"%PDF-") and not (
+		cint(use_ai) and is_pdf_image_scan(content)
+	)
+	if check_signatures:
+		try:
+			data.update(_verified_signature_values(content))
+		except FacturaImportError as exc:
+			frappe.throw(_(str(exc)))
+		if cint(use_ai):
+			data["original_format"] = (
+				"Digitally Signed PDF"
+				if data.get("signature_status") != "Not Applicable"
+				else "Other Electronic"
+			)
 	field = frappe.db.get_single_value("eFactura Settings", "supplier_idno_field") or "tax_id"
 	suppliers = frappe.get_all(
 		"Supplier", filters={field: data["f_supplier_idno"]}, pluck="name", limit_page_length=2
@@ -332,23 +397,42 @@ def import_pdf(file_url: str, company: str):
 			item = frappe.get_cached_value("Item", item_code, ["purchase_uom", "stock_uom"], as_dict=True)
 			row["item_code"] = item_code
 			row["uom"] = mapped_uom or resolve_uom(row["supplier_uom"]) or item.purchase_uom or item.stock_uom
-	data["signature_details"] = frappe.as_json(data["signature_details"])
 	doc = frappe.get_doc(dict(data, doctype="Purchase Factura", company=company, original_file=file_url))
 	doc.flags.pdf_import = True
 	doc.insert()
-	# Attach a separate File reference if this original already belongs to another document.
-	frappe.get_doc(
-		{
-			"doctype": "File",
-			"file_name": file_doc.file_name,
-			"file_url": file_doc.file_url,
-			"is_private": 1,
-			"attached_to_doctype": "Purchase Factura",
-			"attached_to_name": doc.name,
-			"attached_to_field": "original_file",
-		}
-	).insert(ignore_permissions=True)
+	if check_signatures:
+		log_event(
+			doc,
+			"checked the PDF signature: integrity {0}, overall {1}",
+			doc.signature_integrity,
+			doc.signature_status,
+		)
 	return doc.name
+
+
+@frappe.whitelist()
+def verify_pdf_signature(name: str):
+	doc = _get_pf(name)
+	if doc.original_format == "Paper":
+		frappe.throw(_("Paper originals have no PDF signature to verify"))
+	if not doc.original_file:
+		frappe.throw(_("Attach the electronic original"))
+	content = _read_original(doc.original_file).get_content()
+	if not content.startswith(b"%PDF-"):
+		frappe.throw(_("PDF signature verification requires the original PDF"))
+	try:
+		result = _verified_signature_values(content)
+	except FacturaImportError as exc:
+		frappe.throw(_(str(exc)))
+	for field in SIGNATURE_FIELDS:
+		doc.db_set(field, result.get(field), update_modified=True)
+	log_event(
+		doc,
+		"checked the PDF signature: integrity {0}, overall {1}",
+		result["signature_integrity"],
+		result["signature_status"],
+	)
+	return {field: result.get(field) for field in SIGNATURE_FIELDS}
 
 
 @frappe.whitelist()

@@ -14,6 +14,7 @@ from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 MAX_PDF_BYTES = 15 * 1024 * 1024
+SCAN_TEXT_CHARS = 40
 NUMBER = r"-?\d+(?:[.,]\d+)?"
 DATE = r"\d{2}\.\d{2}\.\d{4}"
 PROVIDERS = {
@@ -41,7 +42,21 @@ def money(value) -> Decimal:
 
 
 def _label_text(text):
-	return "".join(c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c))
+	normalized = unicodedata.normalize("NFKD", (text or "").replace("\u00a0", " "))
+	return "".join(c for c in normalized if not unicodedata.combining(c))
+
+
+def _blob(text, layout=""):
+	return f"{text or ''}\n{layout or ''}"
+
+
+def _is_fiscal_invoice(text, layout=""):
+	blob = _label_text(_blob(text, layout))
+	if re.search(r"factur[ae]?\s*fiscal[ae]?", blob, re.IGNORECASE):
+		return True
+	if re.search(r"formular\s+tipizat", blob, re.IGNORECASE) and re.search(r"\b[A-Z]{3}\d{7}\b", blob):
+		return True
+	return any(idno in blob for idno in PROVIDERS)
 
 
 def _capture(pattern, text, label):
@@ -107,25 +122,41 @@ def _party_source_details(layout: str, provider: str) -> dict:
 
 def parse_text(text: str, layout: str) -> dict:
 	"""Parse one supported page; layout preserves the original item/UOM columns."""
-	normalized = _label_text(text)
-	if not re.search(r"factur[ae]?\s+fiscala", normalized, re.IGNORECASE):
+	source = _blob(text, layout)
+	normalized = _label_text(source)
+	if not _is_fiscal_invoice(text, layout):
 		raise FacturaImportError("The PDF is not a recognised fiscal invoice")
-	if "Orange Moldova" in text:
-		pairs = re.findall(r"Cod fiscal:\s*(\d{13})", text, re.IGNORECASE)
-		vat_ids = re.findall(r"Cod TVA:\s*(\d{7})", text, re.IGNORECASE)
+	if "Orange Moldova" in source:
+		pairs = vat_ids = []
+		for raw in (text, layout, source):
+			found_idno = re.findall(r"Cod fiscal:\s*(\d{13})", raw or "", re.IGNORECASE)
+			found_vat = re.findall(r"Cod TVA:\s*(\d{7})", raw or "", re.IGNORECASE)
+			if len(found_idno) == 2 and len(found_vat) == 2:
+				pairs, vat_ids = found_idno, found_vat
+				break
+		if not pairs:
+			pairs = re.findall(r"Cod fiscal:\s*(\d{13})", source, re.IGNORECASE)
+			vat_ids = re.findall(r"Cod TVA:\s*(\d{7})", source, re.IGNORECASE)
 		expected_idno = "1003600106115"
-		series = _capture(r"^Seria\s+([A-Z]+)", normalized, "series")[1]
+		series = _capture(r"Seria\s+([A-Z]+)", normalized, "series")[1]
 		number = _capture(r"Numarul facturii\s+(\d+)", normalized, "number")[1]
 		issued = _capture(r"Data eliberarii\s+(" + DATE + ")", normalized, "issue date")[1]
 		delivered = _capture(r"Data livrarii\s+(" + DATE + ")", normalized, "delivery date")[1]
 	else:
-		pairs_vat = re.findall(r"\b(\d{13})\s*/\s*(\d{7})\b", text)
+		pairs_vat = []
+		for raw in (text, layout, source):
+			found = re.findall(r"\b(\d{13})\s*/\s*(\d{7})\b", raw or "")
+			if len(found) == 2:
+				pairs_vat = found
+				break
+		if not pairs_vat:
+			pairs_vat = re.findall(r"\b(\d{13})\s*/\s*(\d{7})\b", source)
 		pairs = [p[0] for p in pairs_vat]
 		vat_ids = [p[1] for p in pairs_vat]
 		expected_idno = "1002600041697"
-		ref = _capture(r"\b([A-Z]{3})(\d{7})\b", text, "series and number")
+		ref = _capture(r"\b([A-Z]{3})(\d{7})\b", source, "series and number")
 		series, number = ref[1], ref[2]
-		dates = _capture(r"(" + DATE + r")\s*/\s*(" + DATE + ")", text, "issue/delivery dates")
+		dates = _capture(r"(" + DATE + r")\s*/\s*(" + DATE + ")", source, "issue/delivery dates")
 		issued, delivered = dates[1], dates[2]
 	if len(pairs) != 2 or pairs[0] != expected_idno or len(vat_ids) != 2:
 		raise FacturaImportError("Unsupported provider or ambiguous issuer/recipient requisites")
@@ -154,7 +185,7 @@ def parse_text(text: str, layout: str) -> dict:
 			if match:
 				result[key] = match[1]
 	else:
-		act = re.search(r"Act\s*[№#]?\s*(\d+)\s+din\s+(" + DATE + ")", text, re.IGNORECASE)
+		act = re.search(r"Act\s*[№#]?\s*(\d+)\s+din\s+(" + DATE + ")", source, re.IGNORECASE)
 		if act:
 			result.update(related_document_number=act[1], related_document_date=_date(act[2]))
 			result["related_document_type"] = "Act"
@@ -208,6 +239,35 @@ def parse_text(text: str, layout: str) -> dict:
 	return result
 
 
+def is_pdf_image_scan(content: bytes) -> bool:
+	"""True when the PDF has no usable text layer (a photograph or image-only scan)."""
+	from pypdf import PdfReader
+
+	if not content.startswith(b"%PDF-"):
+		return False
+	try:
+		reader = PdfReader(io.BytesIO(content))
+		if reader.is_encrypted:
+			raise FacturaImportError("Unable to read this PDF; register it manually")
+		chars = 0
+		has_font = False
+		for page in reader.pages:
+			text = page.extract_text() or ""
+			chars += len(re.sub(r"\W+", "", text, flags=re.UNICODE))
+			resources = page.get("/Resources")
+			if resources is not None:
+				res = resources.get_object() if hasattr(resources, "get_object") else resources
+				if res.get("/Font"):
+					has_font = True
+			if chars >= SCAN_TEXT_CHARS:
+				return False
+	except FacturaImportError:
+		raise
+	except Exception as exc:
+		raise FacturaImportError("Unable to read this PDF; register it manually") from exc
+	return not has_font
+
+
 def parse_pdf(content: bytes) -> dict:
 	from pypdf import PdfReader
 
@@ -218,25 +278,35 @@ def parse_pdf(content: bytes) -> dict:
 		if reader.is_encrypted or len(reader.pages) != 1:
 			raise FacturaImportError("Only unencrypted, single-page Orange/ARAX PDFs are supported")
 		page = reader.pages[0]
-		text = page.extract_text()
-		result = parse_text(text, page.extract_text(extraction_mode="layout"))
-		signatures = []
-		for field in (reader.get_fields() or {}).values():
-			if field.get("/FT") != "/Sig" or not field.get("/V"):
-				continue
-			sig = field["/V"].get_object()
-			signatures.append(
-				{"format": str(sig.get("/SubFilter", "")), "declared_time": str(sig.get("/M", ""))}
-			)
+		text = page.extract_text() or ""
+		result = parse_text(text, page.extract_text(extraction_mode="layout") or "")
+		from erpnext_moldova_efactura.utils.factura_pdf_signature import (
+			signatures_from_reader,
+			summarize_signatures,
+		)
+
+		signatures = signatures_from_reader(reader, content)
+		inspection = summarize_signatures(signatures, verified=False) if signatures else None
 	except FacturaImportError:
 		raise
 	except Exception as exc:
 		raise FacturaImportError("Unable to read this PDF; register it manually") from exc
 	result.update(
 		original_format="Digitally Signed PDF" if signatures else "Other Electronic",
-		signature_status="Not Checked",
-		signature_details=signatures,
+		signature_status="Not Checked" if signatures else "Not Applicable",
 		file_hash=hashlib.sha256(content).hexdigest(),
-		extracted_text=text,
 	)
+	if inspection:
+		for key in (
+			"signature_format",
+			"signature_field",
+			"signature_declared_time",
+			"signature_coverage",
+			"signature_integrity",
+			"signature_certificate_trust",
+			"signature_revocation",
+			"signature_timestamp_check",
+			"signature_evidence",
+		):
+			result[key] = inspection[key]
 	return result

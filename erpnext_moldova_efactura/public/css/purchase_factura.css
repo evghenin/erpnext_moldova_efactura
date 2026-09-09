@@ -1,0 +1,91 @@
+.pf-sig-dialog .modal-body {
+	padding: 0;
+}
+
+.pf-sig-dialog .form-layout,
+.pf-sig-dialog .form-page,
+.pf-sig-dialog .form-section,
+.pf-sig-dialog .form-column,
+.pf-sig-dialog .frappe-control[data-fieldname="body"] {
+	margin: 0;
+	padding: 0;
+}
+
+.pf-sig-layout {
+	display: flex;
+	min-height: 380px;
+	background: var(--fg-color);
+}
+
+.pf-sig-list {
+	width: 280px;
+	flex-shrink: 0;
+	background: var(--subtle-accent);
+	border-right: 1px solid var(--border-color);
+	overflow: auto;
+}
+
+.pf-sig-item {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--margin-sm);
+	padding: var(--padding-sm) var(--padding-md);
+	cursor: pointer;
+	border-bottom: 1px solid var(--border-color);
+}
+
+.pf-sig-item:hover {
+	background: var(--fg-hover-color);
+}
+
+.pf-sig-item.active {
+	background: var(--sidebar-select-color);
+}
+
+.pf-sig-item-text {
+	min-width: 0;
+}
+
+.pf-sig-item-title {
+	font-weight: 500;
+	line-height: 1.4;
+	color: var(--text-color);
+}
+
+.pf-sig-item-time {
+	color: var(--text-muted);
+	font-size: var(--text-sm, 12px);
+}
+
+.pf-sig-detail {
+	flex: 1;
+	padding: var(--padding-md) var(--padding-lg);
+	background: var(--fg-color);
+	overflow: auto;
+}
+
+.pf-sig-actions {
+	margin-bottom: var(--margin-sm);
+}
+
+.pf-sig-bullets {
+	margin: 0 0 var(--margin-md) var(--margin-lg);
+	padding: 0;
+	color: var(--text-color);
+}
+
+.pf-sig-meta {
+	display: grid;
+	grid-template-columns: minmax(120px, 160px) 1fr;
+	gap: var(--padding-xs) var(--padding-md);
+	margin: 0;
+}
+
+.pf-sig-meta dt {
+	margin: 0;
+	padding-top: 6px;
+}
+
+.pf-sig-meta dd {
+	margin: 0;
+}

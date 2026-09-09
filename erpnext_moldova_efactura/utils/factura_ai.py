@@ -18,8 +18,11 @@ import urllib.parse
 import urllib.request
 from datetime import datetime
 
-from erpnext_moldova_efactura.utils.factura_ocr import OCR_ERROR, OCR_GUIDANCE
 from erpnext_moldova_efactura.utils.factura_pdf import FacturaImportError, decimal, money
+
+MAX_IMAGE_BYTES = 15 * 1024 * 1024
+OCR_ERROR = "Cannot read factura"
+OCR_GUIDANCE = "Please provide a clearer, correctly oriented photo or scan of the complete document."
 
 MAX_IMAGE_BYTES = 15 * 1024 * 1024
 DEFAULT_MODEL = "gemini-3.6-flash"
@@ -318,9 +321,7 @@ def document_from_extraction(data: dict, content: bytes) -> dict:
 		"items": items,
 		"original_format": "Paper",
 		"signature_status": "Not Applicable",
-		"signature_details": [],
 		"file_hash": hashlib.sha256(content).hexdigest(),
-		"extracted_text": json.dumps(data, ensure_ascii=False),
 	}
 	related_type = _blank(data.get("related_document_type"))
 	related_number = _blank(data.get("related_document_number"))
@@ -429,12 +430,14 @@ def _post_gemini(body: bytes, key: str, model: str, *, retried_model: str | None
 
 def parse_image(content: bytes) -> dict:
 	if len(content) > MAX_IMAGE_BYTES:
-		_fail("the source is not a supported JPEG or PNG image, or it exceeds 15 MB")
+		_fail("the source is not a supported JPEG, PNG or PDF file, or it exceeds 15 MB")
 	if content.startswith(b"\xff\xd8\xff"):
 		mime = "image/jpeg"
 	elif content.startswith(b"\x89PNG\r\n\x1a\n"):
 		mime = "image/png"
+	elif content.startswith(b"%PDF-"):
+		mime = "application/pdf"
 	else:
-		_fail("the source is not a supported JPEG or PNG image, or it exceeds 15 MB")
+		_fail("the source is not a supported JPEG, PNG or PDF file, or it exceeds 15 MB")
 	key, model = _credentials()
 	return document_from_extraction(_generate(content, mime, key, model), content)

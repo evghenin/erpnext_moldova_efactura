@@ -221,6 +221,7 @@ class PurchaseeFactura(Document):
 				"ef_series": self.ef_series,
 				"ef_number": self.ef_number,
 				"name": ["!=", self.name],
+				"docstatus": ["<", 2],
 			},
 		)
 		if existing:
@@ -339,7 +340,48 @@ class PurchaseeFactura(Document):
 		self._sync_linked_pi_fiscal()
 
 	def on_cancel(self):
-		self._sync_linked_pi_fiscal()
+		self._unlink_linked_documents()
+
+	def _unlink_linked_documents(self):
+		from erpnext_moldova_efactura.utils.doc_unlink import (
+			clear_header_fields,
+			clear_item_fields,
+			clear_reverse,
+			merge_unique,
+			reverse_names,
+		)
+		from erpnext_moldova_efactura.utils.fiscal_status import sync_pi_fiscal_status, sync_pr_fiscal_status
+		from erpnext_moldova_efactura.utils.po_link import get_linked_purchase_orders
+
+		invoices = merge_unique(
+			unique_purchase_invoices(self), reverse_names("Purchase Invoice", "purchase_efactura", self.name)
+		)
+		receipts = merge_unique(
+			unique_stock_docs(self, PR_SPEC), reverse_names("Purchase Receipt", "purchase_efactura", self.name)
+		)
+		notes = merge_unique(
+			unique_stock_docs(self, DN_SPEC), reverse_names("Delivery Note", "purchase_efactura", self.name)
+		)
+		orders = merge_unique(
+			get_linked_purchase_orders(self), reverse_names("Purchase Order", "purchase_efactura", self.name)
+		)
+		clear_item_fields(
+			self,
+			("purchase_invoice", "pi_detail", "purchase_receipt", "pr_detail", "delivery_note", "dn_detail"),
+		)
+		clear_header_fields(self, ("purchase_order",))
+		if frappe.db.exists("DocType", "Purchase eFactura Purchase Order"):
+			frappe.db.delete("Purchase eFactura Purchase Order", {"parent": self.name})
+		clear_reverse("Purchase Invoice", "purchase_efactura", invoices, self.name)
+		clear_reverse("Purchase Receipt", "purchase_efactura", receipts, self.name)
+		clear_reverse("Delivery Note", "purchase_efactura", notes, self.name)
+		clear_reverse("Purchase Order", "purchase_efactura", orders, self.name)
+		for pi_name in invoices:
+			if frappe.db.exists("Purchase Invoice", pi_name):
+				sync_pi_fiscal_status(pi_name)
+		for pr_name in receipts:
+			if frappe.db.exists("Purchase Receipt", pr_name):
+				sync_pr_fiscal_status(pr_name)
 
 	def _sync_linked_pi_fiscal(self):
 		from erpnext_moldova_efactura.utils.fiscal_status import sync_pi_fiscal_status

@@ -473,4 +473,10 @@ linked {0} {1},a asociat {0} {1}
 unlinked Purchase Invoice,a dezasociat Factura de cumpărare
 unlinked {0},a dezasociat {0}
 unlinked Purchase Order,a dezasociat Comanda de cumpărare
-Fiscalization: {0},Fiscalizare: {0}
+checked the PDF signature: integrity {0}, overall {1},a verificat semnătura PDF: integritate {0}, rezultat {1}
+Signature is VALID,Semnătura este VALIDĂ
+Signature is INVALID,Semnătura este INVALIDĂ
+The document has not been modified since the signature was applied,Documentul nu a fost modificat după aplicarea semnăturii
+Timestamp was not checked,Marcajul de timp nu a fost verificat
+has not been altered,nu a fost alterat
+Verify Signatures,Verifică semnăturile

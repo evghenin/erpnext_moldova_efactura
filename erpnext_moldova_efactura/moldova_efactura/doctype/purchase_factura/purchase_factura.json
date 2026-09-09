@@ -26,6 +26,20 @@
   "column_break_sapi",
   "signature_status",
   "provider",
+  "signature_section",
+  "signature_integrity",
+  "signature_format",
+  "signature_field",
+  "column_break_sig",
+  "signature_declared_time",
+  "signature_coverage",
+  "signature_checked_on",
+  "column_break_sig2",
+  "signature_certificate_trust",
+  "signature_revocation",
+  "signature_timestamp_check",
+  "signature_checked_by",
+  "signature_evidence",
   "party_section",
   "supplier_party_type",
   "supplier_party",
@@ -50,12 +64,14 @@
   "f_customer_bank_code",
   "f_customer_address",
   "references_section",
-  "f_provider_reference",
-  "f_provider_account",
-  "f_contract_reference",
   "f_related_document_type",
+  "f_provider_reference",
+  "column_break_lala",
   "f_related_document_number",
+  "f_provider_account",
+  "column_break_xsyw",
   "f_related_document_date",
+  "f_contract_reference",
   "items_section",
   "items",
   "totals_section",
@@ -68,8 +84,6 @@
   "total",
   "f_total",
   "audit_section",
-  "signature_details",
-  "extracted_text",
   "file_hash",
   "identity_key",
   "amended_from"
@@ -166,8 +180,99 @@
   {
    "default": "Not Applicable",
    "fieldname": "signature_status",
-   "fieldtype": "Data",
+   "fieldtype": "Select",
    "label": "Signature Status",
+   "options": "Not Checked\nNot Applicable\nIndeterminate\nInvalid\nValid",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "signature_section",
+   "fieldtype": "Section Break",
+   "label": "PDF Signature"
+  },
+  {
+   "default": "Not Applicable",
+   "fieldname": "signature_integrity",
+   "fieldtype": "Select",
+   "label": "CMS Integrity",
+   "options": "Not Checked\nNot Applicable\nPassed\nFailed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "signature_format",
+   "fieldtype": "Data",
+   "label": "Signature Format",
+   "read_only": 1
+  },
+  {
+   "fieldname": "signature_field",
+   "fieldtype": "Data",
+   "label": "Signature Field",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_sig",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "signature_declared_time",
+   "fieldtype": "Data",
+   "label": "Declared Signature Time",
+   "read_only": 1
+  },
+  {
+   "fieldname": "signature_coverage",
+   "fieldtype": "Small Text",
+   "label": "Signed Coverage",
+   "read_only": 1
+  },
+  {
+   "fieldname": "signature_checked_on",
+   "fieldtype": "Datetime",
+   "label": "Signature Checked On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_sig2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Not Applicable",
+   "fieldname": "signature_certificate_trust",
+   "fieldtype": "Select",
+   "label": "Certificate Trust",
+   "options": "Not Checked\nNot Applicable",
+   "read_only": 1
+  },
+  {
+   "default": "Not Applicable",
+   "fieldname": "signature_revocation",
+   "fieldtype": "Select",
+   "label": "Revocation Check",
+   "options": "Not Checked\nNot Applicable",
+   "read_only": 1
+  },
+  {
+   "default": "Not Applicable",
+   "fieldname": "signature_timestamp_check",
+   "fieldtype": "Select",
+   "label": "Timestamp Check",
+   "options": "Not Checked\nNot Applicable\nPassed\nFailed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "signature_checked_by",
+   "fieldtype": "Link",
+   "label": "Signature Checked By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "signature_evidence",
+   "fieldtype": "Code",
+   "hidden": 1,
+   "label": "Signature Evidence",
    "read_only": 1
   },
   {
@@ -218,7 +323,8 @@
   {
    "collapsible": 1,
    "fieldname": "references_section",
-   "fieldtype": "Section Break"
+   "fieldtype": "Section Break",
+   "label": "References"
   },
   {
    "fieldname": "f_provider_reference",
@@ -293,21 +399,6 @@
    "collapsible": 1,
    "fieldname": "audit_section",
    "fieldtype": "Section Break"
-  },
-  {
-   "fieldname": "signature_details",
-   "fieldtype": "Code",
-   "hidden": 1,
-   "label": "Signature Details",
-   "options": "JSON",
-   "read_only": 1
-  },
-  {
-   "fieldname": "extracted_text",
-   "fieldtype": "Long Text",
-   "hidden": 1,
-   "label": "Extracted Text",
-   "read_only": 1
   },
   {
    "fieldname": "file_hash",
@@ -478,11 +569,19 @@
   {
    "fieldname": "column_break_sapi",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_lala",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_xsyw",
+   "fieldtype": "Column Break"
   }
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-06 23:33:28.314771",
+ "modified": "2026-09-09 00:10:47.190429",
  "modified_by": "Administrator",
  "module": "Moldova eFactura",
  "name": "Purchase Factura",

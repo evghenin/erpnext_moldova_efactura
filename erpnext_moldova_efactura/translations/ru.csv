@@ -474,4 +474,10 @@ linked {0} {1},связал {0} {1}
 unlinked Purchase Invoice,отвязал счёт закупки
 unlinked {0},отвязал {0}
 unlinked Purchase Order,отвязал заказ поставщику
-Fiscalization: {0},Фискализация: {0}
+checked the PDF signature: integrity {0}, overall {1},проверил PDF-подпись: целостность {0}, итог {1}
+Signature is VALID,Подпись ДЕЙСТВИТЕЛЬНА
+Signature is INVALID,Подпись НЕДЕЙСТВИТЕЛЬНА
+The document has not been modified since the signature was applied,Документ не изменялся после применения подписи
+Timestamp was not checked,Метка времени не проверялась
+has not been altered,не был изменён
+Verify Signatures,Проверить подписи
