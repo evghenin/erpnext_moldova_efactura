@@ -107,6 +107,7 @@ def _apply_transaction_taxes(
 		_apply_tax_template(target, source, template, template_dt, vat_included, vat_account)
 
 	_ensure_actual_vat_row(target, source, vat_account, vat_included, empty_title, empty_msg)
+	ensure_purchase_tax_row_defaults(target)
 
 
 def _apply_itemwise_taxes(target, source, vat_included: bool, vat_account: str | None) -> bool:
@@ -280,6 +281,15 @@ def _primary_vat_rate(source) -> float:
 	if net and vat:
 		return flt(vat / net * 100)
 	return 0.0
+
+
+def ensure_purchase_tax_row_defaults(target) -> None:
+	"""ERPNext item-tax mapping sets category/add_deduct_tax on PO only, not PI."""
+	for tax in target.get("taxes") or []:
+		if tax.meta.has_field("category") and not tax.category:
+			tax.category = "Total"
+		if tax.meta.has_field("add_deduct_tax") and not tax.add_deduct_tax:
+			tax.add_deduct_tax = "Add"
 
 
 def _append_vat_tax(

@@ -14,6 +14,7 @@ from erpnext_moldova_efactura.moldova_efactura.doctype.purchase_factura.purchase
 	_identity,
 	_lock_company,
 )
+from erpnext_moldova_efactura.utils.buying_taxes import ensure_purchase_tax_row_defaults
 from erpnext_moldova_efactura.utils.factura_pdf import decimal, money
 from erpnext_moldova_efactura.utils.pf_amounts import tax_source
 
@@ -178,6 +179,7 @@ def apply_factura_round_off(pi, pf):
 	for tax in list(pi.get("taxes") or []):
 		if account and tax.account_head == account:
 			pi.remove(tax)
+	ensure_purchase_tax_row_defaults(pi)
 	if hasattr(pi, "calculate_taxes_and_totals"):
 		pi.calculate_taxes_and_totals()
 	delta = money(pf.total or 0) - money(pi.grand_total or 0)
@@ -507,11 +509,20 @@ def link_purchase_invoice(name, purchase_invoice):
 	pi = frappe.get_doc("Purchase Invoice", purchase_invoice)
 	pi.check_permission("write")
 	assert_no_pef(pf)
-	apply_factura_round_off(pi, pf)
-	pairs = match_invoice(pf, pi)
-	pi.flags.pf_link_action = True
-	pi.purchase_factura = pf.name
-	pi.save()
+	if cint(pi.docstatus) == 0:
+		apply_factura_round_off(pi, pf)
+		pairs = match_invoice(pf, pi)
+		pi.flags.pf_link_action = True
+		pi.purchase_factura = pf.name
+		pi.save()
+	else:
+		# Recalculating taxes on a submitted PI can rewrite Outstanding Amount.
+		pairs = match_invoice(pf, pi)
+		frappe.db.set_value("Purchase Invoice", pi.name, "purchase_factura", pf.name)
+		pi.purchase_factura = pf.name
+	from erpnext_moldova_efactura.utils.fiscal_status import sync_pi_fiscal_status
+
+	sync_pi_fiscal_status(pi.name)
 	pf.purchase_invoice = pi.name
 	_write_pf_pi_pairs(pf, pi.name, pairs)
 	pf.flags.linking_pi = True

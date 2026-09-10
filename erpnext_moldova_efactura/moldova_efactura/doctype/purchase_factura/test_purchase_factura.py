@@ -715,6 +715,20 @@ class TestPurchaseFactura(FrappeTestCase):
 		self.assertEqual(pi.reload().docstatus, 1)
 		self.assertFalse(pi.purchase_factura)
 
+	def test_link_paid_submitted_invoice(self):
+		pf = self.factura()
+		pi = make_purchase_invoice(pf.name)
+		pi.purchase_factura = None
+		pi.bill_no = None
+		pi.bill_date = None
+		pi.insert()
+		pi.submit()
+		frappe.db.set_value("Purchase Invoice", pi.name, "outstanding_amount", 0)
+		link_purchase_invoice(pf.name, pi.name)
+		self.assertEqual(pf.reload().purchase_invoice, pi.name)
+		self.assertEqual(pi.reload().purchase_factura, pf.name)
+		self.assertEqual(flt(pi.outstanding_amount), 0)
+
 	def test_company_checks(self):
 		self.factura()
 		with self.assertRaises(frappe.ValidationError):
