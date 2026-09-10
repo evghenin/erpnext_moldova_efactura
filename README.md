@@ -228,18 +228,28 @@ Then open **eFactura Settings**, set the SFS API URL, add a **Company API Accoun
 
 ### Upgrade from 2.x to version 3
 
-Version 3 adds the `pypdf` runtime dependency, the Purchase Factura DocTypes, a Purchase Invoice link, and purchase workspace entries:
+`bench migrate` only applies the checkout already on the server. Check out **v3.0.0** first (a 2.x branch or tag will stay on 2.x even after `bench update`):
 
 ```bash
-cd $PATH_TO_YOUR_BENCH
-bench setup requirements --python erpnext_moldova_efactura
+cd $PATH_TO_YOUR_BENCH/apps/erpnext_moldova_efactura
+git fetch --tags
+git checkout v3.0.0
+cd ../..
+bench setup requirements --python
 bench --site $SITE migrate
 bench build --app erpnext_moldova_efactura
 ```
 
-Confirm that **Company IDNO Field** and **Supplier IDNO Field** are configured in eFactura Settings before creating or importing PF records. For paper photos, set **Gemini API Key** (and optionally **Gemini Model**, default `gemini-3.6-flash`). Configure the existing Purchase Tax Settings and supplier Item/UOM mappings used to create Purchase Invoices.
+If the app already tracks `master` (after v3 was merged), this is equivalent:
 
-The v3 PF currency/UOM migration copies earlier PF originals into the `f_*` fields and preserves their currency, totals, original quantities, purchase quantities and existing links, including submitted records. Records from the first single-currency PF schema start with matching original/document currencies and rate 1; they are not rebooked. Supplier payable-account currency must match its billing currency under the normal ERPNext rules.
+```bash
+cd $PATH_TO_YOUR_BENCH
+bench update --apps erpnext_moldova_efactura
+```
+
+Confirm `bench version` shows `erpnext_moldova_efactura 3.0.0`. Version 3 adds `pypdf`, the Purchase Factura DocTypes, a Purchase Invoice link, and purchase workspace entries.
+
+Confirm that **Company IDNO Field** and **Supplier IDNO Field** are configured in eFactura Settings before creating or importing PF records. For paper photos, set **Gemini API Key** (and optionally **Gemini Model**, default `gemini-3.6-flash`). Configure the existing Purchase Tax Settings and supplier Item/UOM mappings used to create Purchase Invoices. Supplier payable-account currency must match its billing currency under the normal ERPNext rules.
 
 ### Upgrade from 2.0
 
@@ -289,5 +299,3 @@ bench --site $SITE run-tests --app erpnext_moldova_efactura
 ### License
 
 mit
-
-PF schema updates also migrate the intermediate `ef_*` fields to `f_*` without recalculating their stored values. PF Item exposes `purchase_invoice` and `pi_detail`; its invoice link follows the parent PF link. Expense Account and Cost Center are configured on Purchase Invoice using standard ERPNext defaults, not on PF Item.
