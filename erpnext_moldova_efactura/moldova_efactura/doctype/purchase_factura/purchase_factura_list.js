@@ -26,14 +26,12 @@ function pf_bind_list_import(listview) {
 	}
 	const bind = () => {
 		const pf = frappe.provide("erpnext_moldova_efactura.pf");
-		if (!pf.import_pdf) {
+		if (!pf.bind_import_buttons) {
 			return false;
 		}
-		// Secondary action sits next to Add — grouped inner buttons are easy to miss.
-		listview.page.set_secondary_action(__("Import"), () => pf.import_pdf(), "upload");
-		if (cint(frappe.boot && frappe.boot.moldova_efactura_paper_ai) && pf.import_image) {
-			listview.page.add_inner_button(__("Any Image with AI"), () => pf.import_image());
-		}
+		pf.bind_import_buttons((label, action) => {
+			listview.page.add_inner_button(label, action, __("Import"));
+		});
 		listview._pf_import_bound = true;
 		return true;
 	};

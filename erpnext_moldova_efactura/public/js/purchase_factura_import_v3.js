@@ -61,12 +61,37 @@ erpnext_moldova_efactura.pf.import_pdf = function () {
 };
 
 erpnext_moldova_efactura.pf.import_image = function () {
+	if (!cint(frappe.boot && frappe.boot.moldova_efactura_paper_ai)) {
+		erpnext_moldova_efactura.pf.show_gemini_setup();
+		return;
+	}
 	erpnext_moldova_efactura.pf.import_document("image");
 };
 
+erpnext_moldova_efactura.pf.show_gemini_setup = function () {
+	const studio = "https://aistudio.google.com/apikey";
+	const settings = "/app/efactura-settings";
+	const dialog = new frappe.ui.Dialog({
+		title: __("Gemini API Key Required"),
+		primary_action_label: __("Open eFactura Settings"),
+		primary_action: () => {
+			dialog.hide();
+			frappe.set_route("Form", "eFactura Settings");
+		},
+	});
+	dialog.$body.html(`
+		<p>${__(
+			"Image import uses Google Gemini. Create an API key in Google AI Studio, then save it in eFactura Settings."
+		)}</p>
+		<p>${__("Get the API key")}: <a href="${studio}" target="_blank" rel="noopener">${studio}</a></p>
+		<p>${__("Set the key")}: <a href="${settings}">${__(
+			"eFactura Settings → Purchase → Paper Import"
+		)}</a></p>
+	`);
+	dialog.show();
+};
+
 erpnext_moldova_efactura.pf.bind_import_buttons = function (add_button) {
+	add_button(__("Any Image with AI"), erpnext_moldova_efactura.pf.import_image);
 	add_button(__("PDF Orange / Arax"), erpnext_moldova_efactura.pf.import_pdf);
-	if (cint(frappe.boot && frappe.boot.moldova_efactura_paper_ai)) {
-		add_button(__("Any Image with AI"), erpnext_moldova_efactura.pf.import_image);
-	}
 };
