@@ -872,34 +872,6 @@ class TestPurchaseFactura(FrappeTestCase):
 		self.assertFalse(meta.has_field("cost_center"))
 		self.assertEqual(meta.get_field("purchase_invoice").options, "Purchase Invoice")
 
-	def test_prefix_migration_preserves_currency_values_and_links(self):
-		from erpnext_moldova_efactura.patches.v3_0.rename_pf_original_prefix import execute
-
-		if not frappe.db.has_column("Purchase Factura", "ef_currency"):
-			self.skipTest("Intermediate schema columns are absent")
-		pf = self.factura()
-		pi = make_purchase_invoice(pf.name).insert()
-		frappe.db.sql(
-			"""update `tabPurchase Factura`
-			set f_currency=NULL, ef_currency='MDL', ef_conversion_rate=20,
-			ef_net_total=225, ef_vat_total=45, ef_total=270 where name=%s""",
-			pf.name,
-		)
-		frappe.db.sql(
-			"""update `tabPurchase Factura Item`
-			set ef_qty=1, ef_rate=225, ef_net_amount=225, ef_vat_amount=45,
-			ef_amount=270, purchase_invoice=NULL where parent=%s""",
-			pf.name,
-		)
-		execute()
-		pf.reload()
-		self.assertEqual((pf.f_currency, pf.f_conversion_rate, pf.f_total), ("MDL", 20, 270))
-		self.assertEqual((pf.items[0].f_rate, pf.items[0].f_amount), (225, 270))
-		self.assertEqual(pf.items[0].purchase_invoice, pi.name)
-		frappe.db.set_value("Purchase Factura", pf.name, "f_conversion_rate", 25)
-		execute()
-		self.assertEqual(pf.reload().f_conversion_rate, 25)
-
 	def test_foreign_currency_invoice_and_vat_modes(self):
 		parent = frappe.db.get_value(
 			"Account", {"company": self.company.name, "is_group": 1, "root_type": "Liability"}, "name"
@@ -996,31 +968,6 @@ class TestPurchaseFactura(FrappeTestCase):
 		pf.items[0].f_rate = pf.items[0].f_net_amount = pf.items[0].f_vat_amount = 0
 		pf.save()
 		self.assertEqual((pf.total, pf.f_total, pf.items[0].amount, pf.items[0].rate), (0, 0, 0, 0))
-
-	def test_legacy_migration_preserves_original_and_quantities(self):
-		from erpnext_moldova_efactura.patches.v3_0.align_pf_currency_uom import execute
-
-		if not frappe.db.has_column("Purchase Factura Item", "source_qty"):
-			self.skipTest("Legacy columns are absent on a fresh installation")
-		pf = self.factura()
-		frappe.db.sql(
-			"""update `tabPurchase Factura Item`
-			set description='Legacy service', source_qty=2, source_rate=112.5, source_uom='unit', vat_rate=20,
-			amount=270, qty=4, conversion_factor=3 where name=%s""",
-			pf.items[0].name,
-		)
-		frappe.db.set_value("Purchase Factura", pf.name, "f_currency", None)
-		execute()
-		pf.reload()
-		self.assertEqual((pf.currency, pf.f_currency, pf.f_conversion_rate), ("MDL", "MDL", 1))
-		self.assertEqual((pf.f_total, pf.items[0].supplier_item_name), (270, "Legacy service"))
-		self.assertEqual(
-			(pf.items[0].f_qty, pf.items[0].qty, pf.items[0].stock_qty, pf.items[0].f_conversion_factor),
-			(2, 4, 12, 6),
-		)
-		execute()
-		pf.reload().save()
-		self.assertEqual((pf.items[0].qty, pf.total), (4, 270))
 
 	def test_preview_and_supplier_currency_defaults(self):
 		from erpnext_moldova_efactura.moldova_efactura.doctype.purchase_factura.purchase_factura import (

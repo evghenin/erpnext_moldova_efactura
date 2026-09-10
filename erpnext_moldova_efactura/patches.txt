@@ -7,9 +7,7 @@ erpnext_moldova_efactura.patches.v2_0.convert_pef_creation_motiv_to_type
 erpnext_moldova_efactura.patches.v2_0.rename_sef_customer_to_party
 
 [post_model_sync]
-erpnext_moldova_efactura.patches.v3_0.rename_pf_original_prefix
-erpnext_moldova_efactura.patches.v3_0.align_pf_currency_uom
-erpnext_moldova_efactura.patches.v3_0.unify_pf_header_fields
+# Purchase Factura is new in 3.0; DocType JSON is the shipped schema.
 erpnext_moldova_efactura.patches.v3_0.add_sef_lookup_indexes
 # Patches added in this section will be executed after doctypes are migrated
 erpnext_moldova_efactura.patches.v1_0.migrate_sales_invoice_fiscal_status

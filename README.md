@@ -2,7 +2,7 @@
 
 ERPNext integration for Moldovan electronic tax invoices (e-Factura / SFS).
 
-Version **3.0.0-dev**. Requires ERPNext / Frappe v15.
+Version **3.0.0**. Requires ERPNext / Frappe v15.
 
 Outgoing invoices are **Sales eFactura**. Incoming invoices are **Purchase eFactura**. Desk workspaces: **eFactura**, **eFactura Sales**, **eFactura Purchase**, **Factura Purchase**.
 
