@@ -678,6 +678,8 @@ class TestPurchaseFactura(FrappeTestCase):
 		pf = self.factura()
 		pi = make_purchase_invoice(pf.name)
 		pi.purchase_factura = None
+		pi.bill_no = None
+		pi.bill_date = None
 		pi.insert()
 		pi.submit()
 		rows = linkable_purchase_invoices(

@@ -7,7 +7,7 @@ from itertools import combinations
 
 import frappe
 from frappe import _
-from frappe.utils import cint, flt, getdate
+from frappe.utils import cint, flt
 
 from erpnext_moldova_efactura.moldova_efactura.doctype.purchase_factura.purchase_factura import (
 	_get_pf,
@@ -299,8 +299,6 @@ def validate_pi(doc, method=None):
 	assert_no_pef(pf)
 	apply_factura_round_off(doc, pf)
 	match_invoice(pf, doc)
-	if doc.bill_no != pf.f_series + pf.f_number or getdate(doc.bill_date) != getdate(pf.issue_date):
-		frappe.throw(_("Supplier invoice number/date must match the original factura"))
 
 
 def sync_pi_link(doc, method=None):
@@ -349,19 +347,6 @@ def make_purchase_invoice(source_name, target_doc=None):
 		pi.check_permission("read")
 		return pi
 	assert_no_pef(pf)
-	# Do not create an additional PI if the original has already been booked manually.
-	if frappe.db.exists(
-		"Purchase Invoice",
-		{
-			"company": pf.company,
-			"supplier": pf.supplier_party,
-			"bill_no": pf.f_series + pf.f_number,
-			"docstatus": ["<", 2],
-		},
-	):
-		frappe.throw(
-			_("A Purchase Invoice with this supplier invoice number exists. Use Link Purchase Invoice.")
-		)
 	from erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura import (
 		_prepare_mapped_buying_doc,
 	)
@@ -374,8 +359,6 @@ def make_purchase_invoice(source_name, target_doc=None):
 			"supplier": pf.supplier_party,
 			"currency": pf.currency,
 			"purchase_factura": pf.name,
-			"bill_no": pf.f_series + pf.f_number,
-			"bill_date": pf.issue_date,
 			"ignore_pricing_rule": 1,
 		}
 	)
@@ -524,12 +507,6 @@ def link_purchase_invoice(name, purchase_invoice):
 	pi = frappe.get_doc("Purchase Invoice", purchase_invoice)
 	pi.check_permission("write")
 	assert_no_pef(pf)
-	if pi.bill_no and pi.bill_no != pf.f_series + pf.f_number:
-		frappe.throw(_("Supplier invoice number differs from the factura"))
-	if pi.bill_date and getdate(pi.bill_date) != getdate(pf.issue_date):
-		frappe.throw(_("Supplier invoice date differs from the factura"))
-	if not pi.bill_no or not pi.bill_date:
-		frappe.throw(_("Fill Supplier Invoice No and Date on the Purchase Invoice before linking"))
 	apply_factura_round_off(pi, pf)
 	pairs = match_invoice(pf, pi)
 	pi.flags.pf_link_action = True
