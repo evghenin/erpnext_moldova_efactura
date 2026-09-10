@@ -121,16 +121,13 @@ frappe.ui.form.on("Purchase Factura", {
 			frm.add_custom_button(__("Open Purchase Invoice"), () =>
 				frappe.set_route("Form", "Purchase Invoice", frm.doc.purchase_invoice)
 			);
-			frm.add_custom_button(
-				__("Unlink Purchase Invoice"),
-				() =>
-					frappe.confirm(
-						__(
-							"Remove the fiscal link? The Purchase Invoice and its accounting entries will be retained."
-						),
-						() => pf_action(frm, "unlink_purchase_invoice", { name: frm.doc.name })
+			frm.add_custom_button(__("Unlink Purchase Invoice"), () =>
+				frappe.confirm(
+					__(
+						"Remove the fiscal link? The Purchase Invoice and its accounting entries will be retained."
 					),
-				__("Actions")
+					() => pf_action(frm, "unlink_purchase_invoice", { name: frm.doc.name })
+				)
 			);
 		} else {
 			if (frappe.model.can_create("Purchase Order")) {
@@ -159,37 +156,8 @@ frappe.ui.form.on("Purchase Factura", {
 					__("Create")
 				);
 			}
-			frm.add_custom_button(
-				__("Link Purchase Invoice"),
-				() => {
-					if (frm.is_dirty()) return frappe.msgprint(__("Save the factura first"));
-					frappe.prompt(
-						[
-							{
-								fieldname: "purchase_invoice",
-								fieldtype: "Link",
-								label: __("Purchase Invoice"),
-								options: "Purchase Invoice",
-								reqd: 1,
-								get_query: () => ({
-									filters: {
-										company: frm.doc.company,
-										supplier: frm.doc.supplier_party,
-										docstatus: ["<", 2],
-										is_return: 0,
-									},
-								}),
-							},
-						],
-						(values) =>
-							pf_action(frm, "link_purchase_invoice", {
-								name: frm.doc.name,
-								...values,
-							}),
-						__("Link Purchase Invoice")
-					);
-				},
-				__("Actions")
+			frm.add_custom_button(__("Link Purchase Invoice"), () =>
+				pf_link_purchase_invoice_dialog(frm)
 			);
 		}
 	},
@@ -250,11 +218,49 @@ function pf_setup_new_supplier(frm) {
 	};
 }
 
+function pf_link_purchase_invoice_dialog(frm) {
+	if (frm.is_dirty()) return frappe.msgprint(__("Save the factura first"));
+	if (!frm.doc.supplier_party) {
+		frappe.msgprint({
+			title: __("Select a Supplier"),
+			indicator: "orange",
+			message: __("Select a Supplier on the factura first"),
+		});
+		return;
+	}
+	frappe.prompt(
+		[
+			{
+				fieldname: "purchase_invoice",
+				fieldtype: "Link",
+				options: "Purchase Invoice",
+				label: __("Purchase Invoice"),
+				reqd: 1,
+				get_query: () => ({
+					query: pf_invoice_api + "linkable_purchase_invoices",
+					filters: {
+						company: frm.doc.company,
+						supplier: frm.doc.supplier_party,
+					},
+				}),
+			},
+		],
+		(values) =>
+			pf_action(frm, "link_purchase_invoice", {
+				name: frm.doc.name,
+				...values,
+			}),
+		__("Link Purchase Invoice"),
+		__("Link")
+	);
+}
+
 function pf_action(frm, action, args) {
 	frappe.call({
 		method: pf_invoice_api + action,
 		args,
 		freeze: true,
+		freeze_message: __("Matching Purchase Invoice..."),
 		callback: () => frm.reload_doc(),
 	});
 }

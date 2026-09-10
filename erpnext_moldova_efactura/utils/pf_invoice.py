@@ -466,6 +466,47 @@ def make_purchase_order(source_name, target_doc=None):
 
 
 @frappe.whitelist()
+def linkable_purchase_invoices(doctype, txt, searchfield, start, page_len, filters):
+	"""Draft or submitted invoices for this supplier that are not already allocated."""
+	from frappe.desk.reportview import get_match_cond
+
+	filters = filters or {}
+	conditions = [
+		"`tabPurchase Invoice`.docstatus < 2",
+		"`tabPurchase Invoice`.is_return = 0",
+	]
+	values = {"txt": f"%{txt or ''}%", "start": start, "page_len": page_len}
+	if filters.get("company"):
+		conditions.append("`tabPurchase Invoice`.company = %(company)s")
+		values["company"] = filters["company"]
+	if filters.get("supplier"):
+		conditions.append("`tabPurchase Invoice`.supplier = %(supplier)s")
+		values["supplier"] = filters["supplier"]
+	if frappe.db.has_column("Purchase Invoice", "purchase_factura"):
+		conditions.append("IFNULL(`tabPurchase Invoice`.purchase_factura, '') = ''")
+	if frappe.db.has_column("Purchase Invoice", "purchase_efactura"):
+		conditions.append("IFNULL(`tabPurchase Invoice`.purchase_efactura, '') = ''")
+
+	return frappe.db.sql(
+		f"""
+		SELECT `tabPurchase Invoice`.name, `tabPurchase Invoice`.supplier,
+			`tabPurchase Invoice`.bill_no, `tabPurchase Invoice`.grand_total
+		FROM `tabPurchase Invoice`
+		WHERE {" AND ".join(conditions)}
+			AND (
+				`tabPurchase Invoice`.name LIKE %(txt)s
+				OR IFNULL(`tabPurchase Invoice`.bill_no, '') LIKE %(txt)s
+				OR IFNULL(`tabPurchase Invoice`.`{searchfield}`, '') LIKE %(txt)s
+			)
+			{get_match_cond("Purchase Invoice")}
+		ORDER BY `tabPurchase Invoice`.modified DESC
+		LIMIT %(page_len)s OFFSET %(start)s
+		""",
+		values,
+	)
+
+
+@frappe.whitelist()
 def link_purchase_invoice(name, purchase_invoice):
 	pf = _get_pf(name)
 	_lock_company(pf.company)

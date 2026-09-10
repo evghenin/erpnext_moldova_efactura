@@ -673,13 +673,39 @@ class TestPurchaseFactura(FrappeTestCase):
 			pi.save()
 
 	def test_link_existing_and_unlink(self):
+		from erpnext_moldova_efactura.utils.pf_invoice import linkable_purchase_invoices
+
 		pf = self.factura()
 		pi = make_purchase_invoice(pf.name)
 		pi.purchase_factura = None
 		pi.insert()
 		pi.submit()
+		names = [
+			row[0]
+			for row in linkable_purchase_invoices(
+				"Purchase Invoice",
+				pi.name,
+				"name",
+				0,
+				20,
+				{"company": pf.company, "supplier": pf.supplier_party},
+			)
+		]
+		self.assertIn(pi.name, names)
 		link_purchase_invoice(pf.name, pi.name)
 		self.assertEqual(pf.reload().purchase_invoice, pi.name)
+		names = [
+			row[0]
+			for row in linkable_purchase_invoices(
+				"Purchase Invoice",
+				pi.name,
+				"name",
+				0,
+				20,
+				{"company": pf.company, "supplier": pf.supplier_party},
+			)
+		]
+		self.assertNotIn(pi.name, names)
 		unlink_purchase_invoice(pf.name)
 		self.assertFalse(pf.reload().purchase_invoice)
 		self.assertFalse(pf.items[0].purchase_invoice)
