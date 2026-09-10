@@ -14,11 +14,20 @@ frappe.ui.form.on("Purchase Factura", {
 		pf_setup_new_supplier(frm);
 		pf_setup_new_item(frm);
 		pf_currency_labels(frm);
-		const pf = frappe.provide("erpnext_moldova_efactura.pf");
-		if (frappe.model.can_create("Purchase Factura") && pf.bind_import_buttons) {
-			pf.bind_import_buttons((label, action) => {
-				frm.add_custom_button(label, action, __("Import"));
-			});
+		if (frappe.model.can_create("Purchase Factura")) {
+			const bind = () => {
+				const pf = frappe.provide("erpnext_moldova_efactura.pf");
+				if (!pf.bind_import_buttons) {
+					return false;
+				}
+				pf.bind_import_buttons((label, action) => {
+					frm.add_custom_button(label, action, __("Import"));
+				});
+				return true;
+			};
+			if (!bind()) {
+				frappe.require("/assets/erpnext_moldova_efactura/js/purchase_factura_import_v3.js", bind);
+			}
 		}
 		if (frm.doc.provider && frm.doc.docstatus === 0) {
 			let intro = __(
