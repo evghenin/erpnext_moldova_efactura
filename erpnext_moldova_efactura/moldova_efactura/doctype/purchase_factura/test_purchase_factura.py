@@ -680,18 +680,19 @@ class TestPurchaseFactura(FrappeTestCase):
 		pi.purchase_factura = None
 		pi.insert()
 		pi.submit()
-		names = [
-			row[0]
-			for row in linkable_purchase_invoices(
-				"Purchase Invoice",
-				pi.name,
-				"name",
-				0,
-				20,
-				{"company": pf.company, "supplier": pf.supplier_party},
-			)
-		]
-		self.assertIn(pi.name, names)
+		rows = linkable_purchase_invoices(
+			"Purchase Invoice",
+			pi.name,
+			"name",
+			0,
+			20,
+			{"company": pf.company, "supplier": pf.supplier_party},
+		)
+		self.assertIn(pi.name, [row[0] for row in rows])
+		from frappe.utils import formatdate
+
+		row = next(item for item in rows if item[0] == pi.name)
+		self.assertEqual(row[1], formatdate(pi.posting_date))
 		link_purchase_invoice(pf.name, pi.name)
 		self.assertEqual(pf.reload().purchase_invoice, pi.name)
 		names = [

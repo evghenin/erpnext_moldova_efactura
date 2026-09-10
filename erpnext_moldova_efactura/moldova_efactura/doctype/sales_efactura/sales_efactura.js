@@ -619,7 +619,10 @@ function setup_sales_invoice_query(frm) {
     frm.toggle_enable("sales_invoice", cint(frm.doc.docstatus) === 0);
     frm.set_df_property("sales_invoice", "description", "");
     const query = function () {
-        return { filters: sales_invoice_link_filters(frm) };
+        return {
+            query: "erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.linkable_sales_invoices",
+            filters: sales_invoice_link_filters(frm),
+        };
     };
     frm.set_query("sales_invoice", query);
     frm.set_query("sales_invoice", "items", query);

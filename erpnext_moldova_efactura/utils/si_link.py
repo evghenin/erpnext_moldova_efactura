@@ -35,3 +35,14 @@ def sync_sales_invoice_links(doc) -> None:
 	for row in doc.get("items") or []:
 		if not (getattr(row, "sales_invoice", None) or "").strip():
 			row.sales_invoice = header
+
+
+def format_invoice_link_dropdown(rows):
+	"""Link search tuples: name, posting_date, then party/total extras."""
+	from frappe.utils import cstr, formatdate
+
+	formatted = []
+	for row in rows:
+		name, posting_date, *rest = row
+		formatted.append((name, formatdate(posting_date), *[cstr(v) for v in rest]))
+	return formatted

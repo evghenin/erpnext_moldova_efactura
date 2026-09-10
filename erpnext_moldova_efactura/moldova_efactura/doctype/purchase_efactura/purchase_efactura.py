@@ -1219,23 +1219,27 @@ def linkable_purchase_invoices(doctype, txt, searchfield, start, page_len, filte
 			)
 		"""
 
-	return frappe.db.sql(
-		f"""
-		SELECT `tabPurchase Invoice`.name, `tabPurchase Invoice`.supplier,
-			`tabPurchase Invoice`.posting_date, `tabPurchase Invoice`.grand_total
-		FROM `tabPurchase Invoice`
-		WHERE {" AND ".join(conditions)}
-			AND (
-				`tabPurchase Invoice`.name LIKE %(txt)s
-				OR IFNULL(`tabPurchase Invoice`.bill_no, '') LIKE %(txt)s
-				OR IFNULL(`tabPurchase Invoice`.`{searchfield}`, '') LIKE %(txt)s
-			)
-			{uncovered}
-			{get_match_cond("Purchase Invoice")}
-		ORDER BY `tabPurchase Invoice`.modified DESC
-		LIMIT %(page_len)s OFFSET %(start)s
-		""",
-		values,
+	from erpnext_moldova_efactura.utils.si_link import format_invoice_link_dropdown
+
+	return format_invoice_link_dropdown(
+		frappe.db.sql(
+			f"""
+			SELECT `tabPurchase Invoice`.name, `tabPurchase Invoice`.posting_date,
+				`tabPurchase Invoice`.supplier, `tabPurchase Invoice`.grand_total
+			FROM `tabPurchase Invoice`
+			WHERE {" AND ".join(conditions)}
+				AND (
+					`tabPurchase Invoice`.name LIKE %(txt)s
+					OR IFNULL(`tabPurchase Invoice`.bill_no, '') LIKE %(txt)s
+					OR IFNULL(`tabPurchase Invoice`.`{searchfield}`, '') LIKE %(txt)s
+				)
+				{uncovered}
+				{get_match_cond("Purchase Invoice")}
+			ORDER BY `tabPurchase Invoice`.modified DESC
+			LIMIT %(page_len)s OFFSET %(start)s
+			""",
+			values,
+		)
 	)
 
 

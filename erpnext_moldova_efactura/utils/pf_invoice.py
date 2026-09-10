@@ -466,6 +466,7 @@ def make_purchase_order(source_name, target_doc=None):
 
 
 @frappe.whitelist()
+@frappe.validate_and_sanitize_search_inputs
 def linkable_purchase_invoices(doctype, txt, searchfield, start, page_len, filters):
 	"""Draft or submitted invoices for this supplier that are not already allocated."""
 	from frappe.desk.reportview import get_match_cond
@@ -487,22 +488,27 @@ def linkable_purchase_invoices(doctype, txt, searchfield, start, page_len, filte
 	if frappe.db.has_column("Purchase Invoice", "purchase_efactura"):
 		conditions.append("IFNULL(`tabPurchase Invoice`.purchase_efactura, '') = ''")
 
-	return frappe.db.sql(
-		f"""
-		SELECT `tabPurchase Invoice`.name, `tabPurchase Invoice`.supplier,
-			`tabPurchase Invoice`.bill_no, `tabPurchase Invoice`.grand_total
-		FROM `tabPurchase Invoice`
-		WHERE {" AND ".join(conditions)}
-			AND (
-				`tabPurchase Invoice`.name LIKE %(txt)s
-				OR IFNULL(`tabPurchase Invoice`.bill_no, '') LIKE %(txt)s
-				OR IFNULL(`tabPurchase Invoice`.`{searchfield}`, '') LIKE %(txt)s
-			)
-			{get_match_cond("Purchase Invoice")}
-		ORDER BY `tabPurchase Invoice`.modified DESC
-		LIMIT %(page_len)s OFFSET %(start)s
-		""",
-		values,
+	from erpnext_moldova_efactura.utils.si_link import format_invoice_link_dropdown
+
+	return format_invoice_link_dropdown(
+		frappe.db.sql(
+			f"""
+			SELECT `tabPurchase Invoice`.name, `tabPurchase Invoice`.posting_date,
+				`tabPurchase Invoice`.supplier, `tabPurchase Invoice`.bill_no,
+				`tabPurchase Invoice`.grand_total
+			FROM `tabPurchase Invoice`
+			WHERE {" AND ".join(conditions)}
+				AND (
+					`tabPurchase Invoice`.name LIKE %(txt)s
+					OR IFNULL(`tabPurchase Invoice`.bill_no, '') LIKE %(txt)s
+					OR IFNULL(`tabPurchase Invoice`.`{searchfield}`, '') LIKE %(txt)s
+				)
+				{get_match_cond("Purchase Invoice")}
+			ORDER BY `tabPurchase Invoice`.modified DESC
+			LIMIT %(page_len)s OFFSET %(start)s
+			""",
+			values,
+		)
 	)
 
 

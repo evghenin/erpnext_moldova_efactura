@@ -1718,6 +1718,45 @@ def unlink_purchase_receipt_return(name: str):
 
 @frappe.whitelist()
 @frappe.validate_and_sanitize_search_inputs
+def linkable_sales_invoices(doctype, txt, searchfield, start, page_len, filters):
+    from frappe.desk.reportview import get_match_cond
+
+    from erpnext_moldova_efactura.utils.si_link import format_invoice_link_dropdown
+
+    filters = filters or {}
+    if not filters.get("customer"):
+        return []
+
+    conditions = ["`tabSales Invoice`.docstatus = 1"]
+    values = {"txt": f"%{txt or ''}%", "start": start, "page_len": page_len}
+    if filters.get("company"):
+        conditions.append("`tabSales Invoice`.company = %(company)s")
+        values["company"] = filters["company"]
+    conditions.append("`tabSales Invoice`.customer = %(customer)s")
+    values["customer"] = filters["customer"]
+
+    return format_invoice_link_dropdown(
+        frappe.db.sql(
+            f"""
+            SELECT `tabSales Invoice`.name, `tabSales Invoice`.posting_date,
+                `tabSales Invoice`.customer, `tabSales Invoice`.grand_total
+            FROM `tabSales Invoice`
+            WHERE {" AND ".join(conditions)}
+                AND (
+                    `tabSales Invoice`.name LIKE %(txt)s
+                    OR IFNULL(`tabSales Invoice`.`{searchfield}`, '') LIKE %(txt)s
+                )
+                {get_match_cond("Sales Invoice")}
+            ORDER BY `tabSales Invoice`.modified DESC
+            LIMIT %(page_len)s OFFSET %(start)s
+            """,
+            values,
+        )
+    )
+
+
+@frappe.whitelist()
+@frappe.validate_and_sanitize_search_inputs
 def linkable_purchase_receipt_returns(doctype, txt, searchfield, start, page_len, filters):
     from frappe.desk.reportview import get_match_cond
 
