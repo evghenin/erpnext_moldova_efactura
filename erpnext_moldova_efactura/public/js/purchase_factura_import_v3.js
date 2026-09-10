@@ -63,3 +63,10 @@ erpnext_moldova_efactura.pf.import_pdf = function () {
 erpnext_moldova_efactura.pf.import_image = function () {
 	erpnext_moldova_efactura.pf.import_document("image");
 };
+
+erpnext_moldova_efactura.pf.bind_import_buttons = function (add_button) {
+	add_button(__("PDF Orange / Arax"), erpnext_moldova_efactura.pf.import_pdf);
+	if (cint(frappe.boot && frappe.boot.moldova_efactura_paper_ai)) {
+		add_button(__("Any Image with AI"), erpnext_moldova_efactura.pf.import_image);
+	}
+};

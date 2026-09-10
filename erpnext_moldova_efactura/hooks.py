@@ -61,12 +61,16 @@ doctype_js = {
     "Purchase Order": "public/js/purchase_order.js",
     "Sales Order": "public/js/sales_order.js",
     "Purchase Receipt": "public/js/purchase_receipt.js",
+    "Purchase Factura": "public/js/purchase_factura_import_v3.js",
 }
 doctype_list_js = {
     "Sales Invoice": "public/js/sales_invoice_list.js",
     "Purchase Invoice": "public/js/purchase_invoice_list.js",
     "Purchase Receipt": "public/js/purchase_receipt_list.js",
+    "Purchase Factura": "public/js/purchase_factura_import_v3.js",
 }
+
+extend_bootinfo = "erpnext_moldova_efactura.boot.extend_bootinfo"
 
 # Svg Icons
 # ------------------

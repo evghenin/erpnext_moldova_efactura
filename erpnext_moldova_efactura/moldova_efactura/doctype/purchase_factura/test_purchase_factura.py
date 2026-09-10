@@ -360,6 +360,23 @@ class TestFacturaPDF(TestCase):
 		generate.assert_called_once()
 		self.assertEqual(generate.call_args[0][1], "application/pdf")
 
+	@patch.dict(os.environ, {"GEMINI_API_KEY": ""}, clear=False)
+	@patch("frappe.db.get_single_value", return_value=None)
+	def test_paper_ai_disabled_without_gemini_key(self, _single):
+		from erpnext_moldova_efactura.boot import extend_bootinfo
+		from erpnext_moldova_efactura.utils.factura_ai import paper_ai_enabled
+
+		self.assertFalse(paper_ai_enabled())
+		bootinfo = {}
+		extend_bootinfo(bootinfo)
+		self.assertEqual(bootinfo["moldova_efactura_paper_ai"], 0)
+
+	@patch("frappe.db.get_single_value", return_value="encrypted")
+	def test_paper_ai_enabled_when_settings_key_present(self, _single):
+		from erpnext_moldova_efactura.utils.factura_ai import paper_ai_enabled
+
+		self.assertTrue(paper_ai_enabled())
+
 	def test_retired_gemini_model_is_remapped(self):
 		from erpnext_moldova_efactura.utils.factura_ai import RETIRED_MODELS, _suggested_model
 

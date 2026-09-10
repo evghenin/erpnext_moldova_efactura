@@ -14,17 +14,11 @@ frappe.ui.form.on("Purchase Factura", {
 		pf_setup_new_supplier(frm);
 		pf_setup_new_item(frm);
 		pf_currency_labels(frm);
-		if (frappe.model.can_create("Purchase Factura")) {
-			frm.add_custom_button(
-				__("Any Image with AI"),
-				erpnext_moldova_efactura.pf.import_image,
-				__("Import")
-			);
-			frm.add_custom_button(
-				__("PDF Orange / Arax"),
-				erpnext_moldova_efactura.pf.import_pdf,
-				__("Import")
-			);
+		const pf = frappe.provide("erpnext_moldova_efactura.pf");
+		if (frappe.model.can_create("Purchase Factura") && pf.bind_import_buttons) {
+			pf.bind_import_buttons((label, action) => {
+				frm.add_custom_button(label, action, __("Import"));
+			});
 		}
 		if (frm.doc.provider && frm.doc.docstatus === 0) {
 			let intro = __(

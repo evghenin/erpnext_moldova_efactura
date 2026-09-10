@@ -334,6 +334,17 @@ def document_from_extraction(data: dict, content: bytes) -> dict:
 	return {key: value for key, value in result.items() if value is not None}
 
 
+def paper_ai_enabled() -> bool:
+	if os.environ.get("GEMINI_API_KEY", "").strip():
+		return True
+	try:
+		import frappe
+
+		return bool(frappe.db.get_single_value("eFactura Settings", "gemini_api_key"))
+	except Exception:
+		return False
+
+
 def _credentials() -> tuple[str, str]:
 	key = os.environ.get("GEMINI_API_KEY", "").strip()
 	model = os.environ.get("GEMINI_MODEL", "").strip() or DEFAULT_MODEL
