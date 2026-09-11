@@ -1,5 +1,6 @@
 import frappe
 from frappe import _
+from frappe.utils import cint
 
 
 def protect_purchase_factura_original(doc, method=None):
@@ -81,16 +82,7 @@ def copy_original_file(doc):
 	copied.save_file = save_unique
 	copied.content = content
 	copied.insert(ignore_permissions=True)
-	# File.insert may re-encode JPEGs (EXIF strip). Keep the imported bytes byte-for-byte.
-	from pathlib import Path
-
-	from frappe.core.doctype.file.utils import get_content_hash
-
-	path = Path(copied.get_full_path())
-	if path.read_bytes() != content:
-		path.write_bytes(content)
-		copied.db_set("content_hash", get_content_hash(content), update_modified=False)
-		copied.db_set("file_size", len(content), update_modified=False)
+	_restore_uploaded_bytes(copied, content)
 	frappe.flags.pf_copying_original = doc.name
 	try:
 		for extra in frappe.get_all(
@@ -107,3 +99,38 @@ def copy_original_file(doc):
 	finally:
 		frappe.flags.pf_copying_original = None
 	return copied.file_url
+
+
+def _restore_uploaded_bytes(file_doc, content):
+	# File.insert may re-encode JPEGs (EXIF strip). Keep the imported bytes byte-for-byte.
+	from pathlib import Path
+
+	from frappe.core.doctype.file.utils import get_content_hash
+
+	path = Path(file_doc.get_full_path())
+	if path.read_bytes() != content:
+		path.write_bytes(content)
+		file_doc.db_set("content_hash", get_content_hash(content), update_modified=False)
+		file_doc.db_set("file_size", len(content), update_modified=False)
+		file_doc.file_size = len(content)
+
+
+@frappe.whitelist()
+def save_uploaded_original():
+	"""Store the desk upload without Frappe image downscale; keep exact bytes."""
+	frappe.has_permission("Purchase Factura", "create", throw=True)
+	content = getattr(frappe.local, "uploaded_file", None)
+	filename = getattr(frappe.local, "uploaded_filename", None) or "original.bin"
+	if not content:
+		frappe.throw(_("No file uploaded"))
+	if isinstance(content, str):
+		content = content.encode("utf-8")
+	file_doc = frappe.new_doc("File")
+	file_doc.file_name = filename
+	private = frappe.form_dict.get("is_private")
+	file_doc.is_private = 1 if private in (None, "") else cint(private)
+	file_doc.folder = frappe.form_dict.folder or "Home"
+	file_doc.content = content
+	file_doc.insert(ignore_permissions=True)
+	_restore_uploaded_bytes(file_doc, content)
+	return file_doc

@@ -42,10 +42,16 @@ def normalize_supplier_title(name: str | None) -> str:
 
 
 def normalize_idno(idno: str | None) -> str:
-	"""Digits only, for comparing Moldova IDNO values with spaces or punctuation."""
+	"""Digits only, for comparing Moldova IDNO values with spaces or punctuation.
+
+	COD FISCAL/NR.TVA is often stored glued as 13 IDNO digits plus 7 VAT digits.
+	"""
 	if not idno:
 		return ""
-	return re.sub(r"\D+", "", str(idno))
+	digits = re.sub(r"\D+", "", str(idno))
+	if len(digits) == 20 and digits.startswith("1"):
+		return digits[:13]
+	return digits
 
 
 def get_supplier_idno_field() -> str | None:

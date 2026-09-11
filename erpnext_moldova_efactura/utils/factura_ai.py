@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import io
 import json
 import os
 import re
@@ -17,18 +18,20 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime
+from decimal import ROUND_HALF_UP, Decimal
+from itertools import combinations
 
 from erpnext_moldova_efactura.utils.factura_pdf import FacturaImportError, decimal, money
 
 MAX_IMAGE_BYTES = 15 * 1024 * 1024
 OCR_ERROR = "Cannot read factura"
 OCR_GUIDANCE = "Please provide a clearer, correctly oriented photo or scan of the complete document."
-
-MAX_IMAGE_BYTES = 15 * 1024 * 1024
 DEFAULT_MODEL = "gemini-3.6-flash"
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 RETRYABLE_HTTP = {429, 503}
 RETRY_WAIT_SECONDS = (2, 5, 10)
+GEMINI_TIMEOUT = 180
+MAX_GEMINI_EDGE = 2200
 RETIRED_MODELS = {
 	"gemini-2.0-flash": DEFAULT_MODEL,
 	"gemini-2.5-flash": DEFAULT_MODEL,
@@ -38,14 +41,19 @@ PROMPT = """Extract this Moldovan fiscal invoice (factură fiscală) as JSON.
 
 Rules:
 - Read every charged item row once. Do not omit rows, invent rows, duplicate a numbered line, or guess missing numbers.
-- Ignore column headers, the 12. TOTAL row, Total pagina, Total cantitate, Total greutate, weight, PL/PA notes, discounts of 0, and cashier/till labels.
+- A charged row starts with Cod articol / EAN (digits, sometimes prefixed with M). Continuation notes such as PL/PA, discounts of 0, column headers, 12. TOTAL, Total pagina, Total cantitate, Total greutate, weight and cashier/till labels are not items.
+- The Reducere column is not a separate item. Footer REDUCERE CANTITATIVA / minus-amount codes (for example 250075348) only repeat that column; omit them.
+- On a charged row, amount is Valoare incl. TVA after Reducere. Reduce net_amount and vat_amount by the same Reducere (incl. VAT) at the row VAT rate. source_qty and source_rate stay Cant. and Pret unitar. Val. tot. fara TVA is already after Reducere.
+- Total cantitate is the sum of source_qty, not the number of rows. After extraction, the sum of item net_amount must equal Val. tot. fara TVA.
 - net_total is Val. tot. fara TVA / Valoarea fara TVA for the whole factura, never Total pagina.
 - vat_total and total are the document VAT and payable gross. Do not use Total pagina as net_total or as the payable total.
 - Fiscal identity is SERIA + NR (for example AAQ and 1838180). Bon fiscal / act / account stay related_document, not the factura number.
-- source_qty is Cantitate. source_rate is unit price (Pret unitar / Pretul unitar), not pack price.
+- source_qty is Cantitate / Vanz., which may be greater than 1. source_rate is Pret unitar, not Pret colet.
 - source_uom is the printed packing/UOM (Mod amb., buc, serv). supplier_item_code is Cod articol/EAN when printed.
 - Amounts use a dot decimal separator. VAT rates are 0, 5, 8 or 20.
 - IDNO is 13 digits starting with 1. VAT ID is 7 digits when printed; leave blank if absent. Do not invent VAT IDs.
+- METRO / till layouts: supplier is the left header (METRO IDNO 1004601002738). Buyer is the right Cumpărător / Nr. Client block. Never copy the supplier IDNO onto the buyer.
+- COD FISCAL/NR. TVA is IDNO, a slash, then VAT. Split them. Right-side buyer example: 1024600026571/0211775 → buyer_idno 1024600026571, buyer_vat_id 0211775.
 - Dates as YYYY-MM-DD. Preserve printed names, addresses and IBANs. Currency is MDL unless another ISO code is printed.
 - net_total, vat_total and total must be the document totals printed on the factura, not the sum of a duplicated line."""
 
@@ -136,6 +144,24 @@ def _digits(value: str) -> str:
 	return re.sub(r"\D", "", value or "")
 
 
+def _idno(value: str) -> str:
+	"""Accept a 13-digit IDNO, or COD FISCAL/NR.TVA glued as 13+7 digits."""
+	digits = _digits(value)
+	if len(digits) == 20 and digits.startswith("1"):
+		return digits[:13]
+	return digits
+
+
+def _vat_id(value: str, idno_raw: str = "") -> str:
+	digits = _digits(value)
+	if len(digits) == 7:
+		return digits
+	glued = _digits(idno_raw)
+	if len(glued) == 20 and glued.startswith("1"):
+		return glued[13:]
+	return digits
+
+
 def _date(value: str) -> str | None:
 	value = _blank(value)
 	if re.fullmatch(r"20\d{2}-\d{2}-\d{2}", value):
@@ -155,27 +181,78 @@ def _iban(value: str) -> str:
 	return value[:24] if value.startswith("MD") and len(value) >= 24 else ""
 
 
+def _qty_from_net(qty, rate, net):
+	"""METRO Unit/Vanz. mix-ups send qty=1; recover Van. from printed net / Pret unitar."""
+	if abs(money(qty * rate) - net) <= decimal("0.05"):
+		return qty
+	if rate <= 0:
+		return None
+	whole = (net / rate).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+	if whole >= 1 and abs(money(whole * rate) - net) <= decimal("0.05"):
+		return whole
+	return None
+
+
+def _vat_rate_for(net, vat):
+	for rate in (decimal("20"), decimal("8"), decimal("5"), decimal("0")):
+		if abs(money(net * rate / 100) - vat) <= decimal("0.05"):
+			return rate
+	return None
+
+
+def _optional_decimal(value, *, percent=False):
+	text = _blank(value).replace("−", "-").replace(",", ".")
+	if percent:
+		text = text.replace("%", "")
+	text = re.sub(r"\s+", "", text)
+	if text.endswith("-") and not text.startswith("-"):
+		text = "-" + text[:-1]
+	if not text or text in {".", "-"}:
+		return None
+	match = re.search(r"-?\d+(?:\.\d+)?", text)
+	if not match:
+		return None
+	return decimal(match.group(0))
+
+
 def _item(raw: dict) -> dict | None:
 	try:
-		qty = decimal(_blank(raw.get("source_qty")).replace(",", "."))
-		rate = decimal(_blank(raw.get("source_rate")).replace(",", "."))
-		net = money(_blank(raw.get("net_amount")).replace(",", "."))
-		vat_rate = decimal(_blank(raw.get("vat_rate")).replace(",", ".").replace("%", ""))
-		vat = money(_blank(raw.get("vat_amount")).replace(",", "."))
-		gross = money(_blank(raw.get("amount")).replace(",", "."))
+		qty = _optional_decimal(raw.get("source_qty"))
+		rate = _optional_decimal(raw.get("source_rate"))
+		net_raw = _optional_decimal(raw.get("net_amount"))
+		vat_rate = _optional_decimal(raw.get("vat_rate"), percent=True)
+		vat = _optional_decimal(raw.get("vat_amount"))
+		gross_raw = _optional_decimal(raw.get("amount"))
+		if net_raw is None or gross_raw is None:
+			return None
+		net = money(net_raw)
+		gross = money(gross_raw)
 	except FacturaImportError:
 		return None
+	if vat is not None:
+		vat = money(vat)
 	name = _blank(raw.get("description"))
-	if len(name) < 3 or qty <= 0 or rate < 0 or net < 0 or vat < 0 or gross <= 0:
+	if len(name) < 3:
+		return None
+	if _is_reducere_row(name, net, gross):
+		return None
+	if qty is None or qty <= 0:
+		return None
+	if rate is None or rate < 0 or gross <= 0 or net < 0:
+		return None
+	if vat is None:
 		return None
 	if vat_rate not in (decimal("0"), decimal("5"), decimal("8"), decimal("20")):
+		vat_rate = _vat_rate_for(net, vat)
+	if vat_rate is None:
 		return None
-	if abs(money(qty * rate) - net) > decimal("0.01"):
+	qty = _qty_from_net(qty, rate, net)
+	if qty is None:
 		return None
-	if money(net + vat) != gross:
+	applied = _apply_row_reducere(net, vat, gross, vat_rate)
+	if applied is None:
 		return None
-	# Till facturas (METRO) print VAT/gross after pack/promo rounding; trust printed VAT
-	# when it stays within 5 bani of net * rate and still adds to gross.
+	net, vat, gross = applied
 	if abs(money(net * vat_rate / 100) - vat) > decimal("0.05"):
 		return None
 	item = {
@@ -196,6 +273,30 @@ def _item(raw: dict) -> dict | None:
 
 
 FOOTER_TOLERANCE = decimal("0.20")
+_REDUCERE_NAME = re.compile(r"reducere\s+cantitativa|quantity\s+discount", re.I)
+
+
+def _is_reducere_row(name: str, net, gross) -> bool:
+	return bool(_REDUCERE_NAME.search(name)) or net < 0 or gross < 0
+
+
+def _apply_row_reducere(net, vat, gross, vat_rate):
+	"""Fold the Reducere column into the charged row. Keep qty and Pret unitar."""
+	pre_gross = money(net + vat)
+	if pre_gross == gross:
+		return net, vat, gross
+	if net <= 0 or pre_gross < gross:
+		return None
+	discount_gross = money(pre_gross - gross)
+	if discount_gross <= decimal("0.05"):
+		return net, vat, pre_gross
+	discount_net = money(discount_gross * 100 / (100 + vat_rate))
+	discount_vat = money(discount_gross - discount_net)
+	net = money(net - discount_net)
+	vat = money(vat - discount_vat)
+	if net <= 0 or vat < 0 or money(net + vat) != gross:
+		return None
+	return net, vat, gross
 
 
 def _item_sums(items: list[dict]) -> tuple:
@@ -227,6 +328,10 @@ def _row_key(row: dict) -> tuple:
 	)
 
 
+def _row_amounts(row: dict) -> tuple:
+	return tuple(decimal(row[key]) for key in ("net_amount", "vat_amount", "amount"))
+
+
 def _drop_duplicate_items(items: list[dict], detected: tuple) -> list[dict] | None:
 	"""Drop extra copies of the same charged line when the printed totals match the remainder."""
 	if _ai_totals_reconcile(_item_sums(items), detected):
@@ -241,6 +346,95 @@ def _drop_duplicate_items(items: list[dict], detected: tuple) -> list[dict] | No
 				return matched
 		else:
 			seen[key] = index
+	matched = _drop_overage_row(items, detected)
+	if matched is not None:
+		return matched
+	matched = _drop_overage_rows(items, detected)
+	if matched is not None:
+		return matched
+	matched = _apply_surplus_reducere(items, detected)
+	if matched is not None:
+		return matched
+	for index in range(len(items)):
+		remaining = items[:index] + items[index + 1 :]
+		if not remaining:
+			continue
+		repaired = _apply_surplus_reducere(remaining, detected)
+		if repaired is not None:
+			return repaired
+	return None
+
+
+def _apply_surplus_reducere(items: list[dict], detected: tuple) -> list[dict] | None:
+	"""When Reducere was omitted from every amount, fold a same-rate surplus into a charged row."""
+	calculated = _item_sums(items)
+	if _ai_totals_reconcile(calculated, detected):
+		return items
+	surplus = tuple(calculated[i] - detected[i] for i in range(3))
+	if surplus[2] <= FOOTER_TOLERANCE or money(surplus[0] + surplus[1]) != surplus[2]:
+		return None
+	vat_rate = _vat_rate_for(surplus[0], surplus[1])
+	if vat_rate is None:
+		return None
+	for index in range(len(items) - 1, -1, -1):
+		row = items[index]
+		if decimal(row["vat_rate"]) != vat_rate:
+			continue
+		net = money(decimal(row["net_amount"]) - surplus[0])
+		vat = money(decimal(row["vat_amount"]) - surplus[1])
+		gross = money(decimal(row["amount"]) - surplus[2])
+		if net <= 0 or vat < 0 or gross <= 0:
+			continue
+		if money(net + vat) != gross:
+			continue
+		if abs(money(net * vat_rate / 100) - vat) > decimal("0.05"):
+			continue
+		updated = dict(row)
+		updated["net_amount"] = str(net)
+		updated["vat_amount"] = str(vat)
+		updated["amount"] = str(gross)
+		combined = items[:index] + [updated] + items[index + 1 :]
+		if _ai_totals_reconcile(_item_sums(combined), detected):
+			return combined
+	return None
+
+
+def _drop_overage_row(items: list[dict], detected: tuple) -> list[dict] | None:
+	"""Drop one extra line whose amounts equal the surplus over printed totals."""
+	calculated = _item_sums(items)
+	surplus = tuple(calculated[i] - detected[i] for i in range(3))
+	if surplus[2] <= FOOTER_TOLERANCE:
+		return None
+	names = [row["description"].casefold() for row in items]
+	ranked = []
+	for index, row in enumerate(items):
+		amounts = _row_amounts(row)
+		if any(abs(amounts[i] - surplus[i]) > FOOTER_TOLERANCE for i in range(3)):
+			continue
+		ranked.append((0 if names.count(names[index]) > 1 else 1, index))
+	for _, index in sorted(ranked):
+		remaining = items[:index] + items[index + 1 :]
+		if remaining and _ai_totals_reconcile(_item_sums(remaining), detected):
+			return remaining
+	return None
+
+
+def _drop_overage_rows(items: list[dict], detected: tuple, max_drop: int = 3) -> list[dict] | None:
+	"""Drop a small set of extra lines whose amounts sum to the surplus over printed totals."""
+	calculated = _item_sums(items)
+	surplus = tuple(calculated[i] - detected[i] for i in range(3))
+	if surplus[2] <= FOOTER_TOLERANCE:
+		return None
+	limit = min(max_drop, len(items) - 1)
+	for count in range(2, limit + 1):
+		for combo in combinations(range(len(items)), count):
+			amounts = tuple(sum(_row_amounts(items[index])[i] for index in combo) for i in range(3))
+			if any(abs(money(amounts[i]) - surplus[i]) > FOOTER_TOLERANCE for i in range(3)):
+				continue
+			drop = set(combo)
+			remaining = [row for index, row in enumerate(items) if index not in drop]
+			if remaining and _ai_totals_reconcile(_item_sums(remaining), detected):
+				return remaining
 	return None
 
 
@@ -252,8 +446,8 @@ def document_from_extraction(data: dict, content: bytes) -> dict:
 	number = _digits(_blank(data.get("number")))
 	issue_date = _date(_blank(data.get("issue_date")))
 	delivery_date = _date(_blank(data.get("delivery_date"))) or issue_date
-	supplier_idno = _digits(_blank(data.get("supplier_idno")))
-	buyer_idno = _digits(_blank(data.get("buyer_idno")))
+	supplier_idno = _idno(_blank(data.get("supplier_idno")))
+	buyer_idno = _idno(_blank(data.get("buyer_idno")))
 	items = [_item(row) for row in data.get("items") or [] if isinstance(row, dict)]
 	items = [row for row in items if row]
 	missing = []
@@ -265,12 +459,12 @@ def document_from_extraction(data: dict, content: bytes) -> dict:
 		missing.append("supplier identity")
 	if len(buyer_idno) != 13 or not buyer_idno.startswith("1") or not _blank(data.get("buyer_name")):
 		missing.append("customer identity")
+	elif buyer_idno == supplier_idno:
+		missing.append("customer identity (buyer IDNO must not copy the supplier)")
 	if not items:
 		missing.append("complete item rows")
 	if missing:
 		_fail("could not extract " + ", ".join(missing))
-	if len(items) != len(data.get("items") or []):
-		_fail("one or more item rows do not reconcile")
 	try:
 		detected = tuple(
 			money(_blank(data.get(key)).replace(",", ".")) for key in ("net_total", "vat_total", "total")
@@ -302,14 +496,14 @@ def document_from_extraction(data: dict, content: bytes) -> dict:
 		"delivery_date": delivery_date,
 		"supplier_name": _blank(data.get("supplier_name")),
 		"supplier_idno": supplier_idno,
-		"supplier_vat_id": _digits(_blank(data.get("supplier_vat_id"))) or None,
+		"supplier_vat_id": _vat_id(data.get("supplier_vat_id"), data.get("supplier_idno")) or None,
 		"supplier_address": _blank(data.get("supplier_address")) or None,
 		"supplier_bank_account": _iban(_blank(data.get("supplier_bank_account"))) or None,
 		"supplier_bank_name": _blank(data.get("supplier_bank_name")) or None,
 		"supplier_bank_code": _blank(data.get("supplier_bank_code")) or None,
 		"buyer_name": _blank(data.get("buyer_name")),
 		"buyer_idno": buyer_idno,
-		"buyer_vat_id": _digits(_blank(data.get("buyer_vat_id"))) or None,
+		"buyer_vat_id": _vat_id(data.get("buyer_vat_id"), data.get("buyer_idno")) or None,
 		"buyer_address": _blank(data.get("buyer_address")) or None,
 		"buyer_bank_account": _iban(_blank(data.get("buyer_bank_account"))) or None,
 		"buyer_bank_name": _blank(data.get("buyer_bank_name")) or None,
@@ -370,13 +564,63 @@ def _credentials() -> tuple[str, str]:
 	return key, model
 
 
-def _generate(content: bytes, mime: str, key: str, model: str) -> dict:
+def _for_gemini(content: bytes, mime: str) -> tuple[bytes, str]:
+	"""Send a smaller JPEG copy. The original file and hash stay unchanged."""
+	if mime not in ("image/jpeg", "image/png"):
+		return content, mime
+	try:
+		from PIL import Image
+
+		image = Image.open(io.BytesIO(content))
+		if image.mode not in ("RGB", "L"):
+			image = image.convert("RGB")
+		elif image.mode == "L":
+			image = image.convert("RGB")
+		width, height = image.size
+		edge = max(width, height)
+		if edge > MAX_GEMINI_EDGE:
+			scale = MAX_GEMINI_EDGE / edge
+			size = (max(1, int(width * scale)), max(1, int(height * scale)))
+			image = image.resize(size, Image.Resampling.LANCZOS)
+		buffer = io.BytesIO()
+		image.save(buffer, format="JPEG", quality=82, optimize=True)
+		out = buffer.getvalue()
+		if out and len(out) < len(content):
+			return out, "image/jpeg"
+	except Exception:
+		pass
+	return content, mime
+
+
+def _correction_text(previous: dict, reason: str) -> str:
+	hint = (
+		"The previous extraction failed local checks: "
+		+ reason
+		+ "\nRe-read every charged Cod articol row from the first item to Total cantitate. "
+		"Do not add REDUCERE CANTITATIVA as items; apply the Reducere column on those rows. "
+		"Keep printed Val. tot. fara TVA / VAT / payable totals. "
+	)
+	if "customer identity" in reason:
+		hint += (
+			"Re-read the right Cumpărător COD FISCAL/NR. TVA (13 digits before the slash). "
+			"Do not copy the left METRO supplier IDNO onto buyer_idno. "
+		)
+	return (
+		PROMPT
+		+ "\n\n"
+		+ hint
+		+ "Return a complete JSON factura.\nPrevious JSON:\n"
+		+ json.dumps(previous, ensure_ascii=False, separators=(",", ":"))
+	)
+
+
+def _generate(content: bytes, mime: str, key: str, model: str, prompt: str | None = None) -> dict:
 	body = json.dumps(
 		{
 			"contents": [
 				{
 					"parts": [
-						{"text": PROMPT},
+						{"text": prompt or PROMPT},
 						{"inline_data": {"mime_type": mime, "data": base64.b64encode(content).decode()}},
 					]
 				}
@@ -413,7 +657,7 @@ def _post_gemini(body: bytes, key: str, model: str, *, retried_model: str | None
 			url, data=body, headers={"Content-Type": "application/json"}, method="POST"
 		)
 		try:
-			with urllib.request.urlopen(request, timeout=120) as response:
+			with urllib.request.urlopen(request, timeout=GEMINI_TIMEOUT) as response:
 				return json.loads(response.read().decode())
 		except urllib.error.HTTPError as exc:
 			detail = exc.read().decode(errors="replace")[:400] or str(exc.reason)
@@ -432,6 +676,15 @@ def _post_gemini(body: bytes, key: str, model: str, *, retried_model: str | None
 					f"Gemini model {model} is busy (HTTP {exc.code}). Try the import again in a minute"
 				)
 			_service_fail(f"the Gemini API returned HTTP {exc.code}: {detail}")
+		except TimeoutError:
+			_service_fail("the Gemini request timed out. Try the import again")
+		except urllib.error.URLError as exc:
+			reason = str(getattr(exc, "reason", exc)).lower()
+			if "timed out" in reason or "timeout" in reason:
+				_service_fail("the Gemini request timed out. Try the import again")
+			if attempt < len(RETRY_WAIT_SECONDS):
+				continue
+			_service_fail("the Gemini API could not be reached")
 		except Exception:
 			if attempt < len(RETRY_WAIT_SECONDS):
 				continue
@@ -451,4 +704,20 @@ def parse_image(content: bytes) -> dict:
 	else:
 		_fail("the source is not a supported JPEG, PNG or PDF file, or it exceeds 15 MB")
 	key, model = _credentials()
-	return document_from_extraction(_generate(content, mime, key, model), content)
+	payload, payload_mime = _for_gemini(content, mime)
+	extracted = _generate(payload, payload_mime, key, model)
+	try:
+		return document_from_extraction(extracted, content)
+	except FacturaImportError as exc:
+		detail = str(exc)
+		retryable = (
+			"item totals do not match" in detail
+			or "item rows do not reconcile" in detail
+			or "customer identity" in detail
+		)
+		if not retryable:
+			raise
+		extracted = _generate(
+			payload, payload_mime, key, model, prompt=_correction_text(extracted, detail)
+		)
+		return document_from_extraction(extracted, content)

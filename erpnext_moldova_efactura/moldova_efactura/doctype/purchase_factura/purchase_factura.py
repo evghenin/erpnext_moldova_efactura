@@ -219,17 +219,31 @@ class PurchaseFactura(Document):
 		for row in self.items:
 			try:
 				qty, rate, vat_rate = map(decimal, (row.f_qty or 0, row.f_rate or 0, row.f_vat_rate or 0))
-				if qty <= 0 or rate < 0 or not 0 <= vat_rate <= 100:
+				net_preview = money(row.f_net_amount) if row.f_net_amount else money(qty * rate)
+				if qty <= 0 or not 0 <= vat_rate <= 100 or (rate < 0 and net_preview >= 0):
 					frappe.throw(
 						_(
-							"Row {0}: positive quantities and non-negative rates are required; returns are not supported yet"
+							"Row {0}: positive quantities are required; negative rates are only for printed discounts"
 						).format(row.idx)
 					)
 				net = money(row.f_net_amount) if row.f_net_amount else money(qty * rate)
 				vat = money(row.f_vat_amount) if row.f_vat_amount else money(net * vat_rate / 100)
-				if abs(net - money(qty * rate)) > decimal("0.01") or abs(
-					vat - money(net * vat_rate / 100)
-				) > decimal("0.05"):
+				# Paper Pret unitar is often rounded independently of Valoarea fara TVA
+				# (e.g. 5 × 124.17 vs printed net 620.83). Digital originals stay at 1 ban.
+				qty_rate_tol = decimal("0.05") if self.original_format == "Paper" else decimal("0.01")
+				vat_ok = abs(vat - money(net * vat_rate / 100)) <= decimal("0.05")
+				qty_rate_ok = abs(net - money(qty * rate)) <= qty_rate_tol
+				# METRO Reducere is on the charged row: Pret unitar × Cant. stays list, net is after Reducere.
+				if (
+					not qty_rate_ok
+					and self.original_format == "Paper"
+					and qty > 0
+					and rate > 0
+					and net > 0
+					and money(qty * rate) > net
+				):
+					qty_rate_ok = True
+				if not qty_rate_ok or not vat_ok:
 					frappe.throw(
 						_("Row {0}: original quantity, rate, net and VAT amounts do not reconcile").format(
 							row.idx
@@ -350,6 +364,28 @@ def _read_original(file_url):
 	return file_doc
 
 
+def _swap_inverted_parties(data: dict, company: str):
+	"""Gemini often swaps METRO till columns: company IDNO lands on the supplier side."""
+	company_idno = _party_idno("Company", company)
+	data["f_customer_idno"] = normalize_idno(data.get("f_customer_idno"))
+	data["f_supplier_idno"] = normalize_idno(data.get("f_supplier_idno"))
+	if data.get("f_customer_idno") == company_idno:
+		return
+	if data.get("f_supplier_idno") != company_idno:
+		frappe.throw(_("The PDF recipient IDNO does not match the selected Company"))
+	for left, right in (
+		("f_supplier_idno", "f_customer_idno"),
+		("f_supplier_name", "f_customer_name"),
+		("f_supplier_vat_id", "f_customer_vat_id"),
+		("f_supplier_taxpayer_type", "f_customer_taxpayer_type"),
+		("f_supplier_address", "f_customer_address"),
+		("f_supplier_bank_account", "f_customer_bank_account"),
+		("f_supplier_bank_name", "f_customer_bank_name"),
+		("f_supplier_bank_code", "f_customer_bank_code"),
+	):
+		data[left], data[right] = data.get(right), data.get(left)
+
+
 @frappe.whitelist()
 def import_pdf(file_url: str, company: str, use_ai: int | str | None = None):
 	frappe.has_permission("Purchase Factura", "create", throw=True)
@@ -368,8 +404,7 @@ def import_pdf(file_url: str, company: str, use_ai: int | str | None = None):
 		data = imported_fields(parsed)
 	except FacturaImportError as exc:
 		frappe.throw(_(str(exc)), title=_("Cannot read factura"))
-	if data["f_customer_idno"] != _party_idno("Company", company):
-		frappe.throw(_("The PDF recipient IDNO does not match the selected Company"))
+	_swap_inverted_parties(data, company)
 	_lock_company(company)
 	key = _identity(company, data["f_supplier_idno"], data["f_series"], data["f_number"])
 	existing = frappe.db.get_value("Purchase Factura", {"identity_key": key, "docstatus": ["<", 2]}, "name")

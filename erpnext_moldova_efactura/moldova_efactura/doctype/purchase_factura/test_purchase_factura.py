@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
-from frappe.utils import flt, getdate, nowdate
+from frappe.utils import cint, flt, getdate, nowdate
 
 from erpnext_moldova_efactura.moldova_efactura.doctype.purchase_factura.purchase_factura import (
 	import_pdf,
@@ -149,6 +149,220 @@ class TestFacturaPDF(TestCase):
 		self.assertEqual(len(data["items"]), 3)
 		self.assertEqual(data["items"][0]["supplier_item_code"], "4000005319066")
 
+	def test_gemini_extraction_accepts_printed_unit_rate_rounding(self):
+		from erpnext_moldova_efactura.utils.factura_ai import document_from_extraction
+
+		payload = {
+			"series": "AAU",
+			"number": "02225776",
+			"issue_date": "2024-09-12",
+			"supplier_name": "S.A. VICON",
+			"supplier_idno": "1003600050470",
+			"buyer_name": "HOTEL LIFE S.R.L.",
+			"buyer_idno": "1024600026571",
+			"net_total": "620.83",
+			"vat_total": "124.17",
+			"total": "745.00",
+			"items": [
+				{
+					"description": "Подставка информационная пластиковая A4 AXENT",
+					"supplier_item_code": "30201000",
+					"source_uom": "buc.",
+					"source_qty": "5.00",
+					"source_rate": "124.17",
+					"net_amount": "620.83",
+					"vat_rate": "20",
+					"vat_amount": "124.17",
+					"amount": "745.00",
+				}
+			],
+		}
+		data = document_from_extraction(payload, b"\xff\xd8\xff")
+		self.assertEqual(data["items"][0]["net_amount"], "620.83")
+		self.assertEqual(data["items"][0]["source_qty"], "5.00")
+
+	def test_gemini_extraction_splits_glued_idno_and_vat(self):
+		from erpnext_moldova_efactura.utils.factura_ai import document_from_extraction
+
+		payload = {
+			"series": "AAQ",
+			"number": "1830389",
+			"issue_date": "2025-03-24",
+			"supplier_name": "I.C.S METRO CASH & CARRY MOLDOVA S.R.L.",
+			"supplier_idno": "10046010027387800030",
+			"buyer_name": "HOTEL LIFE SRL",
+			"buyer_idno": "10246000265710211775",
+			"net_total": "658.33",
+			"vat_total": "131.67",
+			"total": "790.00",
+			"items": [
+				{
+					"description": "CUTIA SET 5 UNEASE VELVET NEG",
+					"supplier_item_code": "5904134079640",
+					"source_uom": "BU",
+					"source_qty": "10",
+					"source_rate": "65.83",
+					"net_amount": "658.33",
+					"vat_rate": "20",
+					"vat_amount": "131.67",
+					"amount": "790.00",
+				}
+			],
+		}
+		data = document_from_extraction(payload, b"\xff\xd8\xff")
+		self.assertEqual(data["supplier_idno"], "1004601002738")
+		self.assertEqual(data["supplier_vat_id"], "7800030")
+		self.assertEqual(data["buyer_idno"], "1024600026571")
+		self.assertEqual(data["buyer_vat_id"], "0211775")
+
+	def test_gemini_extraction_rejects_copied_supplier_idno_as_buyer(self):
+		from erpnext_moldova_efactura.utils.factura_ai import document_from_extraction
+
+		payload = {
+			"series": "AAQ",
+			"number": "1830389",
+			"issue_date": "2025-03-24",
+			"supplier_name": "I.C.S METRO CASH & CARRY MOLDOVA S.R.L.",
+			"supplier_idno": "1004601002738",
+			"buyer_name": "HOTEL LIFE SRL",
+			"buyer_idno": "1004601002738",
+			"net_total": "658.33",
+			"vat_total": "131.67",
+			"total": "790.00",
+			"items": [
+				{
+					"description": "CUTIA SET 5 UNEASE VELVET NEG",
+					"supplier_item_code": "5904134079640",
+					"source_uom": "BU",
+					"source_qty": "10",
+					"source_rate": "65.83",
+					"net_amount": "658.33",
+					"vat_rate": "20",
+					"vat_amount": "131.67",
+					"amount": "790.00",
+				}
+			],
+		}
+		with self.assertRaisesRegex(FacturaImportError, "customer identity"):
+			document_from_extraction(payload, b"\xff\xd8\xff")
+
+	def test_gemini_accepts_metro_line_reducere_and_footer_discounts(self):
+		from erpnext_moldova_efactura.utils.factura_ai import document_from_extraction
+
+		payload = {
+			"series": "AAQ",
+			"number": "1774375",
+			"issue_date": "2025-12-09",
+			"supplier_name": "I.C.S METRO CASH & CARRY MOLDOVA S.R.L.",
+			"supplier_idno": "1004601002738",
+			"buyer_name": "HOTEL LIFE SRL",
+			"buyer_idno": "1024600026571",
+			"net_total": "560.28",
+			"vat_total": "112.06",
+			"total": "672.34",
+			"items": [
+				{
+					"description": "1KG CAF BOABE RIOBA PERFETTO",
+					"supplier_item_code": "4337182253991",
+					"source_uom": "BU",
+					"source_qty": "2",
+					"source_rate": "307.50",
+					"net_amount": "615.00",
+					"vat_rate": "20",
+					"vat_amount": "123.00",
+					"amount": "678.00",
+				},
+				{
+					"description": "250075348",
+					"supplier_item_code": "250075348",
+					"source_qty": "",
+					"source_rate": "4.72",
+					"net_amount": "-4.72",
+					"vat_rate": "20",
+					"vat_amount": "-0.94",
+					"amount": "-5.66",
+				},
+				{
+					"description": "250075862 BC",
+					"supplier_item_code": "250075862",
+					"source_qty": "1",
+					"source_rate": "",
+					"net_amount": "-50.00",
+					"vat_rate": "",
+					"vat_amount": "",
+					"amount": "-60.00",
+				},
+			],
+		}
+		data = document_from_extraction(payload, b"\xff\xd8\xff")
+		self.assertEqual(len(data["items"]), 1)
+		self.assertEqual(data["items"][0]["description"], "1KG CAF BOABE RIOBA PERFETTO")
+		self.assertEqual(data["items"][0]["source_qty"], "2")
+		self.assertEqual(data["items"][0]["source_rate"], "307.50")
+		self.assertEqual(data["items"][0]["net_amount"], "560.28")
+		self.assertEqual(data["items"][0]["amount"], "672.34")
+		self.assertEqual(data["total"], "672.34")
+
+	def test_gemini_accepts_accounting_minus_and_drops_vat_bucket_rows(self):
+		from erpnext_moldova_efactura.utils.factura_ai import document_from_extraction
+
+		payload = {
+			"series": "AAQ",
+			"number": "1774375",
+			"issue_date": "2025-12-09",
+			"supplier_name": "I.C.S METRO CASH & CARRY MOLDOVA S.R.L.",
+			"supplier_idno": "1004601002738",
+			"buyer_name": "HOTEL LIFE SRL",
+			"buyer_idno": "1024600026571",
+			"net_total": "560.28",
+			"vat_total": "112.06",
+			"total": "672.34",
+			"items": [
+				{
+					"description": "1KG CAF BOABE RIOBA PERFETTO",
+					"source_qty": "2",
+					"source_rate": "307.50",
+					"net_amount": "615.00",
+					"vat_rate": "20",
+					"vat_amount": "123.00",
+					"amount": "738.00",
+				},
+				{
+					"description": "250075348",
+					"source_qty": "",
+					"source_rate": "4,72",
+					"net_amount": "4,72-",
+					"vat_rate": "20",
+					"vat_amount": "0,94-",
+					"amount": "5,66-",
+				},
+				{
+					"description": "250075862 BC",
+					"source_qty": "1",
+					"source_rate": "50,00",
+					"net_amount": "50,00-",
+					"vat_rate": "",
+					"vat_amount": "",
+					"amount": "60,00-",
+				},
+				{
+					"description": "Total fara TVA 8%",
+					"source_qty": "1",
+					"source_rate": "233.67",
+					"net_amount": "233.67",
+					"vat_rate": "8",
+					"vat_amount": "18.69",
+					"amount": "252.36",
+				},
+			],
+		}
+		data = document_from_extraction(payload, b"\xff\xd8\xff")
+		self.assertEqual(len(data["items"]), 1)
+		self.assertEqual(data["items"][0]["description"], "1KG CAF BOABE RIOBA PERFETTO")
+		self.assertEqual(data["items"][0]["net_amount"], "560.28")
+		self.assertEqual(data["items"][0]["amount"], "672.34")
+		self.assertEqual(data["total"], "672.34")
+
 	def test_gemini_extraction_rejects_unreconciled_rows(self):
 		from erpnext_moldova_efactura.utils.factura_ai import document_from_extraction
 
@@ -222,6 +436,176 @@ class TestFacturaPDF(TestCase):
 		self.assertEqual((data["total"], len(data["items"])), ("13260.00", 2))
 		self.assertEqual(data["items"][1]["description"], "Pivot")
 
+	def test_gemini_drops_overage_row_matching_printed_surplus(self):
+		from erpnext_moldova_efactura.utils.factura_ai import document_from_extraction
+
+		bieleta = {
+			"description": "Bieleta antiruliu",
+			"source_uom": "buc",
+			"source_qty": "1",
+			"source_rate": "333.33",
+			"net_amount": "333.33",
+			"vat_rate": "20",
+			"vat_amount": "66.67",
+			"amount": "400.00",
+		}
+		extra = dict(bieleta, net_amount="333.34", vat_amount="66.66")
+		payload = {
+			"series": "AAY",
+			"number": "7128754",
+			"issue_date": "2026-08-21",
+			"supplier_name": "SRL Nifestcom",
+			"supplier_idno": "1002600041697",
+			"buyer_name": "Hotel Life SRL",
+			"buyer_idno": "1024600026571",
+			"net_total": "11049.99",
+			"vat_total": "2210.01",
+			"total": "13260.00",
+			"items": [
+				{
+					"description": "Schimb ulei in motor",
+					"source_uom": "buc",
+					"source_qty": "1",
+					"source_rate": "10466.67",
+					"net_amount": "10466.67",
+					"vat_rate": "20",
+					"vat_amount": "2093.33",
+					"amount": "12560.00",
+				},
+				{
+					"description": "Pivot",
+					"source_uom": "buc",
+					"source_qty": "1",
+					"source_rate": "249.99",
+					"net_amount": "249.99",
+					"vat_rate": "20",
+					"vat_amount": "50.01",
+					"amount": "300.00",
+				},
+				bieleta,
+				extra,
+			],
+		}
+		data = document_from_extraction(payload, b"\xff\xd8\xff")
+		self.assertEqual((data["total"], len(data["items"])), ("13260.00", 3))
+		self.assertEqual(sum(1 for row in data["items"] if "Bieleta" in row["description"]), 1)
+
+	def test_gemini_applies_metro_reducere_to_charged_row(self):
+		from erpnext_moldova_efactura.utils.factura_ai import document_from_extraction
+
+		payload = {
+			"series": "AAQ",
+			"number": "1785209",
+			"issue_date": "2024-10-19",
+			"supplier_name": "ICS METRO CASH & CARRY MOLDOVA SRL",
+			"supplier_idno": "1004601002738",
+			"buyer_name": "HOTEL LIFE SRL",
+			"buyer_idno": "1024600026571",
+			"net_total": "1162.01",
+			"vat_total": "232.40",
+			"total": "1394.41",
+			"items": [
+				{
+					"description": "COS IMPLETIT MATERIAL",
+					"source_qty": "1",
+					"source_rate": "1186.67",
+					"net_amount": "1186.67",
+					"vat_rate": "20",
+					"vat_amount": "237.33",
+					"amount": "1424.00",
+				}
+			],
+		}
+		data = document_from_extraction(payload, b"\xff\xd8\xff")
+		self.assertEqual((data["net_total"], data["total"], len(data["items"])), ("1162.01", "1394.41", 1))
+		self.assertEqual(data["items"][0]["description"], "COS IMPLETIT MATERIAL")
+		self.assertEqual(data["items"][0]["net_amount"], "1162.01")
+		self.assertEqual(data["items"][0]["source_rate"], "1186.67")
+
+	def test_gemini_applies_metro_reducere_column_on_mixed_vat_rows(self):
+		from erpnext_moldova_efactura.utils.factura_ai import document_from_extraction
+
+		payload = {
+			"series": "AAQ",
+			"number": "1774375",
+			"issue_date": "2025-12-09",
+			"supplier_name": "ICS METRO CASH & CARRY MOLDOVA SRL",
+			"supplier_idno": "1004601002738",
+			"buyer_name": "HOTEL LIFE SRL",
+			"buyer_idno": "1024600026571",
+			"net_total": "214.12",
+			"vat_total": "28.51",
+			"total": "242.63",
+			"items": [
+				{
+					"description": "400G BISCUITI DE OVAZ FRANZEL",
+					"source_qty": "4",
+					"source_rate": "24.92",
+					"net_amount": "99.68",
+					"vat_rate": "20",
+					"vat_amount": "19.92",
+					"amount": "113.94",
+				},
+				{
+					"description": "10X28G SNACK AL LATTE BALCONI",
+					"source_qty": "3",
+					"source_rate": "42.50",
+					"net_amount": "127.50",
+					"vat_rate": "8",
+					"vat_amount": "10.20",
+					"amount": "128.69",
+				},
+			],
+		}
+		data = document_from_extraction(payload, b"\xff\xd8\xff")
+		self.assertEqual(len(data["items"]), 2)
+		self.assertEqual(data["items"][0]["net_amount"], "94.96")
+		self.assertEqual(data["items"][0]["amount"], "113.94")
+		self.assertEqual(data["items"][1]["amount"], "128.69")
+		self.assertEqual(data["items"][0]["source_qty"], "4")
+		self.assertFalse(any("discount" in row["description"].casefold() for row in data["items"]))
+
+	def test_gemini_drops_reducere_cantitativa_row(self):
+		from erpnext_moldova_efactura.utils.factura_ai import document_from_extraction
+
+		payload = {
+			"series": "AAQ",
+			"number": "1785209",
+			"issue_date": "2024-10-19",
+			"supplier_name": "ICS METRO CASH & CARRY MOLDOVA SRL",
+			"supplier_idno": "1004601002738",
+			"buyer_name": "HOTEL LIFE SRL",
+			"buyer_idno": "1024600026571",
+			"net_total": "1162.01",
+			"vat_total": "232.40",
+			"total": "1394.41",
+			"items": [
+				{
+					"description": "COS IMPLETIT MATERIAL",
+					"source_qty": "1",
+					"source_rate": "1186.67",
+					"net_amount": "1186.67",
+					"vat_rate": "20",
+					"vat_amount": "237.33",
+					"amount": "1424.00",
+				},
+				{
+					"description": "REDUCERE CANTITATIVA",
+					"supplier_item_code": "2400236093",
+					"source_qty": "1",
+					"source_rate": "24.66",
+					"net_amount": "-24.66",
+					"vat_rate": "20",
+					"vat_amount": "-4.93",
+					"amount": "-29.59",
+				},
+			],
+		}
+		data = document_from_extraction(payload, b"\xff\xd8\xff")
+		self.assertEqual((data["total"], len(data["items"])), ("1394.41", 1))
+		self.assertEqual(data["items"][0]["description"], "COS IMPLETIT MATERIAL")
+		self.assertEqual(data["items"][0]["net_amount"], "1162.01")
+
 	def test_gemini_accepts_printed_vat_rounding_on_till_rows(self):
 		from erpnext_moldova_efactura.utils.factura_ai import document_from_extraction
 
@@ -264,6 +648,77 @@ class TestFacturaPDF(TestCase):
 		data = document_from_extraction(payload, b"\xff\xd8\xff")
 		self.assertEqual((data["total"], len(data["items"])), ("117.30", 2))
 		self.assertEqual(data["items"][0]["vat_amount"], "17.40")
+
+	def test_gemini_repairs_metro_unit_qty_from_printed_net(self):
+		from erpnext_moldova_efactura.utils.factura_ai import document_from_extraction
+
+		payload = {
+			"series": "AAQ",
+			"number": "1838180",
+			"issue_date": "2026-08-29",
+			"supplier_name": "METRO CASH & CARRY MOLDOVA SRL",
+			"supplier_idno": "1004601002738",
+			"buyer_name": "HOTEL LIFE SRL",
+			"buyer_idno": "1024600026571",
+			"net_total": "62.25",
+			"vat_total": "12.45",
+			"total": "74.70",
+			"items": [
+				{
+					"description": "BIC RADIERA GALET",
+					"supplier_item_code": "4000005319066",
+					"source_uom": "IM",
+					"source_qty": "1",
+					"source_rate": "20.75",
+					"net_amount": "62.25",
+					"vat_rate": "20",
+					"vat_amount": "12.45",
+					"amount": "74.70",
+				}
+			],
+		}
+		data = document_from_extraction(payload, b"\xff\xd8\xff")
+		self.assertEqual(data["items"][0]["source_qty"], "3")
+		self.assertEqual(data["total"], "74.70")
+
+	def test_gemini_drops_plpa_note_rows(self):
+		from erpnext_moldova_efactura.utils.factura_ai import document_from_extraction
+
+		payload = {
+			"series": "AAQ",
+			"number": "1838180",
+			"issue_date": "2026-08-29",
+			"supplier_name": "METRO CASH & CARRY MOLDOVA SRL",
+			"supplier_idno": "1004601002738",
+			"buyer_name": "HOTEL LIFE SRL",
+			"buyer_idno": "1024600026571",
+			"net_total": "62.25",
+			"vat_total": "12.45",
+			"total": "74.70",
+			"items": [
+				{
+					"description": "BIC RADIERA GALET",
+					"source_qty": "3",
+					"source_rate": "20.75",
+					"net_amount": "62.25",
+					"vat_rate": "20",
+					"vat_amount": "12.45",
+					"amount": "74.70",
+				},
+				{
+					"description": "PL/PA",
+					"source_qty": "2.34",
+					"source_rate": "35.04",
+					"net_amount": "12.64",
+					"vat_rate": "20",
+					"vat_amount": "2.52",
+					"amount": "15.16",
+				},
+			],
+		}
+		data = document_from_extraction(payload, b"\xff\xd8\xff")
+		self.assertEqual(len(data["items"]), 1)
+		self.assertEqual(data["items"][0]["description"], "BIC RADIERA GALET")
 
 	def test_gemini_accepts_footer_net_vat_rounding_when_gross_matches(self):
 		from erpnext_moldova_efactura.utils.factura_ai import document_from_extraction
@@ -360,6 +815,107 @@ class TestFacturaPDF(TestCase):
 		generate.assert_called_once()
 		self.assertEqual(generate.call_args[0][1], "application/pdf")
 
+	@patch("erpnext_moldova_efactura.utils.factura_ai._credentials", return_value=("key", "gemini-3.6-flash"))
+	@patch("erpnext_moldova_efactura.utils.factura_ai._generate")
+	def test_parse_image_retries_when_item_totals_mismatch(self, generate, _credentials):
+		ok = {
+			"series": "AAQ",
+			"number": "1838180",
+			"issue_date": "2026-08-29",
+			"supplier_name": "METRO CASH & CARRY MOLDOVA SRL",
+			"supplier_idno": "1004601002738",
+			"buyer_name": "HOTEL LIFE SRL",
+			"buyer_idno": "1024600026571",
+			"net_total": "104.65",
+			"vat_total": "20.93",
+			"total": "125.58",
+			"items": [
+				{
+					"description": "BIC RADIERA GALET",
+					"source_qty": "3",
+					"source_rate": "20.75",
+					"net_amount": "62.25",
+					"vat_rate": "20",
+					"vat_amount": "12.45",
+					"amount": "74.70",
+				},
+				{
+					"description": "ARO HARTIE COPIATOR 80G A4",
+					"source_qty": "1",
+					"source_rate": "42.40",
+					"net_amount": "42.40",
+					"vat_rate": "20",
+					"vat_amount": "8.48",
+					"amount": "50.88",
+				},
+			],
+		}
+		missing = dict(ok, items=[ok["items"][0]], net_total="104.65", vat_total="20.93", total="125.58")
+		generate.side_effect = [missing, ok]
+		data = parse_image(b"\xff\xd8\xffdummy")
+		self.assertEqual(generate.call_count, 2)
+		self.assertEqual((data["total"], len(data["items"])), ("125.58", 2))
+		self.assertIn("item totals do not match", generate.call_args.kwargs["prompt"])
+
+	@patch("erpnext_moldova_efactura.utils.factura_ai._credentials", return_value=("key", "gemini-3.6-flash"))
+	@patch("erpnext_moldova_efactura.utils.factura_ai._generate")
+	def test_parse_image_drops_note_rows_without_retry(self, generate, _credentials):
+		ok = {
+			"series": "AAQ",
+			"number": "1838180",
+			"issue_date": "2026-08-29",
+			"supplier_name": "METRO CASH & CARRY MOLDOVA SRL",
+			"supplier_idno": "1004601002738",
+			"buyer_name": "HOTEL LIFE SRL",
+			"buyer_idno": "1024600026571",
+			"net_total": "62.25",
+			"vat_total": "12.45",
+			"total": "74.70",
+			"items": [
+				{
+					"description": "BIC RADIERA GALET",
+					"source_qty": "3",
+					"source_rate": "20.75",
+					"net_amount": "62.25",
+					"vat_rate": "20",
+					"vat_amount": "12.45",
+					"amount": "74.70",
+				}
+			],
+		}
+		broken = dict(
+			ok,
+			items=ok["items"]
+			+ [
+				{
+					"description": "PL/PA",
+					"source_qty": "2.34",
+					"source_rate": "35.04",
+					"net_amount": "12.64",
+					"vat_rate": "20",
+					"vat_amount": "2.52",
+					"amount": "15.16",
+				}
+			],
+		)
+		generate.side_effect = [broken, ok]
+		data = parse_image(b"\xff\xd8\xffdummy")
+		self.assertEqual(generate.call_count, 1)
+		self.assertEqual((data["total"], len(data["items"])), ("74.70", 1))
+
+	@patch("erpnext_moldova_efactura.utils.factura_ai.time.sleep")
+	def test_gemini_timeout_fails_without_retry(self, sleep):
+		from erpnext_moldova_efactura.utils.factura_ai import _post_gemini
+
+		def urlopen(request, timeout=180):
+			raise TimeoutError("timed out")
+
+		with patch("erpnext_moldova_efactura.utils.factura_ai.urllib.request.urlopen", side_effect=urlopen):
+			with self.assertRaises(FacturaImportError) as ctx:
+				_post_gemini(b"{}", "key", "gemini-3.6-flash")
+		self.assertIn("timed out", str(ctx.exception))
+		sleep.assert_not_called()
+
 	@patch.dict(os.environ, {"GEMINI_API_KEY": ""}, clear=False)
 	@patch("frappe.db.get_single_value", return_value=None)
 	def test_paper_ai_disabled_without_gemini_key(self, _single):
@@ -434,6 +990,7 @@ class TestFacturaPDF(TestCase):
 			("IMG_20260906_115807.jpg", "AAZ", "1606962", "4800.00", 1),
 			("IMG_20260906_120600.jpg", "AAY", "7128757", "579.00", 6),
 			("IMG_20260906_120644.jpg", "AAY", "7128754", "13260.00", 22),
+			("IMG_20260907_210310.jpg", "AAQ", "1838180", "1501.22", 36),
 		):
 			with self.subTest(filename=filename):
 				data = parse_image((EXAMPLES / filename).read_bytes())
@@ -575,6 +1132,80 @@ class TestPurchaseFactura(FrappeTestCase):
 			}
 		)
 		return doc.insert()
+
+	def test_paper_row_accepts_printed_unit_rate_rounding(self):
+		pf = self.factura(
+			original_format="Paper",
+			items=[
+				{
+					"supplier_item_name": "Подставка информационная пластиковая A4 AXENT",
+					"f_qty": 5,
+					"f_rate": 124.17,
+					"f_net_amount": 620.83,
+					"f_vat_rate": 20,
+					"f_vat_amount": 124.17,
+					"item_code": self.item.name,
+					"uom": "Nos",
+					"qty": 5,
+				}
+			],
+		)
+		self.assertEqual(flt(pf.items[0].f_net_amount), 620.83)
+		self.assertEqual(flt(pf.items[0].f_vat_amount), 124.17)
+		self.assertEqual(flt(pf.items[0].f_amount), 745)
+
+	def test_paper_row_accepts_metro_line_reducere(self):
+		pf = self.factura(
+			original_format="Paper",
+			items=[
+				{
+					"supplier_item_name": "10X28G SNACK AL LATTE BALCONI",
+					"f_qty": 3,
+					"f_rate": 42.50,
+					"f_net_amount": 119.16,
+					"f_vat_rate": 8,
+					"f_vat_amount": 9.53,
+					"item_code": self.item.name,
+					"uom": "Nos",
+					"qty": 3,
+				}
+			],
+		)
+		self.assertEqual(flt(pf.items[0].f_qty), 3)
+		self.assertEqual(flt(pf.items[0].f_rate), 42.5)
+		self.assertEqual(flt(pf.items[0].f_net_amount), 119.16)
+		self.assertEqual(flt(pf.items[0].f_amount), 128.69)
+
+	def test_paper_row_accepts_mixed_vat_after_reducere(self):
+		pf = self.factura(
+			original_format="Paper",
+			items=[
+				{
+					"supplier_item_name": "20% goods",
+					"f_qty": 1,
+					"f_rate": 2415.81,
+					"f_net_amount": 2415.81,
+					"f_vat_rate": 20,
+					"f_vat_amount": 483.16,
+					"item_code": self.item.name,
+					"uom": "Nos",
+					"qty": 1,
+				},
+				{
+					"supplier_item_name": "8% goods",
+					"f_qty": 1,
+					"f_rate": 233.73,
+					"f_net_amount": 233.73,
+					"f_vat_rate": 8,
+					"f_vat_amount": 18.70,
+					"item_code": self.item.name,
+					"uom": "Nos",
+					"qty": 1,
+				},
+			],
+		)
+		self.assertEqual(flt(pf.f_net_total), 2649.54)
+		self.assertEqual(flt(pf.f_total), 3151.4)
 
 	def test_accounting_and_fiscal_lifecycle(self):
 		pf = self.factura()
@@ -901,6 +1532,49 @@ class TestPurchaseFactura(FrappeTestCase):
 		self.assertEqual(pf.original_format, "Paper")
 		self.assertEqual(pf.signature_status, "Not Applicable")
 
+	@patch("erpnext_moldova_efactura.utils.factura_ai.parse_image")
+	def test_ai_import_swaps_inverted_metro_parties(self, parse_image):
+		content = self._jpeg_with_exif()
+		file = frappe.get_doc(
+			{"doctype": "File", "file_name": "metro-till.jpg", "is_private": 1, "content": content}
+		).insert()
+		parsed = self._ai_extraction()
+		parsed["number"] = "1830389"
+		parsed["supplier_name"] = "HOTEL LIFE SRL"
+		parsed["supplier_idno"] = "1024600026571"
+		parsed["buyer_name"] = "I.C.S METRO CASH & CARRY MOLDOVA S.R.L."
+		parsed["buyer_idno"] = "1004601002738"
+		parsed["file_hash"] = hashlib.sha256(Path(file.get_full_path()).read_bytes()).hexdigest()
+		parse_image.return_value = parsed
+		name = import_pdf(file.file_url, self.company.name, use_ai=1)
+		pf = frappe.get_doc("Purchase Factura", name)
+		self.assertEqual(pf.f_customer_idno, "1024600026571")
+		self.assertEqual(pf.f_supplier_idno, "1004601002738")
+		self.assertEqual(pf.f_supplier_name, "I.C.S METRO CASH & CARRY MOLDOVA S.R.L.")
+
+	@patch("erpnext_moldova_efactura.utils.factura_ai.parse_image")
+	def test_ai_import_matches_glued_company_idno_and_vat(self, parse_image):
+		content = self._jpeg_with_exif()
+		file = frappe.get_doc(
+			{"doctype": "File", "file_name": "metro-glued-idno.jpg", "is_private": 1, "content": content}
+		).insert()
+		parsed = self._ai_extraction()
+		parsed["number"] = "1830389"
+		parsed["supplier_name"] = "I.C.S METRO CASH & CARRY MOLDOVA S.R.L."
+		parsed["supplier_idno"] = "1004601002738"
+		parsed["buyer_idno"] = "1024600026571"
+		parsed["file_hash"] = hashlib.sha256(Path(file.get_full_path()).read_bytes()).hexdigest()
+		parse_image.return_value = parsed
+		prev = frappe.db.get_value("Company", self.company.name, "tax_id")
+		try:
+			frappe.db.set_value("Company", self.company.name, "tax_id", "10246000265710211775")
+			name = import_pdf(file.file_url, self.company.name, use_ai=1)
+			pf = frappe.get_doc("Purchase Factura", name)
+			self.assertEqual(pf.f_customer_idno, "1024600026571")
+			self.assertEqual(pf.f_supplier_idno, "1004601002738")
+		finally:
+			frappe.db.set_value("Company", self.company.name, "tax_id", prev)
+
 	def _jpeg_with_exif(self):
 		from PIL import Image
 
@@ -910,6 +1584,22 @@ class TestPurchaseFactura(FrappeTestCase):
 		buffer = io.BytesIO()
 		image.save(buffer, format="JPEG", quality=95, exif=exif)
 		return buffer.getvalue()
+
+	def test_save_uploaded_original_keeps_jpeg_bytes(self):
+		from erpnext_moldova_efactura.utils.pf_original import save_uploaded_original
+
+		prev = frappe.db.get_single_value("System Settings", "strip_exif_metadata_from_uploaded_images")
+		try:
+			frappe.db.set_single_value("System Settings", "strip_exif_metadata_from_uploaded_images", 1)
+			content = self._jpeg_with_exif()
+			frappe.local.uploaded_file = content
+			frappe.local.uploaded_filename = "paper-scan.jpg"
+			frappe.form_dict.is_private = 1
+			file = save_uploaded_original()
+			self.assertEqual(Path(file.get_full_path()).read_bytes(), content)
+			self.assertEqual(cint(file.file_size), len(content))
+		finally:
+			frappe.db.set_single_value("System Settings", "strip_exif_metadata_from_uploaded_images", prev)
 
 	@patch("erpnext_moldova_efactura.utils.factura_ai.parse_image")
 	def test_ai_jpeg_import_allows_mapping_save(self, parse_image):
