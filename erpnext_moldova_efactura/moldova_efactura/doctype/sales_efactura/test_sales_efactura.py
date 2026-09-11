@@ -1055,6 +1055,53 @@ class TestSaleseFactura(FrappeTestCase):
 			api.from_settings.return_value = client
 			sef.process_signed_xml("ACC-SEF-1", signature, content)
 			api.from_settings.assert_called_once_with(company="Hotel Life")
+			doc.db_set.assert_any_call("ef_status", "Signed by Supplier", update_modified=False)
+
+	def test_process_signed_xml_recovers_when_post_faults_but_sfs_registered(self):
+		from unittest.mock import MagicMock, patch
+
+		from erpnext_moldova_efactura.api_client import EFacturaAPIError
+		from erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura import sales_efactura as sef
+
+		import base64
+
+		content = base64.b64encode(b"<SupplierInfo/>").decode()
+		signature = base64.b64encode(b"<ds:Signature/>").decode()
+		doc = frappe._dict(
+			name="ACC-SEF-1",
+			company="Hotel Life",
+			ef_series="EBL",
+			ef_number="000501857",
+		)
+		doc.db_set = MagicMock()
+		doc.set_status = MagicMock()
+		client = MagicMock()
+		client.post_invoices.side_effect = EFacturaAPIError(
+			"SOAP Fault in PostInvoices: Unknown fault occured"
+		)
+		client.check_invoices_status.side_effect = EFacturaAPIError(
+			"SOAP Fault in CheckInvoicesStatus: Unknown fault occured"
+		)
+		client.get_invoices_by_seria_number.return_value = {
+			"Results": {
+				"XmlInvoice": {
+					"Seria": "EBL",
+					"Number": "000501857",
+					"InvoiceStatus": 1,
+				}
+			}
+		}
+
+		with (
+			patch.object(sef, "_get_sales_efactura", return_value=doc),
+			patch.object(sef, "_assert_can_register_signed"),
+			patch.object(sef, "EFacturaAPIClient") as api,
+			patch.object(sef, "log_event"),
+		):
+			api.from_settings.return_value = client
+			result = sef.process_signed_xml("ACC-SEF-1", signature, content)
+			self.assertEqual(result["posted"], 1)
+			doc.db_set.assert_any_call("ef_status", "Signed by Supplier", update_modified=False)
 
 	def test_sef_workflow_status_maps_return_to_sfs_label(self):
 		from types import SimpleNamespace

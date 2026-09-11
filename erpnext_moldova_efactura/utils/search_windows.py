@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 
 import frappe
-from frappe.utils import add_days
+from frappe.utils import add_days, get_datetime
 
 from erpnext_moldova_efactura.api_client import EFacturaAPIError
 from erpnext_moldova_efactura.utils.api_response import extract_invoices
@@ -46,13 +46,22 @@ def iter_issued_on_windows(date_from, date_to, days: int = SEARCH_WINDOW_DAYS):
 
 def _sfs_datetime(value):
 	"""SFS DateTime fields reject microseconds (generic SOAP Fault)."""
-	replace = getattr(value, "replace", None)
+	if value is None:
+		return value
+	parsed = value
+	replace = getattr(parsed, "replace", None)
+	if not callable(replace):
+		try:
+			parsed = get_datetime(value)
+		except Exception:
+			return value
+		replace = getattr(parsed, "replace", None)
 	if callable(replace):
 		try:
 			return replace(microsecond=0)
 		except TypeError:
-			pass
-	return value
+			return parsed
+	return parsed
 
 
 def _window_midpoint(start, end):

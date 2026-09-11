@@ -1,18 +1,18 @@
 from __future__ import annotations
 
+import json
 import uuid
 from typing import Any, Dict, Optional
 
 import frappe
-from frappe import _
 import requests
+from lxml import etree
 from zeep import Client, Settings
 from zeep.exceptions import Fault, TransportError
 from zeep.helpers import serialize_object
+from zeep.plugins import HistoryPlugin
 from zeep.transports import Transport
 from zeep.wsse.username import UsernameToken
-from zeep.plugins import HistoryPlugin
-from lxml import etree
 
 
 class EFacturaAPIError(Exception):
@@ -77,18 +77,64 @@ class EFacturaAPIClient:
             self.service = client.service
 
 
-    def _dump_soap_envelope(self, label: str, envelope):
+    def _dump_soap_envelope(self, envelope) -> str:
         if envelope is None:
-            return
+            return ""
         try:
-            xml_str = etree.tostring(
-                envelope,
-                pretty_print=True,
-                encoding="unicode",
-            )
-            frappe.log_error(f"{label}", xml_str)
+            return etree.tostring(envelope, pretty_print=True, encoding="unicode")
         except Exception as e:
-            frappe.log_error(f"{label}: failed to dump xml", str(e))
+            return f"<failed to dump xml: {e}>"
+
+    def _redact_secrets(self, text: str) -> str:
+        if not text:
+            return text
+        if self.password:
+            text = text.replace(self.password, "***")
+        return text
+
+    def _json_snippet(self, value, limit: int = 50000) -> str:
+        try:
+            text = json.dumps(value, default=str, ensure_ascii=False, indent=2)
+        except Exception:
+            text = repr(value)
+        if len(text) > limit:
+            return text[:limit] + "\n…[truncated]"
+        return text
+
+    def _log_failed_call(
+        self,
+        method_name: str,
+        *,
+        error: str,
+        request: Optional[dict] = None,
+        extra: Optional[dict] = None,
+        response: Any = None,
+    ) -> None:
+        parts = [f"method={method_name}", f"error={error}"]
+        payload = {}
+        if request is not None:
+            payload["request"] = request
+        if extra:
+            payload.update(extra)
+        if payload:
+            parts.append("payload=\n" + self._json_snippet(payload))
+        if response is not None:
+            parts.append("response=\n" + self._json_snippet(response))
+
+        sent = getattr(self._history, "last_sent", None) or {}
+        received = getattr(self._history, "last_received", None) or {}
+        if sent.get("envelope") is not None:
+            parts.append("SOAP REQUEST:\n" + self._dump_soap_envelope(sent["envelope"]))
+        if received.get("envelope") is not None:
+            parts.append("SOAP RESPONSE:\n" + self._dump_soap_envelope(received["envelope"]))
+
+        try:
+            frappe.log_error(
+                title=f"SFS API {method_name} failed",
+                message=self._redact_secrets("\n\n".join(parts)),
+            )
+        except Exception:
+            pass
 
 
     @classmethod
@@ -110,40 +156,40 @@ class EFacturaAPIClient:
         return str(uuid.uuid4())
 
     def _call(self, method_name: str, request: Optional[dict] = None, **kwargs) -> Dict[str, Any]:
-        # try:
+        from erpnext_moldova_efactura.utils.api_response import sfs_action_error
+
         method = getattr(self.service, method_name)
-        # except AttributeError as e:
-            # raise EFacturaAPIError(f"Unknown SOAP method: {method_name}") from e
+        extra = dict(kwargs)
 
         try:
             if request is not None:
                 resp = method(request, **kwargs)
             else:
                 resp = method(**kwargs)
-
-            return serialize_object(resp, dict)
-
+            data = serialize_object(resp, dict)
         except Fault as e:
-            raise EFacturaAPIError(
-                f"SOAP Fault in {method_name}: {e.message or str(e)}"
-            ) from e
+            error = f"SOAP Fault in {method_name}: {e.message or str(e)}"
+            self._log_failed_call(method_name, error=error, request=request, extra=extra)
+            raise EFacturaAPIError(error) from e
         except TransportError as e:
-            raise EFacturaAPIError(
-                f"Transport error in {method_name}: {str(e)}"
-            ) from e
+            error = f"Transport error in {method_name}: {str(e)}"
+            self._log_failed_call(method_name, error=error, request=request, extra=extra)
+            raise EFacturaAPIError(error) from e
         except Exception as e:
-            raise EFacturaAPIError(
-                f"Unexpected error in {method_name}: {str(e)}"
-            ) from e
-        # finally:
-        #     # dump last SOAP request/response (even if fault)
-        #     sent = getattr(self._history, "last_sent", None)
-        #     received = getattr(self._history, "last_received", None)
+            error = f"Unexpected error in {method_name}: {str(e)}"
+            self._log_failed_call(method_name, error=error, request=request, extra=extra)
+            raise EFacturaAPIError(error) from e
 
-        #     if sent and "envelope" in sent:
-        #         self._dump_soap_envelope("eFactura SOAP REQUEST", sent["envelope"])
-        #     if received and "envelope" in received:
-        #         self._dump_soap_envelope("eFactura SOAP RESPONSE", received["envelope"])
+        business_error = sfs_action_error(data)
+        if business_error:
+            self._log_failed_call(
+                method_name,
+                error=str(business_error),
+                request=request,
+                extra=extra,
+                response=data,
+            )
+        return data
 
     # -------------------------
     # API methods

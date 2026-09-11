@@ -1,7 +1,7 @@
 import frappe
 from frappe.utils import now_datetime, add_days
 from collections import defaultdict
-from erpnext_moldova_efactura.api_client import EFacturaAPIClient
+from erpnext_moldova_efactura.api_client import EFacturaAPIClient, EFacturaAPIError
 from erpnext_moldova_efactura.utils.api_response import status_map_with_fallback
 from erpnext_moldova_efactura.utils.company_api import get_sync_targets
 from erpnext_moldova_efactura.utils.search_windows import iter_search_invoices
@@ -331,13 +331,14 @@ def sync_efactura_draft_invoices_by_api_invoice_id():
             inv = None
             for status in search_statuses:
                 params = {
-                    "APIeInvoiceId": row.name, 
+                    "APIeInvoiceId": row.name,
                     "InvoiceStatus": status,
                 }
-
-                resp = client.search_invoices(actor_role=1, parameters=params)
+                try:
+                    resp = client.search_invoices(actor_role=1, parameters=params)
+                except EFacturaAPIError:
+                    continue
                 inv = _extract_single_invoice_from_search_response(resp)
-                
                 if inv:
                     break
 

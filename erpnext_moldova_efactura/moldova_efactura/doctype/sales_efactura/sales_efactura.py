@@ -18,7 +18,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.model.mapper import get_mapped_doc
 from frappe.utils import cint, flt
-from erpnext_moldova_efactura.api_client import EFacturaAPIClient
+from erpnext_moldova_efactura.api_client import EFacturaAPIClient, EFacturaAPIError
 from erpnext_moldova_efactura.utils.api_response import sfs_action_error, status_map_with_fallback
 from erpnext_moldova_efactura.utils.taxpayer_type import taxpayer_type_from_sfs, taxpayer_type_to_sfs
 from erpnext_moldova_efactura.utils.timeline import log_event, log_status_change
@@ -856,13 +856,14 @@ def update_ef_status(efactura_name):
         inv = None
         for status in search_statuses:
             params = {
-                "APIeInvoiceId": efactura.name, 
+                "APIeInvoiceId": efactura.name,
                 "InvoiceStatus": status,
             }
-
-            resp = client.search_invoices(actor_role=1, parameters=params)
+            try:
+                resp = client.search_invoices(actor_role=1, parameters=params)
+            except EFacturaAPIError:
+                continue
             inv = _extract_single_invoice_from_search_response(resp)
-            
             if inv:
                 break
 
@@ -1210,6 +1211,10 @@ def process_signed_xml(name, signature, content):
     # NOTE:
     # - send_unsigned() uses invoices_xml_status=0 (unsigned)
     # - signed XML should use invoices_xml_status=1
+    # PostInvoices can register the invoice and still return a SOAP Fault / ErrorMessage.
+    # Confirm via series/number so ERP does not stay Pending Registration.
+    post_error = None
+    resp = None
     try:
         resp = client.post_invoices(
             request_id=ef.name,
@@ -1218,20 +1223,26 @@ def process_signed_xml(name, signature, content):
             invoices_xml_status=1,
         )
     except Exception as e:
-        frappe.throw(_("e-Factura API Error: {0}").format(str(e)))
+        post_error = str(e)
 
     error_message = (resp or {}).get("ErrorMessage")
     total = (resp or {}).get("TotalInvoices", 0) or 0
     posted = (resp or {}).get("TotalInvoicesPosted", 0) or 0
+    posted_ok = not post_error and not error_message and total == posted and posted != 0
 
-    if error_message:
-        frappe.throw(_("e-Factura API Error: {0}").format(error_message))
+    remote_status = None if posted_ok else _remote_posted_status(client, ef)
+    if not posted_ok:
+        if remote_status is None or remote_status < 1:
+            frappe.throw(
+                _("e-Factura API Error: {0}").format(
+                    post_error or error_message or _("Invoices posted: {0} / {1}").format(posted, total)
+                )
+            )
+        posted = posted or 1
+        total = total or posted
 
-    if total != posted or posted == 0:
-        frappe.throw(_("e-Factura API Error: Invoices posted: {0} / {1}").format(posted, total))
-
-    # Update status
-    ef.db_set("ef_status", sef_status_label(1), update_modified=False)
+    label = sef_status_label(remote_status if remote_status is not None else 1)
+    ef.db_set("ef_status", label, update_modified=False)
     ef.set_status()
     log_event(ef, "sent signed invoice to e-Factura")
 
@@ -1240,6 +1251,19 @@ def process_signed_xml(name, signature, content):
         "total": total,
         "posted": posted,
     }
+
+
+def _remote_posted_status(client, ef):
+    """SFS InvoiceStatus after PostInvoices; None if series/number lookup fails."""
+    seria = (ef.ef_series or "").strip()
+    number = str(ef.ef_number or "").strip()
+    if not seria or not number:
+        return None
+    try:
+        statuses = status_map_with_fallback(client, [{"Seria": seria, "Number": number}])
+    except Exception:
+        return None
+    return statuses.get((seria, number))
 
 
 @frappe.whitelist()

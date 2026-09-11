@@ -47,6 +47,24 @@ class TestSearchWindows(FrappeTestCase):
 		self.assertEqual(client.calls[-1]["IssuedOn"]["EndDate"], end)
 		self.assertEqual(len(rows), 3)
 
+	def test_search_strips_issued_on_microseconds(self):
+		start = get_datetime("2026-05-24 00:01:25.545771")
+		end = get_datetime("2026-05-31 00:01:25.545771")
+		client = _FakeSearchClient()
+		list(
+			iter_search_invoices(
+				client,
+				actor_role=1,
+				invoice_status=5,
+				date_from=start,
+				date_to=end,
+				error_title="test",
+			)
+		)
+		issued = client.calls[0]["IssuedOn"]
+		self.assertEqual(issued["StartDate"].microsecond, 0)
+		self.assertEqual(issued["EndDate"].microsecond, 0)
+
 	def test_search_splits_window_on_sfs_fault(self):
 		from erpnext_moldova_efactura.api_client import EFacturaAPIError
 
