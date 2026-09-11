@@ -160,6 +160,8 @@ class TestEFacturaBuyerUtils(FrappeTestCase):
 		self.assertEqual(normalize_idno("1015608001255"), "1015608001255")
 		self.assertEqual(normalize_idno(None), "")
 		self.assertEqual(normalize_idno("IDNO-1015608001255"), "1015608001255")
+		self.assertEqual(normalize_idno("1024600026571/0211775"), "1024600026571")
+		self.assertEqual(normalize_idno("10246000265710211775"), "1024600026571")
 
 	def test_throw_if_supplier_idno_mismatch_noop_without_supplier(self):
 		throw_if_supplier_idno_mismatch(None, "1015608001255")

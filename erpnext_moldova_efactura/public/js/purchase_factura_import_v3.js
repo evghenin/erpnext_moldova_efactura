@@ -18,6 +18,7 @@ erpnext_moldova_efactura.pf.import_document = function (kind) {
 				allow_multiple: false,
 				make_attachments_public: false,
 				allow_toggle_optimize: false,
+				method: "erpnext_moldova_efactura.utils.pf_original.save_uploaded_original",
 				restrictions: {
 					allowed_file_types: image
 						? [".pdf", "image/*", ".jpg", ".jpeg", ".png"]
@@ -32,6 +33,7 @@ erpnext_moldova_efactura.pf.import_document = function (kind) {
 					frappe.call({
 						method: "erpnext_moldova_efactura.moldova_efactura.doctype.purchase_factura.purchase_factura.import_pdf",
 						args,
+						timeout: 300,
 						freeze: true,
 						freeze_message: image
 							? __("Reading factura with AI…")
@@ -41,15 +43,13 @@ erpnext_moldova_efactura.pf.import_document = function (kind) {
 					});
 				},
 			});
-			if (image && uploader.uploader?.add_files) {
-				const add_files = uploader.uploader.add_files;
-				uploader.uploader.add_files = (file_array) => {
-					add_files(file_array);
-					(uploader.uploader.files || []).forEach((file) => {
-						file.optimize = false;
-					});
-				};
-			}
+			const upload_files = uploader.upload_files.bind(uploader);
+			uploader.upload_files = () => {
+				(uploader.uploader.files || []).forEach((file) => {
+					file.optimize = false;
+				});
+				return upload_files();
+			};
 		},
 		image ? __("Import Image") : __("Import PDF"),
 		__("Upload Document")
