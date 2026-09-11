@@ -252,7 +252,7 @@
   },
   {
    "default": "gemini-3.6-flash",
-   "description": "Gemini model used for paper factura extraction. Retired names such as gemini-2.5-flash are mapped automatically.",
+   "description": "Gemini model used for paper factura extraction. Retired names such as gemini-3.6-flash are mapped automatically.",
    "fieldname": "gemini_model",
    "fieldtype": "Data",
    "label": "Gemini Model",
@@ -271,9 +271,9 @@
    "options": "eFactura Company Setting"
   },
   {
+   "description": "Maps e-Factura UOM text from SFS XML to an ERPNext UOM. Used when Fetch / sync creates Sales eFactura and Purchase eFactura.",
    "fieldname": "uom_section",
    "fieldtype": "Section Break",
-   "description": "Maps e-Factura UOM text from SFS XML to an ERPNext UOM. Used when Fetch / sync creates Sales eFactura and Purchase eFactura.",
    "label": "UOM Mapping"
   },
   {
@@ -294,91 +294,91 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-09-07 22:55:00.000000",
+ "modified": "2026-09-11 00:56:39.930731",
  "modified_by": "Administrator",
  "module": "Moldova eFactura",
  "name": "eFactura Settings",
  "owner": "Administrator",
  "permissions": [
   {
-   "role": "System Manager",
    "create": 1,
-   "read": 1,
-   "write": 1,
    "delete": 1,
    "email": 1,
    "print": 1,
-   "share": 1
-  },
-  {
-   "role": "eFactura Manager",
-   "create": 1,
    "read": 1,
-   "write": 1,
-   "email": 1,
-   "print": 1,
-   "share": 1
-  },
-  {
-   "role": "Accounts Manager",
-   "read": 1,
-   "write": 1,
-   "email": 1,
-   "print": 1,
-   "share": 1
-  },
-  {
-   "role": "eFactura Sales User",
-   "read": 1,
-   "email": 1,
-   "print": 1
-  },
-  {
-   "role": "Accounts User",
-   "read": 1,
-   "email": 1,
-   "print": 1
-  },
-  {
-   "role": "Sales Manager",
-   "read": 1,
-   "email": 1,
-   "print": 1
-  },
-  {
-   "role": "Sales User",
-   "read": 1,
-   "email": 1,
-   "print": 1
-  },
-  {
-   "role": "Purchase Manager",
-   "read": 1,
-   "email": 1,
-   "print": 1
-  },
-  {
-   "role": "Purchase User",
-   "read": 1,
-   "email": 1,
-   "print": 1
-  },
-  {
    "role": "System Manager",
-   "permlevel": 1,
-   "read": 1,
+   "share": 1,
    "write": 1
   },
   {
+   "create": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
    "role": "eFactura Manager",
-   "permlevel": 1,
-   "read": 1,
+   "share": 1,
    "write": 1
   },
   {
+   "email": 1,
+   "print": 1,
+   "read": 1,
    "role": "Accounts Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "eFactura Sales User"
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "Accounts User"
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "Sales Manager"
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "Sales User"
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "Purchase Manager"
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "Purchase User"
+  },
+  {
    "permlevel": 1,
    "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "eFactura Manager",
+   "write": 1
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "Accounts Manager",
    "write": 1
   }
  ],
