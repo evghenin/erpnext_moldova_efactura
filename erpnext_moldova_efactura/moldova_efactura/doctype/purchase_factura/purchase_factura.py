@@ -125,12 +125,14 @@ class PurchaseFactura(Document):
 	def after_insert(self):
 		if not self.original_file:
 			return
-		from erpnext_moldova_efactura.utils.pf_original import copy_original_file
+		from erpnext_moldova_efactura.utils.pf_original import copy_original_file, discard_unattached_original
 
+		source_url = self.original_file
 		copied = copy_original_file(self)
-		if copied and copied != self.original_file:
+		if copied and copied != source_url:
 			self.db_set("original_file", copied, update_modified=False)
 			self.original_file = copied
+		discard_unattached_original(source_url)
 
 	def validate(self):
 		if not self.company:
@@ -287,8 +289,11 @@ class PurchaseFactura(Document):
 		self._clear_purchase_invoice_link()
 
 	def on_trash(self):
+		from erpnext_moldova_efactura.utils.pf_original import delete_purchase_factura_files
+
 		frappe.flags.pf_deleting = self.name
 		self._clear_purchase_invoice_link()
+		delete_purchase_factura_files(self)
 
 	def _clear_purchase_invoice_link(self):
 		from erpnext_moldova_efactura.utils.doc_unlink import clear_header_fields, clear_item_fields
@@ -390,74 +395,85 @@ def _swap_inverted_parties(data: dict, company: str):
 def import_pdf(file_url: str, company: str, use_ai: int | str | None = None):
 	frappe.has_permission("Purchase Factura", "create", throw=True)
 	frappe.get_doc("Company", company).check_permission("read")
-	file_doc = _read_original(file_url)
+	from erpnext_moldova_efactura.utils.pf_original import discard_unattached_original
+
 	try:
-		content = _file_bytes(file_doc)
-		if cint(use_ai):
-			from erpnext_moldova_efactura.utils.factura_ai import parse_image
-
-			parsed = parse_image(content)
-		else:
-			if not content.startswith(b"%PDF-"):
-				raise FacturaImportError("PDF Orange / Arax import accepts only PDF files")
-			parsed = parse_pdf(content)
-		data = imported_fields(parsed)
-	except FacturaImportError as exc:
-		frappe.throw(_(str(exc)), title=_("Cannot read factura"))
-	_swap_inverted_parties(data, company)
-	_lock_company(company)
-	key = _identity(company, data["f_supplier_idno"], data["f_series"], data["f_number"])
-	existing = frappe.db.get_value("Purchase Factura", {"identity_key": key, "docstatus": ["<", 2]}, "name")
-	if existing:
-		frappe.get_doc("Purchase Factura", existing).check_permission("read")
-		return existing
-	check_signatures = content.startswith(b"%PDF-") and not (
-		cint(use_ai) and is_pdf_image_scan(content)
-	)
-	if check_signatures:
+		file_doc = _read_original(file_url)
 		try:
-			data.update(_verified_signature_values(content))
+			content = _file_bytes(file_doc)
+			if cint(use_ai):
+				from erpnext_moldova_efactura.utils.factura_ai import parse_image
+
+				parsed = parse_image(content)
+			else:
+				if not content.startswith(b"%PDF-"):
+					raise FacturaImportError("PDF Orange / Arax import accepts only PDF files")
+				parsed = parse_pdf(content)
+			data = imported_fields(parsed)
 		except FacturaImportError as exc:
-			frappe.throw(_(str(exc)))
-		if cint(use_ai):
-			data["original_format"] = (
-				"Digitally Signed PDF"
-				if data.get("signature_status") != "Not Applicable"
-				else "Other Electronic"
-			)
-	field = frappe.db.get_single_value("eFactura Settings", "supplier_idno_field") or "tax_id"
-	suppliers = frappe.get_all(
-		"Supplier", filters={field: data["f_supplier_idno"]}, pluck="name", limit_page_length=2
-	)
-	data["supplier_party_type"] = "Supplier"
-	data["supplier_party"] = suppliers[0] if len(suppliers) == 1 else None
-	from erpnext_moldova_efactura.utils.pef_currency import default_document_currency
-
-	data["currency"] = default_document_currency(data["supplier_party"], company)
-	if data["supplier_party"]:
-		from erpnext_moldova_efactura.utils.item_map import resolve_item_and_uom
-		from erpnext_moldova_efactura.utils.uom_map import resolve_uom
-
-		for row in data["items"]:
-			item_code, mapped_uom = resolve_item_and_uom(
-				data["supplier_party"], row.get("supplier_item_code"), row["supplier_item_name"]
-			)
-			if not item_code:
-				continue
-			item = frappe.get_cached_value("Item", item_code, ["purchase_uom", "stock_uom"], as_dict=True)
-			row["item_code"] = item_code
-			row["uom"] = mapped_uom or resolve_uom(row["supplier_uom"]) or item.purchase_uom or item.stock_uom
-	doc = frappe.get_doc(dict(data, doctype="Purchase Factura", company=company, original_file=file_url))
-	doc.flags.pdf_import = True
-	doc.insert()
-	if check_signatures:
-		log_event(
-			doc,
-			"checked the PDF signature: integrity {0}, overall {1}",
-			doc.signature_integrity,
-			doc.signature_status,
+			frappe.throw(_(str(exc)), title=_("Cannot read factura"))
+		_swap_inverted_parties(data, company)
+		_lock_company(company)
+		key = _identity(company, data["f_supplier_idno"], data["f_series"], data["f_number"])
+		existing = frappe.db.get_value(
+			"Purchase Factura", {"identity_key": key, "docstatus": ["<", 2]}, "name"
 		)
-	return doc.name
+		if existing:
+			frappe.get_doc("Purchase Factura", existing).check_permission("read")
+			return existing
+		check_signatures = content.startswith(b"%PDF-") and not (
+			cint(use_ai) and is_pdf_image_scan(content)
+		)
+		if check_signatures:
+			try:
+				data.update(_verified_signature_values(content))
+			except FacturaImportError as exc:
+				frappe.throw(_(str(exc)))
+			if cint(use_ai):
+				data["original_format"] = (
+					"Digitally Signed PDF"
+					if data.get("signature_status") != "Not Applicable"
+					else "Other Electronic"
+				)
+		field = frappe.db.get_single_value("eFactura Settings", "supplier_idno_field") or "tax_id"
+		suppliers = frappe.get_all(
+			"Supplier", filters={field: data["f_supplier_idno"]}, pluck="name", limit_page_length=2
+		)
+		data["supplier_party_type"] = "Supplier"
+		data["supplier_party"] = suppliers[0] if len(suppliers) == 1 else None
+		from erpnext_moldova_efactura.utils.pef_currency import default_document_currency
+
+		data["currency"] = default_document_currency(data["supplier_party"], company)
+		if data["supplier_party"]:
+			from erpnext_moldova_efactura.utils.item_map import resolve_item_and_uom
+			from erpnext_moldova_efactura.utils.uom_map import resolve_uom
+
+			for row in data["items"]:
+				item_code, mapped_uom = resolve_item_and_uom(
+					data["supplier_party"], row.get("supplier_item_code"), row["supplier_item_name"]
+				)
+				if not item_code:
+					continue
+				item = frappe.get_cached_value(
+					"Item", item_code, ["purchase_uom", "stock_uom"], as_dict=True
+				)
+				row["item_code"] = item_code
+				row["uom"] = (
+					mapped_uom or resolve_uom(row["supplier_uom"]) or item.purchase_uom or item.stock_uom
+				)
+		doc = frappe.get_doc(dict(data, doctype="Purchase Factura", company=company, original_file=file_url))
+		doc.flags.pdf_import = True
+		doc.insert()
+		if check_signatures:
+			log_event(
+				doc,
+				"checked the PDF signature: integrity {0}, overall {1}",
+				doc.signature_integrity,
+				doc.signature_status,
+			)
+		return doc.name
+	finally:
+		discard_unattached_original(file_url)
 
 
 @frappe.whitelist()

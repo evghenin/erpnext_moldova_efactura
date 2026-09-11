@@ -1287,6 +1287,7 @@ class TestPurchaseFactura(FrappeTestCase):
 		pf.delete()
 		self.assertFalse(frappe.db.exists("Purchase Factura", pf.name))
 		self.assertFalse(frappe.db.exists("File", {"file_url": original_url}))
+		self.assertFalse(frappe.db.exists("File", source.name))
 
 	def test_duplicate_and_cross_route_allocation_blocked(self):
 		pf = self.factura(f_number="000001")
@@ -1396,13 +1397,22 @@ class TestPurchaseFactura(FrappeTestCase):
 				"uom": "Nos",
 			}
 		).insert()
+		content = path.read_bytes()
 		file = frappe.get_doc(
-			{"doctype": "File", "file_name": path.name, "is_private": 1, "content": path.read_bytes()}
+			{"doctype": "File", "file_name": path.name, "is_private": 1, "content": content}
 		).insert()
-		name = import_pdf(file.file_url, self.company.name)
-		self.assertEqual(import_pdf(file.file_url, self.company.name), name)
+		upload_name = file.name
+		upload_url = file.file_url
+		name = import_pdf(upload_url, self.company.name)
+		self.assertFalse(frappe.db.exists("File", upload_name))
+		repeat = frappe.get_doc(
+			{"doctype": "File", "file_name": f"repeat-{path.name}", "is_private": 1, "content": content}
+		).insert()
+		repeat_name = repeat.name
+		self.assertEqual(import_pdf(repeat.file_url, self.company.name), name)
+		self.assertFalse(frappe.db.exists("File", repeat_name))
 		pf = frappe.get_doc("Purchase Factura", name)
-		self.assertNotEqual(pf.original_file, file.file_url)
+		self.assertNotEqual(pf.original_file, upload_url)
 		owned_name = frappe.db.get_value(
 			"File",
 			{
@@ -1458,9 +1468,14 @@ class TestPurchaseFactura(FrappeTestCase):
 				"content": b"not a pdf",
 			}
 		).insert()
+		upload_name, upload_url = file.name, file.file_url
+		upload_path = file.get_full_path()
 		with self.assertRaisesRegex(frappe.ValidationError, "accepts only PDF files"):
 			import_pdf(file.file_url, self.company.name)
 		generate.assert_not_called()
+		self.assertFalse(frappe.db.exists("File", upload_name))
+		self.assertFalse(frappe.db.exists("File", {"file_url": upload_url}))
+		self.assertFalse(Path(upload_path).exists())
 
 	def _ai_extraction(self):
 		return {
