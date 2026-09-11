@@ -350,6 +350,7 @@ def make_purchase_invoice(source_name, target_doc=None):
 		return pi
 	assert_no_pef(pf)
 	from erpnext_moldova_efactura.moldova_efactura.doctype.purchase_efactura.purchase_efactura import (
+		_apply_posting_from_factura,
 		_prepare_mapped_buying_doc,
 	)
 	from erpnext_moldova_efactura.utils.buying_taxes import apply_buying_taxes
@@ -364,8 +365,7 @@ def make_purchase_invoice(source_name, target_doc=None):
 			"ignore_pricing_rule": 1,
 		}
 	)
-	if cint(frappe.db.get_single_value("eFactura Settings", "copy_date_from_factura")):
-		pi.posting_date = pf.issue_date
+	_apply_posting_from_factura(pi, pf)
 	from erpnext_moldova_efactura.utils.buying_rate import buying_rate_for_row
 
 	vat_included = cint(frappe.db.get_single_value("eFactura Settings", "vat_included_in_rate"))
@@ -398,6 +398,7 @@ def make_purchase_invoice(source_name, target_doc=None):
 		frappe.throw(_("Set an exchange rate from Purchase Invoice currency to Company currency"))
 	_prepare_mapped_buying_doc(pi)
 	pi.set_missing_values()
+	_apply_posting_from_factura(pi, pf)
 	# Reuse configured purchasing tax rules, with the original VAT rates available to the helper.
 	pi.set("taxes", [])
 	apply_buying_taxes(pi, tax_source(pf))

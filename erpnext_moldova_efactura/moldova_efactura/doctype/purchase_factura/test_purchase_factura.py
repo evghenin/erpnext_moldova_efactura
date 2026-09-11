@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
-from frappe.utils import flt, nowdate
+from frappe.utils import flt, getdate, nowdate
 
 from erpnext_moldova_efactura.moldova_efactura.doctype.purchase_factura.purchase_factura import (
 	import_pdf,
@@ -605,6 +605,20 @@ class TestPurchaseFactura(FrappeTestCase):
 		self.assertNotEqual(replacement.name, pf.name)
 		self.assertEqual(replacement.docstatus, 0)
 		pi.cancel()
+
+	def test_mapped_pi_keeps_factura_posting_date(self):
+		prev = frappe.db.get_single_value("eFactura Settings", "copy_date_from_factura")
+		try:
+			frappe.db.set_single_value("eFactura Settings", "copy_date_from_factura", 1)
+			pf = self.factura(issue_date="2026-01-15")
+			pi = make_purchase_invoice(pf.name)
+			self.assertEqual(int(pi.set_posting_time or 0), 1)
+			self.assertEqual(getdate(pi.posting_date), getdate("2026-01-15"))
+			pi.insert()
+			self.assertEqual(int(pi.reload().set_posting_time or 0), 1)
+			self.assertEqual(getdate(pi.posting_date), getdate("2026-01-15"))
+		finally:
+			frappe.db.set_single_value("eFactura Settings", "copy_date_from_factura", prev)
 
 	def test_amend_copies_original_file_and_allows_delete(self):
 		content = b"%PDF-1.4 factura-original-bytes"

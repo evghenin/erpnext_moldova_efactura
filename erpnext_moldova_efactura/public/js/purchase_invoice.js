@@ -92,6 +92,13 @@ function posting_time_from_pef(value) {
 	return match ? match[1] : null;
 }
 
+function enable_factura_posting_date(frm) {
+	if (!frm.meta.has_field("set_posting_time")) {
+		return;
+	}
+	frm.set_value("set_posting_time", 1);
+}
+
 function prefill_from_linked_pef(frm) {
 	if (!frm.is_new() || frm._ef_pef_prefilled) {
 		return;
@@ -109,6 +116,7 @@ function prefill_from_linked_pef(frm) {
 			if (!cint(copy)) {
 				return;
 			}
+			enable_factura_posting_date(frm);
 			frappe.db
 				.get_value("Purchase eFactura", pefName, ["issue_date", "issue_time"])
 				.then((r) => {
@@ -116,7 +124,7 @@ function prefill_from_linked_pef(frm) {
 					if (!data.issue_date) {
 						return;
 					}
-					frm.set_value("set_posting_time", 1);
+					enable_factura_posting_date(frm);
 					frm.set_value("posting_date", data.issue_date);
 					const issueTime = posting_time_from_pef(data.issue_time);
 					if (issueTime) {
@@ -125,6 +133,23 @@ function prefill_from_linked_pef(frm) {
 				});
 		});
 	};
+
+	if (frm.doc.purchase_factura) {
+		frm._ef_pef_prefilled = true;
+		frappe.db.get_single_value("eFactura Settings", "copy_date_from_factura").then((copy) => {
+			if (!cint(copy)) {
+				return;
+			}
+			enable_factura_posting_date(frm);
+			frappe.db.get_value("Purchase Factura", frm.doc.purchase_factura, "issue_date").then((r) => {
+				const issueDate = r.message && r.message.issue_date;
+				if (issueDate) {
+					frm.set_value("posting_date", issueDate);
+				}
+			});
+		});
+		return;
+	}
 
 	if (frm.doc.purchase_efactura) {
 		apply(frm.doc.purchase_efactura);
