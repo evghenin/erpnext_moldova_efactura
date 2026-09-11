@@ -7,10 +7,13 @@ def protect_purchase_factura_original(doc, method=None):
 	"""Keep a PF original until that PF is deleted, then remove its own file."""
 	if not doc.file_url or not frappe.db.table_exists("Purchase Factura"):
 		return
-	if frappe.flags.get("pf_copying_original") == doc.attached_to_name:
+	if frappe.flags.get("pf_copying_original") in {doc.attached_to_name, doc.file_url}:
 		return
 	deleting = frappe.flags.get("pf_deleting")
-	if deleting and doc.attached_to_doctype == "Purchase Factura" and doc.attached_to_name == deleting:
+	if deleting and (
+		(doc.attached_to_doctype == "Purchase Factura" and doc.attached_to_name == deleting)
+		or deleting is True
+	):
 		if not frappe.db.exists("File", {"file_url": doc.file_url, "name": ["!=", doc.name]}):
 			try:
 				doc.delete_file_from_filesystem()
@@ -99,6 +102,73 @@ def copy_original_file(doc):
 	finally:
 		frappe.flags.pf_copying_original = None
 	return copied.file_url
+
+
+def discard_unattached_original(file_url):
+	"""Remove an import upload that is not the preserved original of a living PF."""
+	if not file_url:
+		return
+	for name in frappe.get_all("File", {"file_url": file_url}, pluck="name"):
+		file_doc = frappe.get_doc("File", name)
+		if _file_is_live_pf_original(file_doc):
+			continue
+		_delete_file_completely(file_doc)
+
+
+def delete_purchase_factura_files(doc):
+	"""Remove every File owned by this PF, including the on-disk original."""
+	frappe.flags.pf_deleting = doc.name
+	names = set(
+		frappe.get_all(
+			"File",
+			{
+				"attached_to_doctype": "Purchase Factura",
+				"attached_to_name": doc.name,
+			},
+			pluck="name",
+		)
+	)
+	if doc.original_file:
+		names.update(frappe.get_all("File", {"file_url": doc.original_file}, pluck="name"))
+	for name in names:
+		if frappe.db.exists("File", name):
+			_delete_file_completely(frappe.get_doc("File", name))
+
+
+def _file_is_live_pf_original(file_doc):
+	if (
+		file_doc.attached_to_doctype == "Purchase Factura"
+		and file_doc.attached_to_name
+		and frappe.db.exists("Purchase Factura", file_doc.attached_to_name)
+	):
+		return True
+	if file_doc.attached_to_doctype and file_doc.attached_to_name:
+		return bool(frappe.db.exists(file_doc.attached_to_doctype, file_doc.attached_to_name))
+	return bool(frappe.get_all("Purchase Factura", {"original_file": file_doc.file_url}, limit=1))
+
+
+def _delete_file_completely(file_doc):
+	path = None
+	file_url = file_doc.file_url
+	try:
+		path = file_doc.get_full_path()
+	except Exception:
+		pass
+	previous = frappe.flags.get("pf_copying_original")
+	frappe.flags.pf_copying_original = file_doc.attached_to_name or file_url
+	try:
+		frappe.delete_doc("File", file_doc.name, ignore_permissions=True, force=True)
+	finally:
+		frappe.flags.pf_copying_original = previous
+	if path and file_url and not frappe.db.exists("File", {"file_url": file_url}):
+		from pathlib import Path
+
+		disk = Path(path)
+		if disk.is_file():
+			try:
+				disk.unlink()
+			except OSError:
+				pass
 
 
 def _restore_uploaded_bytes(file_doc, content):
