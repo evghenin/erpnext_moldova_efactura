@@ -18,8 +18,8 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.model.mapper import get_mapped_doc
 from frappe.utils import cint, flt
-from erpnext_moldova_efactura.api_client import EFacturaAPIClient, EFacturaAPIError
-from erpnext_moldova_efactura.utils.api_response import invoice_status_map, sfs_action_error
+from erpnext_moldova_efactura.api_client import EFacturaAPIClient
+from erpnext_moldova_efactura.utils.api_response import sfs_action_error, status_map_with_fallback
 from erpnext_moldova_efactura.utils.taxpayer_type import taxpayer_type_from_sfs, taxpayer_type_to_sfs
 from erpnext_moldova_efactura.utils.timeline import log_event, log_status_change
 from lxml import etree
@@ -902,11 +902,7 @@ def update_ef_status(efactura_name):
 
 def _status_map_with_fallback(client, identifiers):
     """Fetch statuses, falling back when SFS rejects CheckInvoicesStatus."""
-    try:
-        response = client.check_invoices_status(seria_and_numbers=identifiers)
-    except EFacturaAPIError:
-        response = client.get_invoices_by_seria_number(identifiers)
-    return invoice_status_map(response)
+    return status_map_with_fallback(client, identifiers)
 
 
 def _extract_single_invoice_from_search_response(response):

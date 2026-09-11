@@ -210,8 +210,7 @@ class PurchaseFactura(Document):
 		if self.original_format != "Paper" and not self.original_file:
 			frappe.throw(_("Attach the electronic original"))
 		if self.original_file:
-			file_doc = _read_original(self.original_file)
-			if self.file_hash and hashlib.sha256(file_doc.get_content()).hexdigest() != self.file_hash:
+			if self.file_hash and _file_sha256(_read_original(self.original_file)) != self.file_hash:
 				frappe.throw(_("The original file no longer matches its imported content"))
 
 	def _calculate(self):
@@ -323,9 +322,25 @@ def _verified_signature_values(content: bytes) -> dict:
 	return result
 
 
+def _file_bytes(file_doc):
+	# Prefer the on-disk original. File.get_content() can return the in-memory upload
+	# payload, or a UTF-8 string, neither of which is what later saves will hash.
+	path = file_doc.get_full_path()
+	try:
+		with open(path, "rb") as handle:
+			return handle.read()
+	except OSError:
+		content = file_doc.get_content()
+		return content.encode("utf-8") if isinstance(content, str) else content
+
+
+def _file_sha256(file_doc):
+	return hashlib.sha256(_file_bytes(file_doc)).hexdigest()
+
+
 def _read_original(file_url):
 	# Resolve a Frappe File, never a caller-supplied filesystem path or remote URL.
-	files = frappe.get_list("File", filters={"file_url": file_url}, pluck="name", limit_page_length=2)
+	files = frappe.get_all("File", filters={"file_url": file_url}, pluck="name", limit=2)
 	if not files:
 		frappe.throw(_("Original file not found or access denied"), frappe.PermissionError)
 	file_doc = frappe.get_doc("File", files[0])
@@ -341,7 +356,7 @@ def import_pdf(file_url: str, company: str, use_ai: int | str | None = None):
 	frappe.get_doc("Company", company).check_permission("read")
 	file_doc = _read_original(file_url)
 	try:
-		content = file_doc.get_content()
+		content = _file_bytes(file_doc)
 		if cint(use_ai):
 			from erpnext_moldova_efactura.utils.factura_ai import parse_image
 
@@ -418,6 +433,8 @@ def verify_pdf_signature(name: str):
 	if not doc.original_file:
 		frappe.throw(_("Attach the electronic original"))
 	content = _read_original(doc.original_file).get_content()
+	if isinstance(content, str):
+		content = content.encode("utf-8")
 	if not content.startswith(b"%PDF-"):
 		frappe.throw(_("PDF signature verification requires the original PDF"))
 	try:

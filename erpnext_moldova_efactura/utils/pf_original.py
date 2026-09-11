@@ -81,6 +81,16 @@ def copy_original_file(doc):
 	copied.save_file = save_unique
 	copied.content = content
 	copied.insert(ignore_permissions=True)
+	# File.insert may re-encode JPEGs (EXIF strip). Keep the imported bytes byte-for-byte.
+	from pathlib import Path
+
+	from frappe.core.doctype.file.utils import get_content_hash
+
+	path = Path(copied.get_full_path())
+	if path.read_bytes() != content:
+		path.write_bytes(content)
+		copied.db_set("content_hash", get_content_hash(content), update_modified=False)
+		copied.db_set("file_size", len(content), update_modified=False)
 	frappe.flags.pf_copying_original = doc.name
 	try:
 		for extra in frappe.get_all(

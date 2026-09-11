@@ -11,9 +11,11 @@ from collections.abc import Iterator
 import frappe
 from frappe.utils import add_days
 
+from erpnext_moldova_efactura.api_client import EFacturaAPIError
 from erpnext_moldova_efactura.utils.api_response import extract_invoices
 
 SEARCH_WINDOW_DAYS = 7
+MIN_SPLIT_SECONDS = 60
 
 
 def iter_issued_on_windows(date_from, date_to, days: int = SEARCH_WINDOW_DAYS):
@@ -42,6 +44,31 @@ def iter_issued_on_windows(date_from, date_to, days: int = SEARCH_WINDOW_DAYS):
 		cursor = window_end
 
 
+def _sfs_datetime(value):
+	"""SFS DateTime fields reject microseconds (generic SOAP Fault)."""
+	replace = getattr(value, "replace", None)
+	if callable(replace):
+		try:
+			return replace(microsecond=0)
+		except TypeError:
+			pass
+	return value
+
+
+def _window_midpoint(start, end):
+	try:
+		delta = end - start
+		seconds = delta.total_seconds()
+	except (TypeError, AttributeError):
+		return None
+	if seconds < MIN_SPLIT_SECONDS:
+		return None
+	mid = start + (delta / 2)
+	if mid <= start or mid >= end:
+		return None
+	return mid
+
+
 def iter_search_invoices(
 	client,
 	*,
@@ -53,16 +80,63 @@ def iter_search_invoices(
 ) -> Iterator[dict]:
 	"""Call SearchInvoices once per IssuedOn window and yield invoice rows."""
 	for start, end in iter_issued_on_windows(date_from, date_to):
-		params = {
-			"InvoiceStatus": invoice_status,
-			"IssuedOn": {"StartDate": start, "EndDate": end},
-		}
-		try:
-			resp = client.search_invoices(actor_role=actor_role, parameters=params)
-		except Exception:
+		yield from _search_issued_on_window(
+			client,
+			actor_role=actor_role,
+			invoice_status=invoice_status,
+			start=start,
+			end=end,
+			error_title=error_title,
+		)
+
+
+def _search_issued_on_window(
+	client,
+	*,
+	actor_role: int,
+	invoice_status: int,
+	start,
+	end,
+	error_title: str,
+) -> Iterator[dict]:
+	params = {
+		"InvoiceStatus": invoice_status,
+		"IssuedOn": {
+			"StartDate": _sfs_datetime(start),
+			"EndDate": _sfs_datetime(end),
+		},
+	}
+	try:
+		resp = client.search_invoices(actor_role=actor_role, parameters=params)
+	except EFacturaAPIError:
+		mid = _window_midpoint(start, end)
+		if mid is None:
 			frappe.log_error(
 				title=f"{error_title} {start}..{end}",
 				message=frappe.get_traceback(),
 			)
-			continue
-		yield from extract_invoices(resp)
+			return
+		yield from _search_issued_on_window(
+			client,
+			actor_role=actor_role,
+			invoice_status=invoice_status,
+			start=start,
+			end=mid,
+			error_title=error_title,
+		)
+		yield from _search_issued_on_window(
+			client,
+			actor_role=actor_role,
+			invoice_status=invoice_status,
+			start=mid,
+			end=end,
+			error_title=error_title,
+		)
+		return
+	except Exception:
+		frappe.log_error(
+			title=f"{error_title} {start}..{end}",
+			message=frappe.get_traceback(),
+		)
+		return
+	yield from extract_invoices(resp)

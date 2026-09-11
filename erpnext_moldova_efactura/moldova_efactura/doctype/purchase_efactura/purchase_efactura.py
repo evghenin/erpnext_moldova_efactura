@@ -11,9 +11,9 @@ from frappe.utils import cint, cstr, flt, get_time, now_datetime
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient
 from erpnext_moldova_efactura.utils.api_response import (
 	extract_invoices,
-	invoice_status_map,
 	invoice_xml,
 	sfs_action_error as _sfs_action_error,
+	status_map_with_fallback,
 )
 from erpnext_moldova_efactura.utils.buyer_status import (
 	is_buyer_actionable_status,
@@ -835,8 +835,8 @@ def process_signed_xml(name: str, signature: str, content: str):
 
 def _refresh_status(doc):
 	client = EFacturaAPIClient.from_settings(company=doc.company)
-	resp = client.check_invoices_status([{"Seria": doc.ef_series, "Number": doc.ef_number}])
-	statuses = invoice_status_map(resp)
+	identifiers = [{"Seria": doc.ef_series, "Number": doc.ef_number}]
+	statuses = status_map_with_fallback(client, identifiers)
 	key = (str(doc.ef_series), str(doc.ef_number))
 	doc.persist_sfs_status(statuses.get(key))
 

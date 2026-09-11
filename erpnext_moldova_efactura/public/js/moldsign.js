@@ -213,11 +213,7 @@ frappe.provide("erpnext_moldova_efactura.moldsign");
 					finish(false);
 				},
 			});
-			d.set_secondary_action_label(__("Cancel"));
-			d.set_secondary_action(() => {
-				d.hide();
-				finish(false);
-			});
+			d.add_custom_action(__("Cancel"), () => d.hide());
 			d.show();
 		});
 	};
@@ -367,11 +363,7 @@ frappe.provide("erpnext_moldova_efactura.moldsign");
 					finish(false);
 				},
 			});
-			d.set_secondary_action_label(__("Cancel"));
-			d.set_secondary_action(() => {
-				d.hide();
-				finish(false);
-			});
+			d.add_custom_action(__("Cancel"), () => d.hide());
 			d.show();
 		});
 	}

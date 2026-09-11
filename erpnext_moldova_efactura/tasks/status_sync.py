@@ -2,6 +2,7 @@ import frappe
 from frappe.utils import now_datetime, add_days
 from collections import defaultdict
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient
+from erpnext_moldova_efactura.utils.api_response import status_map_with_fallback
 from erpnext_moldova_efactura.utils.company_api import get_sync_targets
 from erpnext_moldova_efactura.utils.search_windows import iter_search_invoices
 
@@ -81,7 +82,7 @@ def sync_efactura_statuses():
         seria_and_numbers = [{"Seria": row.ef_series, "Number": row.ef_number} for row in company_docs]
         try:
             client = EFacturaAPIClient.from_settings(company=company)
-            response = client.check_invoices_status(seria_and_numbers=seria_and_numbers)
+            statuses = status_map_with_fallback(client, seria_and_numbers)
         except Exception:
             frappe.log_error(
                 title=f"eFactura batch status request failed company={company}",
@@ -89,8 +90,6 @@ def sync_efactura_statuses():
             )
             errors += len(company_docs)
             continue
-
-        statuses = _extract_status_map(response)
 
         for row in company_docs:
             try:

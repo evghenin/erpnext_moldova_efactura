@@ -47,6 +47,28 @@ class TestSearchWindows(FrappeTestCase):
 		self.assertEqual(client.calls[-1]["IssuedOn"]["EndDate"], end)
 		self.assertEqual(len(rows), 3)
 
+	def test_search_splits_window_on_sfs_fault(self):
+		from erpnext_moldova_efactura.api_client import EFacturaAPIError
+
+		start = get_datetime("2026-01-01 00:00:00")
+		end = get_datetime("2026-01-08 00:00:00")
+		client = _SplittingSearchClient(EFacturaAPIError("SOAP Fault in SearchInvoices: Unknown fault occured"))
+		rows = list(
+			iter_search_invoices(
+				client,
+				actor_role=2,
+				invoice_status=7,
+				date_from=start,
+				date_to=end,
+				error_title="test",
+			)
+		)
+		self.assertGreater(len(client.calls), 1)
+		self.assertEqual(len(rows), len(client.successes))
+		for params in client.successes:
+			span = params["IssuedOn"]["EndDate"] - params["IssuedOn"]["StartDate"]
+			self.assertLessEqual(span.total_seconds(), 3 * 24 * 3600)
+
 
 class _FakeSearchClient:
 	def __init__(self):
@@ -55,3 +77,19 @@ class _FakeSearchClient:
 	def search_invoices(self, actor_role, parameters, request_id=None):
 		self.calls.append(parameters)
 		return {"Results": {"Invoice": [{"Seria": "A", "Number": str(len(self.calls))}]}}
+
+
+class _SplittingSearchClient:
+	def __init__(self, error):
+		self.error = error
+		self.calls = []
+		self.successes = []
+
+	def search_invoices(self, actor_role, parameters, request_id=None):
+		self.calls.append(parameters)
+		issued = parameters["IssuedOn"]
+		span = issued["EndDate"] - issued["StartDate"]
+		if span.total_seconds() > 3 * 24 * 3600:
+			raise self.error
+		self.successes.append(parameters)
+		return {"Results": {"Invoice": [{"Seria": "A", "Number": str(len(self.successes))}]}}

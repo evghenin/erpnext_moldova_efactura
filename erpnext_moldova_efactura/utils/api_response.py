@@ -69,6 +69,31 @@ def invoice_status_map(response: dict | None) -> dict[tuple[str, str], int]:
 	return out
 
 
+def status_map_with_fallback(client, identifiers: list[dict]) -> dict[tuple[str, str], int]:
+	"""CheckInvoicesStatus, then GetInvoicesBySeriaNumber if SFS returns a SOAP Fault.
+
+	SFS often answers CheckInvoicesStatus with ``Unknown fault occured``; details
+	lookup still returns InvoiceStatus. If the batched details call also faults,
+	query each identifier separately so one unknown invoice cannot fail the batch.
+	"""
+	from erpnext_moldova_efactura.api_client import EFacturaAPIError
+
+	try:
+		return invoice_status_map(client.check_invoices_status(seria_and_numbers=identifiers))
+	except EFacturaAPIError:
+		pass
+	try:
+		return invoice_status_map(client.get_invoices_by_seria_number(identifiers))
+	except EFacturaAPIError:
+		out: dict[tuple[str, str], int] = {}
+		for ident in identifiers:
+			try:
+				out.update(invoice_status_map(client.get_invoices_by_seria_number([ident])))
+			except EFacturaAPIError:
+				continue
+		return out
+
+
 def sfs_action_error(resp) -> str | None:
 	"""Parse PostAccepted/Rejected/Canceled SOAP result; None if the call succeeded."""
 	if not resp:

@@ -822,9 +822,9 @@ class TestPurchaseFactura(FrappeTestCase):
 		file = frappe.get_doc(
 			{
 				"doctype": "File",
-				"file_name": "scan.jpg",
+				"file_name": "not-a-pdf.bin",
 				"is_private": 1,
-				"content": b"\xff\xd8\xffdummy",
+				"content": b"not a pdf",
 			}
 		).insert()
 		with self.assertRaisesRegex(frappe.ValidationError, "accepts only PDF files"):
@@ -900,6 +900,44 @@ class TestPurchaseFactura(FrappeTestCase):
 		pf = frappe.get_doc("Purchase Factura", name)
 		self.assertEqual(pf.original_format, "Paper")
 		self.assertEqual(pf.signature_status, "Not Applicable")
+
+	def _jpeg_with_exif(self):
+		from PIL import Image
+
+		image = Image.new("RGB", (48, 32), (10, 20, 30))
+		exif = image.getexif()
+		exif[271] = "Test"
+		buffer = io.BytesIO()
+		image.save(buffer, format="JPEG", quality=95, exif=exif)
+		return buffer.getvalue()
+
+	@patch("erpnext_moldova_efactura.utils.factura_ai.parse_image")
+	def test_ai_jpeg_import_allows_mapping_save(self, parse_image):
+		prev = frappe.db.get_single_value("System Settings", "strip_exif_metadata_from_uploaded_images")
+		try:
+			frappe.db.set_single_value("System Settings", "strip_exif_metadata_from_uploaded_images", 1)
+			content = self._jpeg_with_exif()
+			file = frappe.get_doc(
+				{
+					"doctype": "File",
+					"file_name": "paper-factura.jpg",
+					"is_private": 1,
+					"content": content,
+				}
+			).insert()
+			uploaded = Path(file.get_full_path()).read_bytes()
+			parsed = self._ai_extraction()
+			parsed["number"] = "1606999"
+			parsed["file_hash"] = hashlib.sha256(uploaded).hexdigest()
+			parse_image.return_value = parsed
+			name = import_pdf(file.file_url, self.company.name, use_ai=1)
+			pf = frappe.get_doc("Purchase Factura", name)
+			self.assertNotEqual(pf.original_file, file.file_url)
+			pf.supplier_party = self.supplier.name
+			pf.items[0].item_code = self.item.name
+			pf.save()
+		finally:
+			frappe.db.set_single_value("System Settings", "strip_exif_metadata_from_uploaded_images", prev)
 
 	def test_pf_schema_uses_original_prefix_and_invoice_link(self):
 		for doctype in ("Purchase Factura", "Purchase Factura Item"):

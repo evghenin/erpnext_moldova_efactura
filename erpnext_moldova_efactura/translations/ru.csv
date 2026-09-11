@@ -359,7 +359,7 @@ Default Sales Taxes and Charges Template for this company. Applied when Item-wis
 "Which tax account is e-Factura VAT on Sales Order / Sales Invoice. If the Sales Taxes template does not include this account, it is added as Actual with the VAT amount from the factura.","Какой счёт — НДС e-Factura в заказе / счёте продажи. Если его нет в шаблоне налогов, он добавляется как Actual с суммой НДС из фактуры."
 "Per company: Tax Category, Sales Taxes template, and VAT account for Sales Order / Sales Invoice created from a Sales eFactura.","Категория налога, шаблон налогов продажи и счёт НДС по компании для заказа / счёта продажи из Sales eFactura."
 Set on Sales Order / Sales Invoice. Used to pick Item Tax Template.,Ставится на заказ клиента / счёт продажи. Нужна для выбора Item Tax Template.
-VAT Account (Sales) must be a ledger account, not a group,Счёт НДС (продажа) должен быть листовым счётом, не группой
+"VAT Account (Sales) must be a ledger account, not a group","Счёт НДС (продажа) должен быть листовым счётом, не группой"
 Sales Taxes and Charges Template {0} does not belong to company {1},Шаблон налогов продажи {0} не относится к компании {1}
 Item Tax Templates,Шаблоны налогов номенклатуры
 Allowed Item Tax Templates when loading a Sales eFactura from SFS. A line with a VAT % gets the first template from this list with the same rate.,Разрешённые Item Tax Template при загрузке Sales eFactura из SFS. Строке с % НДС подставляется первый шаблон из списка с той же ставкой.
@@ -474,7 +474,7 @@ linked {0} {1},связал {0} {1}
 unlinked Purchase Invoice,отвязал счёт закупки
 unlinked {0},отвязал {0}
 unlinked Purchase Order,отвязал заказ поставщику
-checked the PDF signature: integrity {0}, overall {1},проверил PDF-подпись: целостность {0}, итог {1}
+"checked the PDF signature: integrity {0}, overall {1}","проверил PDF-подпись: целостность {0}, итог {1}"
 Signature is VALID,Подпись ДЕЙСТВИТЕЛЬНА
 Signature is INVALID,Подпись НЕДЕЙСТВИТЕЛЬНА
 The document has not been modified since the signature was applied,Документ не изменялся после применения подписи

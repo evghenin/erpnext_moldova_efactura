@@ -358,7 +358,7 @@ Default Sales Taxes and Charges Template for this company. Applied when Item-wis
 "Which tax account is e-Factura VAT on Sales Order / Sales Invoice. If the Sales Taxes template does not include this account, it is added as Actual with the VAT amount from the factura.","Contul TVA e-Factura pe comandă / factură de vânzare. Dacă lipsește din șablon, se adaugă ca Actual cu suma TVA din factură."
 "Per company: Tax Category, Sales Taxes template, and VAT account for Sales Order / Sales Invoice created from a Sales eFactura.","Categorie de taxă, șablon de taxe de vânzare și cont TVA pe companie pentru comandă / factură de vânzare din Sales eFactura."
 Set on Sales Order / Sales Invoice. Used to pick Item Tax Template.,Se pune pe comandă / factură de vânzare. Servește la alegerea Item Tax Template.
-VAT Account (Sales) must be a ledger account, not a group,Contul TVA (vânzare) trebuie să fie un cont ledger, nu grup
+"VAT Account (Sales) must be a ledger account, not a group","Contul TVA (vânzare) trebuie să fie un cont ledger, nu grup"
 Sales Taxes and Charges Template {0} does not belong to company {1},Șablonul de taxe de vânzare {0} nu aparține companiei {1}
 Item Tax Templates,Șabloane de taxe articol
 Allowed Item Tax Templates when loading a Sales eFactura from SFS. A line with a VAT % gets the first template from this list with the same rate.,Șabloane Item Tax Template permise la încărcarea Sales eFactura din SFS. Rândului cu % TVA i se pune primul șablon din listă cu aceeași cotă.
@@ -473,7 +473,7 @@ linked {0} {1},a asociat {0} {1}
 unlinked Purchase Invoice,a dezasociat Factura de cumpărare
 unlinked {0},a dezasociat {0}
 unlinked Purchase Order,a dezasociat Comanda de cumpărare
-checked the PDF signature: integrity {0}, overall {1},a verificat semnătura PDF: integritate {0}, rezultat {1}
+"checked the PDF signature: integrity {0}, overall {1}","a verificat semnătura PDF: integritate {0}, rezultat {1}"
 Signature is VALID,Semnătura este VALIDĂ
 Signature is INVALID,Semnătura este INVALIDĂ
 The document has not been modified since the signature was applied,Documentul nu a fost modificat după aplicarea semnăturii
