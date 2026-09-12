@@ -70,25 +70,23 @@ def invoice_status_map(response: dict | None) -> dict[tuple[str, str], int]:
 
 
 def status_map_with_fallback(client, identifiers: list[dict]) -> dict[tuple[str, str], int]:
-	"""CheckInvoicesStatus, then GetInvoicesBySeriaNumber if SFS returns a SOAP Fault.
+	"""CheckInvoicesStatus in batch, then per identifier if SFS faults the batch.
 
-	SFS often answers CheckInvoicesStatus with ``Unknown fault occured``; details
-	lookup still returns InvoiceStatus. If the batched details call also faults,
-	query each identifier separately so one unknown invoice cannot fail the batch.
+	SFS CheckInvoicesStatus returns ``Unknown fault occured`` for the whole request
+	when any Seria/Number is unknown. Do not fall back to GetInvoicesBySeriaNumber:
+	that downloads full XML and SFS often answers with an HTML 500.
 	"""
 	from erpnext_moldova_efactura.api_client import EFacturaAPIError
 
 	try:
 		return invoice_status_map(client.check_invoices_status(seria_and_numbers=identifiers))
 	except EFacturaAPIError:
-		pass
-	try:
-		return invoice_status_map(client.get_invoices_by_seria_number(identifiers))
-	except EFacturaAPIError:
+		if len(identifiers) <= 1:
+			return {}
 		out: dict[tuple[str, str], int] = {}
 		for ident in identifiers:
 			try:
-				out.update(invoice_status_map(client.get_invoices_by_seria_number([ident])))
+				out.update(invoice_status_map(client.check_invoices_status(seria_and_numbers=[ident])))
 			except EFacturaAPIError:
 				continue
 		return out
