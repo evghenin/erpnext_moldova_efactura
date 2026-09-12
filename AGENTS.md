@@ -31,9 +31,13 @@
 
 ## Validation
 
+- ERPNext/Frappe runs in Docker under WSL. `bench` is not on the WSL host PATH.
+- Identify the running stack with `docker ps` or `docker compose -f .devcontainer/docker-compose.yml ps` from the `erpnext-dev` repo root.
+- Run all `bench` commands and tests inside the Frappe container (`devcontainer-frappe-1` / service `frappe`), via `docker compose … exec frappe` or `docker exec`. Do not treat host `bench: command not found` as a test failure or a reason to skip validation.
 - Prefer a focused test for the changed behavior.
+- Use site `test.localhost` for all `bench run-tests` and other test-only commands. Do not use `development.localhost` (live development data).
 - Run the full app suite when the change crosses shared behavior or when requested:
-  `bench --site $SITE run-tests --app erpnext_moldova_efactura`
+  `bench --site test.localhost run-tests --app erpnext_moldova_efactura`
 - Run repository checks when formatting or multiple file types are affected:
   `pre-commit run --all-files`
 - Report failures briefly with the command and relevant diagnostic. Do not hide unrelated pre-existing failures.

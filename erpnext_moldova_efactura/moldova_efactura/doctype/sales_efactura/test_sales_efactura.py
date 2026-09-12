@@ -29,7 +29,7 @@ class TestSaleseFactura(FrappeTestCase):
 		)
 		self.assertIsNone(_extract_single_invoice_from_search_response({"Results": {}}))
 
-	def test_status_check_falls_back_to_invoice_details_on_sfs_fault(self):
+	def test_status_check_retries_per_identifier_on_sfs_batch_fault(self):
 		from unittest.mock import Mock
 
 		from erpnext_moldova_efactura.api_client import EFacturaAPIError
@@ -37,23 +37,32 @@ class TestSaleseFactura(FrappeTestCase):
 			_status_map_with_fallback,
 		)
 
-		client = Mock()
-		client.check_invoices_status.side_effect = EFacturaAPIError(
-			"SOAP Fault in CheckInvoicesStatus: Unknown fault occured"
-		)
-		client.get_invoices_by_seria_number.return_value = {
-			"Results": {
-				"XmlInvoice": {
-					"Seria": "EBL",
-					"Number": "000501857",
-					"InvoiceStatus": 8,
+		fault = EFacturaAPIError("SOAP Fault in CheckInvoicesStatus: Unknown fault occured")
+
+		def check(seria_and_numbers=None, **_kwargs):
+			if len(seria_and_numbers) != 1:
+				raise fault
+			ident = seria_and_numbers[0]
+			if ident["Number"] == "bad":
+				raise fault
+			return {
+				"Results": {
+					"Invoice": {
+						"Seria": ident["Seria"],
+						"Number": ident["Number"],
+						"InvoiceStatus": 8,
+					}
 				}
 			}
-		}
-		identifiers = [{"Seria": "EBL", "Number": "000501857"}]
 
+		client = Mock()
+		client.check_invoices_status.side_effect = check
+		identifiers = [
+			{"Seria": "EBL", "Number": "000501857"},
+			{"Seria": "EBL", "Number": "bad"},
+		]
 		self.assertEqual(_status_map_with_fallback(client, identifiers), {("EBL", "000501857"): 8})
-		client.get_invoices_by_seria_number.assert_called_once_with(identifiers)
+		client.get_invoices_by_seria_number.assert_not_called()
 
 	def test_apply_vat_zero_rate_includes_line_in_totals(self):
 		doc = frappe.get_doc(
@@ -1079,12 +1088,9 @@ class TestSaleseFactura(FrappeTestCase):
 		client.post_invoices.side_effect = EFacturaAPIError(
 			"SOAP Fault in PostInvoices: Unknown fault occured"
 		)
-		client.check_invoices_status.side_effect = EFacturaAPIError(
-			"SOAP Fault in CheckInvoicesStatus: Unknown fault occured"
-		)
-		client.get_invoices_by_seria_number.return_value = {
+		client.check_invoices_status.return_value = {
 			"Results": {
-				"XmlInvoice": {
+				"Invoice": {
 					"Seria": "EBL",
 					"Number": "000501857",
 					"InvoiceStatus": 1,
