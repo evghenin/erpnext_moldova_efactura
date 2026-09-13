@@ -128,13 +128,32 @@ class EFacturaAPIClient:
         if received.get("envelope") is not None:
             parts.append("SOAP RESPONSE:\n" + self._dump_soap_envelope(received["envelope"]))
 
+        title = f"SFS API {method_name} failed"
+        ident = self._request_ident_label(request)
+        if ident:
+            title = f"{title} {ident}"
         try:
             frappe.log_error(
-                title=f"SFS API {method_name} failed",
+                title=title,
                 message=self._redact_secrets("\n\n".join(parts)),
             )
         except Exception:
             pass
+
+    @staticmethod
+    def _request_ident_label(request: Optional[dict]) -> str:
+        if not request:
+            return ""
+        items = (request.get("SeriaAndNumbers") or {}).get("InvoiceIndentificator") or []
+        if isinstance(items, dict):
+            items = [items]
+        if not isinstance(items, list) or not items:
+            return ""
+        if len(items) == 1:
+            seria = str(items[0].get("Seria") or "").strip()
+            number = str(items[0].get("Number") or "").strip()
+            return f"{seria}{number}".strip()
+        return f"({len(items)} invoices)"
 
 
     @classmethod
