@@ -54,3 +54,50 @@ class TestApiClientFailureLogging(unittest.TestCase):
 
 		self.assertEqual(resp["Status"], 1)
 		log_error.assert_not_called()
+
+	def test_error_title_includes_single_seria_number(self):
+		self.assertEqual(
+			EFacturaAPIClient._request_ident_label(
+				{
+					"SeriaAndNumbers": {
+						"InvoiceIndentificator": [{"Seria": "EBF", "Number": "000000143"}]
+					}
+				}
+			),
+			"EBF000000143",
+		)
+		self.assertEqual(
+			EFacturaAPIClient._request_ident_label(
+				{
+					"SeriaAndNumbers": {
+						"InvoiceIndentificator": [
+							{"Seria": "EBF", "Number": "1"},
+							{"Seria": "EBF", "Number": "2"},
+						]
+					}
+				}
+			),
+			"(2 invoices)",
+		)
+
+	@patch("erpnext_moldova_efactura.api_client.frappe.log_error")
+	def test_soap_fault_title_includes_invoice_id(self, log_error):
+		method = Mock(side_effect=Fault("Unknown fault occured"))
+		client = _client(method)
+		client.service = SimpleNamespace(CheckInvoicesStatus=method)
+
+		with self.assertRaises(EFacturaAPIError):
+			client._call(
+				"CheckInvoicesStatus",
+				request={
+					"RequestId": "EF-4",
+					"SeriaAndNumbers": {
+						"InvoiceIndentificator": [{"Seria": "EBF", "Number": "999999999"}]
+					},
+				},
+			)
+
+		self.assertEqual(
+			log_error.call_args.kwargs["title"],
+			"SFS API CheckInvoicesStatus failed EBF999999999",
+		)
