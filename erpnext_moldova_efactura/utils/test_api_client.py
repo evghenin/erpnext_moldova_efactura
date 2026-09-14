@@ -2,7 +2,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from zeep.exceptions import Fault
+from zeep.exceptions import Fault, TransportError
 
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient, EFacturaAPIError
 
@@ -101,3 +101,42 @@ class TestApiClientFailureLogging(unittest.TestCase):
 			log_error.call_args.kwargs["title"],
 			"SFS API CheckInvoicesStatus failed EBF999999999",
 		)
+
+	@patch("erpnext_moldova_efactura.api_client.frappe.log_error")
+	def test_http_500_omits_response_body_from_error_log(self, log_error):
+		method = Mock(
+			side_effect=TransportError("Server error", status_code=500, content=b"<html>boom</html>")
+		)
+		client = _client(method)
+		client._history = SimpleNamespace(
+			last_sent={"envelope": None},
+			last_received={"envelope": object()},
+		)
+		client._dump_soap_envelope = Mock(return_value="<html>boom</html>")
+
+		with self.assertRaises(EFacturaAPIError):
+			client._call("PostInvoices", request={"RequestId": "EF-5"})
+
+		log_error.assert_called_once()
+		message = log_error.call_args.kwargs["message"]
+		self.assertIn("Transport error", message)
+		self.assertIn("EF-5", message)
+		self.assertNotIn("<html>boom</html>", message)
+		self.assertNotIn("SOAP RESPONSE", message)
+
+	@patch("erpnext_moldova_efactura.api_client.frappe.log_error")
+	def test_http_400_still_logs_soap_response(self, log_error):
+		method = Mock(side_effect=TransportError("Bad request", status_code=400))
+		client = _client(method)
+		client._history = SimpleNamespace(
+			last_sent={"envelope": None},
+			last_received={"envelope": object()},
+		)
+		client._dump_soap_envelope = Mock(return_value="<Fault>bad</Fault>")
+
+		with self.assertRaises(EFacturaAPIError):
+			client._call("PostInvoices", request={"RequestId": "EF-6"})
+
+		message = log_error.call_args.kwargs["message"]
+		self.assertIn("SOAP RESPONSE", message)
+		self.assertIn("<Fault>bad</Fault>", message)

@@ -19,6 +19,13 @@ class EFacturaAPIError(Exception):
     pass
 
 
+def _is_http_500(exc: BaseException) -> bool:
+    try:
+        return int(getattr(exc, "status_code", 0) or 0) == 500
+    except (TypeError, ValueError):
+        return False
+
+
 class EFacturaAPIClient:
     """
     e-Factura SOAP client
@@ -109,6 +116,7 @@ class EFacturaAPIClient:
         request: Optional[dict] = None,
         extra: Optional[dict] = None,
         response: Any = None,
+        omit_response_body: bool = False,
     ) -> None:
         parts = [f"method={method_name}", f"error={error}"]
         payload = {}
@@ -118,14 +126,14 @@ class EFacturaAPIClient:
             payload.update(extra)
         if payload:
             parts.append("payload=\n" + self._json_snippet(payload))
-        if response is not None:
+        if response is not None and not omit_response_body:
             parts.append("response=\n" + self._json_snippet(response))
 
         sent = getattr(self._history, "last_sent", None) or {}
         received = getattr(self._history, "last_received", None) or {}
         if sent.get("envelope") is not None:
             parts.append("SOAP REQUEST:\n" + self._dump_soap_envelope(sent["envelope"]))
-        if received.get("envelope") is not None:
+        if received.get("envelope") is not None and not omit_response_body:
             parts.append("SOAP RESPONSE:\n" + self._dump_soap_envelope(received["envelope"]))
 
         title = f"SFS API {method_name} failed"
@@ -192,7 +200,13 @@ class EFacturaAPIClient:
             raise EFacturaAPIError(error) from e
         except TransportError as e:
             error = f"Transport error in {method_name}: {str(e)}"
-            self._log_failed_call(method_name, error=error, request=request, extra=extra)
+            self._log_failed_call(
+                method_name,
+                error=error,
+                request=request,
+                extra=extra,
+                omit_response_body=_is_http_500(e),
+            )
             raise EFacturaAPIError(error) from e
         except Exception as e:
             error = f"Unexpected error in {method_name}: {str(e)}"
