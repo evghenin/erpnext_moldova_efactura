@@ -19,11 +19,31 @@ class EFacturaAPIError(Exception):
     pass
 
 
-def _is_http_500(exc: BaseException) -> bool:
-    try:
-        return int(getattr(exc, "status_code", 0) or 0) == 500
-    except (TypeError, ValueError):
-        return False
+class _StatusTransport(Transport):
+    """Zeep transport that keeps the last HTTP status for error logging."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.last_status_code = 0
+
+    def post(self, address, message, headers):
+        response = super().post(address, message, headers)
+        self.last_status_code = getattr(response, "status_code", 0) or 0
+        return response
+
+
+def _http_status_code(exc: BaseException | None = None, transport=None) -> int:
+    for candidate in (
+        getattr(exc, "status_code", None),
+        getattr(transport, "last_status_code", None),
+    ):
+        try:
+            status = int(candidate or 0)
+        except (TypeError, ValueError):
+            continue
+        if status:
+            return status
+    return 0
 
 
 class EFacturaAPIClient:
@@ -42,7 +62,7 @@ class EFacturaAPIClient:
         session.verify = verify_tls
         session.headers.update({"User-Agent": "erpnext-moldova-efactura/1.0"})
 
-        transport = Transport(session=session, timeout=timeout)
+        transport = _StatusTransport(session=session, timeout=timeout)
         wsse = UsernameToken(username, password, use_digest=False)
         settings = Settings(strict=False, xml_huge_tree=True)
 
@@ -56,6 +76,7 @@ class EFacturaAPIClient:
             plugins=[history],
         )
 
+        self._transport = transport
         self._history = history
 
         # client = Client(wsdl=wsdl_url, transport=transport, settings=settings, wsse=wsse)
@@ -148,6 +169,9 @@ class EFacturaAPIClient:
         except Exception:
             pass
 
+    def _omit_http_500_body(self, exc: BaseException | None = None) -> bool:
+        return _http_status_code(exc, getattr(self, "_transport", None)) == 500
+
     @staticmethod
     def _request_ident_label(request: Optional[dict]) -> str:
         if not request:
@@ -196,21 +220,37 @@ class EFacturaAPIClient:
             data = serialize_object(resp, dict)
         except Fault as e:
             error = f"SOAP Fault in {method_name}: {e.message or str(e)}"
-            self._log_failed_call(method_name, error=error, request=request, extra=extra)
-            raise EFacturaAPIError(error) from e
-        except TransportError as e:
-            error = f"Transport error in {method_name}: {str(e)}"
             self._log_failed_call(
                 method_name,
                 error=error,
                 request=request,
                 extra=extra,
-                omit_response_body=_is_http_500(e),
+                omit_response_body=self._omit_http_500_body(e),
+            )
+            raise EFacturaAPIError(error) from e
+        except TransportError as e:
+            status = _http_status_code(e, getattr(self, "_transport", None))
+            if status == 500:
+                error = f"Transport error in {method_name}: HTTP 500"
+            else:
+                error = f"Transport error in {method_name}: {str(e)}"
+            self._log_failed_call(
+                method_name,
+                error=error,
+                request=request,
+                extra=extra,
+                omit_response_body=status == 500,
             )
             raise EFacturaAPIError(error) from e
         except Exception as e:
             error = f"Unexpected error in {method_name}: {str(e)}"
-            self._log_failed_call(method_name, error=error, request=request, extra=extra)
+            self._log_failed_call(
+                method_name,
+                error=error,
+                request=request,
+                extra=extra,
+                omit_response_body=self._omit_http_500_body(e),
+            )
             raise EFacturaAPIError(error) from e
 
         business_error = sfs_action_error(data)
@@ -221,6 +261,7 @@ class EFacturaAPIClient:
                 request=request,
                 extra=extra,
                 response=data,
+                omit_response_body=self._omit_http_500_body(),
             )
         return data
 
