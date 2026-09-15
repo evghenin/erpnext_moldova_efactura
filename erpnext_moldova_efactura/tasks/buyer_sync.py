@@ -8,9 +8,9 @@ from frappe.utils import add_days, cint, now_datetime
 
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient
 from erpnext_moldova_efactura.utils.api_response import (
+	check_invoices_status_map,
 	extract_invoices,
 	invoice_xml,
-	status_map_with_fallback,
 )
 from erpnext_moldova_efactura.utils.buyer_status import (
 	BUYER_ACTIONABLE_LABELS,
@@ -259,7 +259,7 @@ def sync_buyer_statuses(batch_size: int = 50) -> dict:
 		client = EFacturaAPIClient.from_settings(company=target["company"])
 		payload = [{"Seria": r.ef_series, "Number": r.ef_number} for r in rows]
 		try:
-			statuses = status_map_with_fallback(client, payload)
+			statuses = check_invoices_status_map(client, payload)
 		except Exception:
 			frappe.log_error(
 				title=f"Purchase eFactura status sync failed company={target['company']}",

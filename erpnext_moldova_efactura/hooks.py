@@ -235,16 +235,14 @@ doc_events = {
 # }
 
 scheduler_events = {
-    "hourly": [
-        "erpnext_moldova_efactura.tasks.status_sync.sync_efactura_statuses",
-        "erpnext_moldova_efactura.tasks.status_sync.sync_efactura_draft_invoices_by_api_invoice_id",
-        "erpnext_moldova_efactura.tasks.buyer_sync.sync_buyer_statuses",
-    ],
-    "daily": [
-        "erpnext_moldova_efactura.tasks.status_sync.sync_efactura_cancelled_from_search_invoices",
-        "erpnext_moldova_efactura.tasks.buyer_sync.sync_buyer_invoices",
-        "erpnext_moldova_efactura.tasks.supplier_sync.sync_supplier_invoices",
-    ]
+	"cron": {
+		"20 * * * *": [
+			"erpnext_moldova_efactura.tasks.schedule.enqueue_hourly_syncs",
+		],
+		"20 0 * * *": [
+			"erpnext_moldova_efactura.tasks.schedule.enqueue_daily_syncs",
+		],
+	}
 }
 
 # Testing

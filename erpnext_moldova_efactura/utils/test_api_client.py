@@ -7,10 +7,11 @@ from zeep.exceptions import Fault, TransportError
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient, EFacturaAPIError
 
 
-def _client(service_method):
+def _client(service_method, http_status=0):
 	client = EFacturaAPIClient.__new__(EFacturaAPIClient)
 	client.password = "secret-pass"
 	client._history = SimpleNamespace(last_sent=None, last_received=None)
+	client._transport = SimpleNamespace(last_status_code=http_status)
 	client.service = SimpleNamespace(PostInvoices=service_method)
 	return client
 
@@ -103,11 +104,47 @@ class TestApiClientFailureLogging(unittest.TestCase):
 		)
 
 	@patch("erpnext_moldova_efactura.api_client.frappe.log_error")
-	def test_http_500_omits_response_body_from_error_log(self, log_error):
-		method = Mock(
-			side_effect=TransportError("Server error", status_code=500, content=b"<html>boom</html>")
+	def test_soap_fault_over_http_500_omits_response_body(self, log_error):
+		method = Mock(side_effect=Fault("Unknown fault occured"))
+		client = _client(method, http_status=500)
+		client.service = SimpleNamespace(CheckInvoicesStatus=method)
+		client._history = SimpleNamespace(
+			last_sent={"envelope": None},
+			last_received={"envelope": object()},
 		)
-		client = _client(method)
+		client._dump_soap_envelope = Mock(return_value="<Fault>huge body</Fault>")
+
+		with self.assertRaises(EFacturaAPIError):
+			client._call(
+				"CheckInvoicesStatus",
+				request={
+					"RequestId": "EF-7",
+					"SeriaAndNumbers": {
+						"InvoiceIndentificator": [{"Seria": "EBI", "Number": "000834516"}]
+					},
+				},
+			)
+
+		message = log_error.call_args.kwargs["message"]
+		self.assertEqual(
+			log_error.call_args.kwargs["title"],
+			"SFS API CheckInvoicesStatus failed EBI000834516",
+		)
+		self.assertIn("Unknown fault occured", message)
+		self.assertNotIn("huge body", message)
+		self.assertNotIn("SOAP RESPONSE", message)
+
+	@patch("erpnext_moldova_efactura.api_client.frappe.log_error")
+	def test_http_500_omits_response_body_from_error_log(self, log_error):
+		html = b"<html>boom</html>"
+		method = Mock(
+			side_effect=TransportError(
+				f"Server returned response (500) with invalid XML: nope.\nContent: {html!r}",
+				status_code=500,
+				content=html,
+			)
+		)
+		client = _client(method, http_status=500)
 		client._history = SimpleNamespace(
 			last_sent={"envelope": None},
 			last_received={"envelope": object()},
@@ -119,7 +156,7 @@ class TestApiClientFailureLogging(unittest.TestCase):
 
 		log_error.assert_called_once()
 		message = log_error.call_args.kwargs["message"]
-		self.assertIn("Transport error", message)
+		self.assertIn("HTTP 500", message)
 		self.assertIn("EF-5", message)
 		self.assertNotIn("<html>boom</html>", message)
 		self.assertNotIn("SOAP RESPONSE", message)
@@ -127,7 +164,7 @@ class TestApiClientFailureLogging(unittest.TestCase):
 	@patch("erpnext_moldova_efactura.api_client.frappe.log_error")
 	def test_http_400_still_logs_soap_response(self, log_error):
 		method = Mock(side_effect=TransportError("Bad request", status_code=400))
-		client = _client(method)
+		client = _client(method, http_status=400)
 		client._history = SimpleNamespace(
 			last_sent={"envelope": None},
 			last_received={"envelope": object()},
