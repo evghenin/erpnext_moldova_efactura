@@ -1,6 +1,7 @@
-"""Stagger e-Factura scheduled jobs off the hour.
+"""Stagger e-Factura scheduled jobs off SFS overload windows.
 
-Cron fires at minute 20. The queued job sleeps 0-15 minutes, then calls SFS.
+SFS overloads at minute 0 of every hour and around midnight. Hourly cron fires
+at minute 20. Daily cron fires at 06:20. The queued job then sleeps 0-15 minutes.
 """
 
 from __future__ import annotations

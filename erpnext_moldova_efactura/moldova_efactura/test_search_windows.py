@@ -4,33 +4,14 @@
 from frappe.tests.utils import FrappeTestCase
 from frappe.utils import get_datetime
 
-from erpnext_moldova_efactura.utils.search_windows import iter_issued_on_windows, iter_search_invoices
+from erpnext_moldova_efactura.api_client import EFacturaAPIError
+from erpnext_moldova_efactura.utils.search_windows import iter_search_invoices
 
 
 class TestSearchWindows(FrappeTestCase):
-	def test_seven_day_windows_cover_lookback(self):
+	def test_search_calls_once_for_full_range(self):
 		start = get_datetime("2026-01-01 00:00:00")
 		end = get_datetime("2026-01-22 12:00:00")
-		windows = list(iter_issued_on_windows(start, end, days=7))
-		self.assertEqual(windows[0][0], start)
-		self.assertEqual(windows[-1][1], end)
-		self.assertEqual(len(windows), 4)
-		for i in range(1, len(windows)):
-			self.assertEqual(windows[i][0], windows[i - 1][1])
-
-	def test_short_range_is_one_window(self):
-		start = get_datetime("2026-03-01 10:00:00")
-		end = get_datetime("2026-03-03 10:00:00")
-		windows = list(iter_issued_on_windows(start, end, days=7))
-		self.assertEqual(windows, [(start, end)])
-
-	def test_equal_bounds_still_yield(self):
-		ts = get_datetime("2026-04-01 00:00:00")
-		self.assertEqual(list(iter_issued_on_windows(ts, ts, days=7)), [(ts, ts)])
-
-	def test_search_calls_once_per_window(self):
-		start = get_datetime("2026-01-01 00:00:00")
-		end = get_datetime("2026-01-15 12:00:00")
 		client = _FakeSearchClient()
 		rows = list(
 			iter_search_invoices(
@@ -42,10 +23,28 @@ class TestSearchWindows(FrappeTestCase):
 				error_title="test",
 			)
 		)
-		self.assertEqual(len(client.calls), 3)
+		self.assertEqual(len(client.calls), 1)
 		self.assertEqual(client.calls[0]["IssuedOn"]["StartDate"], start)
-		self.assertEqual(client.calls[-1]["IssuedOn"]["EndDate"], end)
-		self.assertEqual(len(rows), 3)
+		self.assertEqual(client.calls[0]["IssuedOn"]["EndDate"], end)
+		self.assertEqual(len(rows), 1)
+
+	def test_search_swaps_reversed_bounds(self):
+		start = get_datetime("2026-03-03 10:00:00")
+		end = get_datetime("2026-03-01 10:00:00")
+		client = _FakeSearchClient()
+		list(
+			iter_search_invoices(
+				client,
+				actor_role=1,
+				invoice_status=5,
+				date_from=start,
+				date_to=end,
+				error_title="test",
+			)
+		)
+		issued = client.calls[0]["IssuedOn"]
+		self.assertEqual(issued["StartDate"], end)
+		self.assertEqual(issued["EndDate"], start)
 
 	def test_search_strips_issued_on_microseconds(self):
 		start = get_datetime("2026-05-24 00:01:25.545771")
@@ -64,28 +63,26 @@ class TestSearchWindows(FrappeTestCase):
 		issued = client.calls[0]["IssuedOn"]
 		self.assertEqual(issued["StartDate"].microsecond, 0)
 		self.assertEqual(issued["EndDate"].microsecond, 0)
+		self.assertEqual(issued["StartDate"].replace(microsecond=0), start.replace(microsecond=0))
 
-	def test_search_splits_window_on_sfs_fault(self):
-		from erpnext_moldova_efactura.api_client import EFacturaAPIError
-
-		start = get_datetime("2026-01-01 00:00:00")
-		end = get_datetime("2026-01-08 00:00:00")
-		client = _SplittingSearchClient(EFacturaAPIError("SOAP Fault in SearchInvoices: Unknown fault occured"))
+	def test_search_does_not_split_on_sfs_fault(self):
+		start = get_datetime("2025-09-21 00:37:41")
+		end = get_datetime("2026-09-21 00:37:41")
+		client = _FailingSearchClient(EFacturaAPIError("SOAP Fault in SearchInvoices: Unknown fault occured"))
 		rows = list(
 			iter_search_invoices(
 				client,
-				actor_role=2,
-				invoice_status=7,
+				actor_role=1,
+				invoice_status=5,
 				date_from=start,
 				date_to=end,
 				error_title="test",
 			)
 		)
-		self.assertGreater(len(client.calls), 1)
-		self.assertEqual(len(rows), len(client.successes))
-		for params in client.successes:
-			span = params["IssuedOn"]["EndDate"] - params["IssuedOn"]["StartDate"]
-			self.assertLessEqual(span.total_seconds(), 3 * 24 * 3600)
+		self.assertEqual(len(client.calls), 1)
+		self.assertEqual(rows, [])
+		span = client.calls[0]["IssuedOn"]["EndDate"] - client.calls[0]["IssuedOn"]["StartDate"]
+		self.assertGreater(span.total_seconds(), 300 * 24 * 3600)
 
 
 class _FakeSearchClient:
@@ -97,17 +94,11 @@ class _FakeSearchClient:
 		return {"Results": {"Invoice": [{"Seria": "A", "Number": str(len(self.calls))}]}}
 
 
-class _SplittingSearchClient:
+class _FailingSearchClient:
 	def __init__(self, error):
 		self.error = error
 		self.calls = []
-		self.successes = []
 
 	def search_invoices(self, actor_role, parameters, request_id=None):
 		self.calls.append(parameters)
-		issued = parameters["IssuedOn"]
-		span = issued["EndDate"] - issued["StartDate"]
-		if span.total_seconds() > 3 * 24 * 3600:
-			raise self.error
-		self.successes.append(parameters)
-		return {"Results": {"Invoice": [{"Seria": "A", "Number": str(len(self.successes))}]}}
+		raise self.error
