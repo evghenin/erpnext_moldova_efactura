@@ -239,7 +239,8 @@ scheduler_events = {
 		"20 * * * *": [
 			"erpnext_moldova_efactura.tasks.schedule.enqueue_hourly_syncs",
 		],
-		"20 0 * * *": [
+		# 06:20: stay clear of the SFS overload around midnight.
+		"20 6 * * *": [
 			"erpnext_moldova_efactura.tasks.schedule.enqueue_daily_syncs",
 		],
 	}
