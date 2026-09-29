@@ -111,7 +111,6 @@ class SaleseFactura(Document):
         self.set_ef_currency_from_settings()
         self.apply_ef_conversion_rate_rules()
         sync_sales_invoice_links(self)
-        sync_attached_documents(self)
         self._lock_return_flag()
         self._sync_is_return_from_sales_invoice()
         self._validate_unique_series_number()
@@ -1990,6 +1989,7 @@ def _set_missing_values(source, target):
         if target.meta.has_field("is_return"):
             target.is_return = cint(getattr(source, "is_return", 0))
     sync_sales_invoice_links(target)
+    sync_attached_documents(target)
 
     target.set_ef_currency_from_settings()
     target.apply_ef_conversion_rate_rules()

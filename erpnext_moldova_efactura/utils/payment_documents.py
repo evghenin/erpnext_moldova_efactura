@@ -126,7 +126,7 @@ def payment_files(payment_names: list[str]) -> dict[str, str]:
 
 
 def sync_attached_documents(doc) -> None:
-	"""Fill an empty draft table from Payment Entries. Existing rows stay as edited."""
+	"""Fill an empty draft table from Payment Entries before the form opens. Existing rows stay as edited."""
 	if cint(getattr(doc, "docstatus", 0)) != 0:
 		return
 	if doc.get("attached_documents"):
