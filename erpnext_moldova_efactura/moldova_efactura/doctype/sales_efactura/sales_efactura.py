@@ -24,11 +24,9 @@ from erpnext_moldova_efactura.utils.taxpayer_type import taxpayer_type_from_sfs,
 from erpnext_moldova_efactura.utils.timeline import log_event, log_status_change
 from lxml import etree
 from erpnext_moldova_efactura.utils.payment_documents import (
-    append_attached_documents,
     attach_payment_pdf,
     payment_pdf_attachment,
     sync_attached_documents,
-    xml_rows_from_doc,
 )
 from erpnext_moldova_efactura.utils.sef_mode import (
     expected_party_type,
@@ -2228,7 +2226,6 @@ def _generate_invoice_xml(
         },)
 
     ET.SubElement(supplier_info, "IsFarma").text = "false"
-    append_attached_documents(supplier_info, xml_rows_from_doc(efactura))
     ET.SubElement(supplier_info, "CreationMotiv").text = "4" if efactura.type == "Transfer" else "5"
 
     tree = ET.ElementTree(root)

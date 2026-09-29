@@ -186,19 +186,9 @@ def xml_rows_from_doc(doc) -> list[dict]:
 	return rows
 
 
-def append_attached_documents(supplier_info, rows: list[dict]) -> None:
-	if not rows:
-		return
-	import xml.etree.ElementTree as ET
-
-	parent = ET.SubElement(supplier_info, "AttachedDocuments")
-	for row in rows:
-		attrs = {"Type": row["type"]}
-		if row.get("number"):
-			attrs["Number"] = row["number"]
-		if row.get("date"):
-			attrs["Date"] = row["date"]
-		ET.SubElement(parent, "Document", attrs)
+def append_attached_documents(_supplier_info, _rows: list[dict]) -> None:
+	"""Payment rows stay on the PDF. SFS rejects nested AttachedDocuments in the signed invoice XML."""
+	return None
 
 
 def _money(value) -> str:

@@ -155,22 +155,15 @@ class TestPaymentDocuments(unittest.TestCase):
 		sync_attached_documents(doc)
 		source.assert_not_called()
 
-	def test_xml_block_before_creation_motiv(self):
+	def test_signed_xml_does_not_include_attached_documents(self):
 		supplier = ET.Element("SupplierInfo")
 		append_attached_documents(
 			supplier,
-			[
-				{"type": "Bon fiscal (numerar)", "number": "36 150.00", "date": "2026-09-29T00:00:00"},
-				{"type": "Bon fiscal (card)", "number": "7 20.00", "date": "2026-09-28T00:00:00"},
-			],
+			[{"type": "Bon fiscal (numerar)", "number": "36", "date": "2026-09-29T00:00:00"}],
 		)
-		ET.SubElement(supplier, "CreationMotiv").text = "5"
 		xml = ET.tostring(supplier, encoding="unicode")
-		self.assertLess(xml.index("AttachedDocuments"), xml.index("CreationMotiv"))
-		self.assertEqual(xml.count("<Document "), 2)
-		self.assertIn('Type="Bon fiscal (numerar)"', xml)
-		self.assertIn('Type="Bon fiscal (card)"', xml)
-		self.assertNotIn("Seria", xml)
+		self.assertNotIn("AttachedDocuments", xml)
+		self.assertNotIn("Bon fiscal", xml)
 
 	def test_cover_html_has_bilingual_labels(self):
 		from erpnext_moldova_efactura.utils.payment_documents import cover_html
