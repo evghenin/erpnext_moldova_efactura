@@ -24,6 +24,21 @@ def _payment(name, mode, number, amount, remarks="", day=29):
 
 
 class TestPaymentDocuments(unittest.TestCase):
+	def test_print_stylesheet_is_inlined_from_disk(self):
+		from erpnext_moldova_efactura.utils.payment_documents import _inline_print_styles
+
+		html = _inline_print_styles(
+			'<link rel="stylesheet" href="http://development.localhost:8000/assets/frappe/dist/css/print.bundle.css">'
+			"<script>document.addEventListener('DOMContentLoaded', () => {})</script>"
+			'<img src="https://mev.sfs.md/x">'
+			'<img src="data:image/png;base64,aaa">'
+		)
+		self.assertNotIn("development.localhost", html)
+		self.assertNotIn("mev.sfs.md", html)
+		self.assertIn("<style>", html)
+		self.assertIn("addEventListener", html)
+		self.assertIn("data:image/png;base64,aaa", html)
+
 	def test_payment_qr_returns_png_data_uri(self):
 		from erpnext_moldova_efactura.utils.payment_documents import payment_qr
 

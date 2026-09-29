@@ -346,19 +346,65 @@ def payment_qr(data: str) -> str:
 	return "data:image/png;base64," + b64encode(buffer.getvalue()).decode()
 
 
+_CSS_URL = re.compile(r"url\(\s*[^)]+\)", re.IGNORECASE)
+
+
+def _drop_fetched_css_urls(css: str) -> str:
+	def replace(match: re.Match) -> str:
+		if "data:" in match.group(0):
+			return match.group(0)
+		return "none"
+
+	return _CSS_URL.sub(replace, css)
+
+
+def _inline_print_styles(html: str) -> str:
+	"""Keep Frappe print CSS, but read it from disk so wkhtmltopdf does not resolve the site host."""
+	from bs4 import BeautifulSoup
+
+	soup = BeautifulSoup(html, "html.parser")
+	sites = frappe.local.sites_path
+	for link in list(soup.find_all("link")):
+		href = link.get("href") or ""
+		marker = "/assets/"
+		if marker not in href:
+			continue
+		relative = href.split(marker, 1)[1].split("?", 1)[0]
+		path = os.path.join(sites, "assets", relative)
+		css = ""
+		if os.path.isfile(path):
+			with open(path, encoding="utf-8", errors="ignore") as handle:
+				css = _drop_fetched_css_urls(handle.read())
+		style = soup.new_tag("style")
+		style.string = css
+		link.replace_with(style)
+	for img in soup.find_all("img"):
+		src = img.get("src") or ""
+		if src.startswith(("http://", "https://")):
+			img.decompose()
+	return str(soup)
+
+
 def _cover_pdf(efactura, rows: list[dict]) -> bytes:
+	from frappe.utils.pdf import get_pdf
+
 	print_format = (frappe.db.get_single_value("eFactura Settings", "payment_print_format") or "").strip()
 	if not print_format:
-		from frappe.utils.pdf import get_pdf
-
 		return get_pdf(cover_html(rows))
-	return frappe.get_print(
+	html = frappe.get_print(
 		"Sales eFactura",
 		efactura.name,
 		print_format=print_format,
 		doc=efactura,
-		as_pdf=True,
+		as_pdf=False,
 		no_letterhead=1,
+	)
+	return get_pdf(
+		_inline_print_styles(html),
+		options={
+			"load-error-handling": "ignore",
+			"load-media-error-handling": "ignore",
+		},
 	)
 
 
