@@ -328,11 +328,32 @@ def save_payment_pdf(efactura, content: bytes):
 	return file_doc
 
 
-def payment_pdf_attachment(efactura, rows: list[dict]) -> dict | None:
+def attach_payment_pdf(efactura) -> None:
+	"""Create Documente-plata.pdf on the Sales eFactura when it is submitted."""
+	rows = xml_rows_from_doc(efactura)
 	if not rows:
+		return
+	save_payment_pdf(efactura, build_payment_pdf(rows))
+
+
+def payment_pdf_attachment(efactura) -> dict | None:
+	"""Send the PDF already stored on the submitted document."""
+	file_name = frappe.db.get_value(
+		"File",
+		{
+			"attached_to_doctype": "Sales eFactura",
+			"attached_to_name": efactura.name,
+			"file_name": _PAYMENT_PDF_NAME,
+		},
+		"name",
+	)
+	if not file_name:
 		return None
-	content = build_payment_pdf(rows)
-	save_payment_pdf(efactura, content)
+	content = frappe.get_doc("File", file_name).get_content()
+	if isinstance(content, str):
+		content = content.encode()
+	if not content:
+		return None
 	return {
 		"FileName": _PAYMENT_PDF_NAME,
 		"FileContent": base64.b64encode(content).decode(),
