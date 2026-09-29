@@ -2,7 +2,7 @@
 
 ERPNext integration for Moldovan electronic tax invoices (e-Factura / SFS).
 
-Version **3.0.0**. Requires ERPNext / Frappe v15.
+Version **3.1.0**. Requires ERPNext / Frappe v15.
 
 Outgoing invoices are **Sales eFactura**. Incoming invoices are **Purchase eFactura**. Desk workspaces: **eFactura**, **eFactura Sales**, **eFactura Purchase**, **Factura Purchase**.
 
@@ -228,12 +228,12 @@ Then open **eFactura Settings**, set the SFS API URL, add a **Company API Accoun
 
 ### Upgrade from 2.x to version 3
 
-`bench migrate` only applies the checkout already on the server. Check out **v3.0.0** first (a 2.x branch or tag will stay on 2.x even after `bench update`):
+`bench migrate` only applies the checkout already on the server. Check out **v3.1.0** first (a 2.x branch or tag will stay on 2.x even after `bench update`):
 
 ```bash
 cd $PATH_TO_YOUR_BENCH/apps/erpnext_moldova_efactura
 git fetch --tags
-git checkout v3.0.0
+git checkout v3.1.0
 cd ../..
 bench setup requirements --python
 bench --site $SITE migrate
@@ -247,7 +247,7 @@ cd $PATH_TO_YOUR_BENCH
 bench update --apps erpnext_moldova_efactura
 ```
 
-Confirm `bench version` shows `erpnext_moldova_efactura 3.0.0`. Version 3 adds `pypdf`, the Purchase Factura DocTypes, a Purchase Invoice link, and purchase workspace entries.
+Confirm `bench version` shows `erpnext_moldova_efactura 3.1.0`. Version 3 adds `pypdf`, the Purchase Factura DocTypes, a Purchase Invoice link, and purchase workspace entries. Version 3.1 writes linked Payment Entries into outgoing e-Factura attached documents.
 
 Confirm that **Company IDNO Field** and **Supplier IDNO Field** are configured in eFactura Settings before creating or importing PF records. For paper photos, set **Gemini API Key** (and optionally **Gemini Model**, default `gemini-3.6-flash`). Configure the existing Purchase Tax Settings and supplier Item/UOM mappings used to create Purchase Invoices. Supplier payable-account currency must match its billing currency under the normal ERPNext rules.
 
