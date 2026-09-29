@@ -35,6 +35,7 @@
   "sales_tax_settings",
   "outgoing_payment_section",
   "attach_payment_documents",
+  "payment_print_format",
   "payment_documents",
   "tab_incoming",
   "purchases_sync_section",
@@ -170,6 +171,15 @@
    "fieldname": "attach_payment_documents",
    "fieldtype": "Check",
    "label": "Attach Payment Documents"
+  },
+  {
+   "depends_on": "eval:doc.attach_payment_documents",
+   "description": "Print Format for Sales eFactura used as the first pages of the payment PDF. Leave empty to use the built-in layout.",
+   "fieldname": "payment_print_format",
+   "fieldtype": "Link",
+   "label": "Payment Print Format",
+   "link_filters": "[[\"Print Format\",\"doc_type\",\"=\",\"Sales eFactura\"]]",
+   "options": "Print Format"
   },
   {
    "description": "Document name written on an outgoing e-Factura for this Mode of Payment. One row per mode, for the whole system.",

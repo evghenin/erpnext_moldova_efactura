@@ -12,6 +12,10 @@ from frappe.utils import cint, flt, getdate
 
 _MEV_URL = re.compile(r"https?://[^\s\"'<>]*mev\.sfs\.md[^\s\"'<>]*", re.IGNORECASE)
 _FILE_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png"}
+_RECEIPT_WIDTH_MM = 80
+_A4_WIDTH_MM = 210
+_A4_HEIGHT_MM = 297
+_RECEIPT_DPI = 144
 
 
 def document_names_by_mode() -> dict[str, str]:
@@ -246,6 +250,36 @@ h2 {{ font-size: 13pt; margin: 0 0 8px; }}
 </body></html>"""
 
 
+def _mm_to_px(mm: float, dpi: int = _RECEIPT_DPI) -> int:
+	return max(1, round(mm / 25.4 * dpi))
+
+
+def _layout_receipt_pages(image):
+	"""Fit a receipt to 80mm wide. Slice overflow to A4 height and place strips left to right."""
+	from PIL import Image
+
+	if image.mode not in ("RGB", "L"):
+		image = image.convert("RGB")
+	page_w = _mm_to_px(_A4_WIDTH_MM)
+	page_h = _mm_to_px(_A4_HEIGHT_MM)
+	receipt_w = _mm_to_px(_RECEIPT_WIDTH_MM)
+	scaled_h = max(1, round(image.height * receipt_w / image.width))
+	image = image.resize((receipt_w, scaled_h), Image.Resampling.LANCZOS)
+	strips = []
+	top = 0
+	while top < scaled_h:
+		strips.append(image.crop((0, top, receipt_w, min(top + page_h, scaled_h))))
+		top += page_h
+	columns = max(1, page_w // receipt_w)
+	pages = []
+	for start in range(0, len(strips), columns):
+		page = Image.new("RGB", (page_w, page_h), "white")
+		for index, strip in enumerate(strips[start : start + columns]):
+			page.paste(strip, (index * receipt_w, 0))
+		pages.append(page)
+	return pages
+
+
 def _as_pdf(content: bytes, file_name: str) -> bytes | None:
 	if not content:
 		return None
@@ -258,11 +292,15 @@ def _as_pdf(content: bytes, file_name: str) -> bytes | None:
 
 	from PIL import Image
 
-	image = Image.open(BytesIO(content))
-	if image.mode not in ("RGB", "L"):
-		image = image.convert("RGB")
+	pages = _layout_receipt_pages(Image.open(BytesIO(content)))
 	out = BytesIO()
-	image.save(out, format="PDF")
+	pages[0].save(
+		out,
+		format="PDF",
+		save_all=True,
+		append_images=pages[1:],
+		resolution=_RECEIPT_DPI,
+	)
 	return out.getvalue()
 
 
@@ -294,10 +332,38 @@ def source_pdf(file_name: str | None) -> bytes | None:
 	return _as_pdf(content or b"", file_doc.file_name)
 
 
-def build_payment_pdf(rows: list[dict]) -> bytes:
-	from frappe.utils.pdf import get_pdf
+def payment_qr(data: str) -> str:
+	"""Data-URI PNG for a verification URL. Available in print formats as payment_qr()."""
+	if not data:
+		return ""
+	from base64 import b64encode
+	from io import BytesIO
 
-	cover = get_pdf(cover_html(rows))
+	from pyqrcode import create as qrcreate
+
+	buffer = BytesIO()
+	qrcreate(str(data)).png(buffer, scale=4)
+	return "data:image/png;base64," + b64encode(buffer.getvalue()).decode()
+
+
+def _cover_pdf(efactura, rows: list[dict]) -> bytes:
+	print_format = (frappe.db.get_single_value("eFactura Settings", "payment_print_format") or "").strip()
+	if not print_format:
+		from frappe.utils.pdf import get_pdf
+
+		return get_pdf(cover_html(rows))
+	return frappe.get_print(
+		"Sales eFactura",
+		efactura.name,
+		print_format=print_format,
+		doc=efactura,
+		as_pdf=True,
+		no_letterhead=1,
+	)
+
+
+def build_payment_pdf(efactura, rows: list[dict]) -> bytes:
+	cover = _cover_pdf(efactura, rows)
 	sources = [source_pdf(row.get("file")) for row in rows]
 	return merge_pdfs(cover, [src for src in sources if src])
 
@@ -333,7 +399,7 @@ def attach_payment_pdf(efactura) -> None:
 	rows = xml_rows_from_doc(efactura)
 	if not rows:
 		return
-	save_payment_pdf(efactura, build_payment_pdf(rows))
+	save_payment_pdf(efactura, build_payment_pdf(efactura, rows))
 
 
 def payment_pdf_attachment(efactura) -> dict | None:

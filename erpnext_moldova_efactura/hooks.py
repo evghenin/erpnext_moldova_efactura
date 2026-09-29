@@ -98,10 +98,11 @@ extend_bootinfo = "erpnext_moldova_efactura.boot.extend_bootinfo"
 # ----------
 
 # add methods and filters to jinja environment
-# jinja = {
-# 	"methods": "erpnext_moldova_efactura.utils.jinja_methods",
-# 	"filters": "erpnext_moldova_efactura.utils.jinja_filters"
-# }
+jinja = {
+	"methods": [
+		"erpnext_moldova_efactura.utils.payment_documents.payment_qr",
+	],
+}
 
 # Installation
 # ------------

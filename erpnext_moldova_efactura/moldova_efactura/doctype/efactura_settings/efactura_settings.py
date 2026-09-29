@@ -13,6 +13,7 @@ class eFacturaSettings(Document):
 		self._validate_company_api_accounts()
 		self._validate_outgoing_item_tax_templates()
 		self._validate_payment_documents()
+		self._validate_payment_print_format()
 		seen = set()
 		for row in self.get("uom_map") or []:
 			key = (row.supplier_uom or "").strip().lower()
@@ -57,6 +58,14 @@ class eFacturaSettings(Document):
 			if name in seen:
 				frappe.throw(_("Item Tax Template {0} is listed more than once").format(name))
 			seen.add(name)
+
+	def _validate_payment_print_format(self):
+		name = (self.get("payment_print_format") or "").strip()
+		if not name:
+			return
+		doc_type = frappe.db.get_value("Print Format", name, "doc_type")
+		if doc_type != "Sales eFactura":
+			frappe.throw(_("Payment Print Format must be a Print Format for Sales eFactura."))
 
 	def _validate_payment_documents(self):
 		seen = set()

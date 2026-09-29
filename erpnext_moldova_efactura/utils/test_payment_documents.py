@@ -24,6 +24,12 @@ def _payment(name, mode, number, amount, remarks="", day=29):
 
 
 class TestPaymentDocuments(unittest.TestCase):
+	def test_payment_qr_returns_png_data_uri(self):
+		from erpnext_moldova_efactura.utils.payment_documents import payment_qr
+
+		self.assertTrue(payment_qr("https://mev.sfs.md/c/abc").startswith("data:image/png;base64,"))
+		self.assertEqual(payment_qr(""), "")
+
 	def test_mev_url_is_kept_whole(self):
 		self.assertEqual(
 			mev_urls("see https://mev.sfs.md/c/abc."),
@@ -140,6 +146,24 @@ class TestPaymentDocuments(unittest.TestCase):
 		self.assertIn("class='ro'", html)
 		self.assertIn("Bon fiscal (numerar)", html)
 		self.assertNotIn("<h2>", html)
+
+	def test_long_receipt_is_sliced_across_a4_columns(self):
+		from io import BytesIO
+
+		from PIL import Image
+		from pypdf import PdfReader
+
+		from erpnext_moldova_efactura.utils.payment_documents import _as_pdf
+
+		# 80px wide and 30 times an A4 height at the 80mm scale: several columns.
+		image = Image.new("RGB", (80, 80 * 30), "white")
+		buffer = BytesIO()
+		image.save(buffer, format="PNG")
+		pdf = PdfReader(BytesIO(_as_pdf(buffer.getvalue(), "bon.png")))
+		self.assertGreater(len(pdf.pages), 1)
+		box = pdf.pages[0].mediabox
+		self.assertAlmostEqual(float(box.width), 210 / 25.4 * 72, delta=2)
+		self.assertAlmostEqual(float(box.height), 297 / 25.4 * 72, delta=2)
 
 	def test_merge_pdfs_appends_source_pages(self):
 		from io import BytesIO

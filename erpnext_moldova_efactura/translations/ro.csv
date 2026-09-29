@@ -5,7 +5,10 @@ Amount (eFactura Currency),Sumă (monedă eFactura)
 Attach Payment Documents,Anexează documentele de plată
 Attached Documents,Documente anexate
 Document Type,Tip document
+Payment Print Format must be a Print Format for Sales eFactura.,Formatul de tipărire pentru plăți trebuie să fie un Print Format pentru Sales eFactura.
+Payment Print Format,Format de tipărire pentru plăți
 Paid Amount,Suma plătită
+"Print Format for Sales eFactura used as the first pages of the payment PDF. Leave empty to use the built-in layout.","Formatul de tipărire Sales eFactura folosit ca primele pagini ale PDF-ului de plată. Lăsați gol pentru aspectul încorporat."
 Allocated Amount,Suma alocată
 Verification URL,Link de verificare
 Payment Documents,Documente de plată
