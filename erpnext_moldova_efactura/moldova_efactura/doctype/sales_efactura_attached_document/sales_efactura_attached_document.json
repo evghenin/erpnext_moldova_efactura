@@ -9,6 +9,9 @@
   "payment_entry",
   "document_type",
   "document_number",
+  "paid_amount",
+  "allocated_amount",
+  "verification_url",
   "document_date",
   "file"
  ],
@@ -33,6 +36,24 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Number"
+  },
+  {
+   "fieldname": "paid_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Paid Amount"
+  },
+  {
+   "fieldname": "allocated_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Allocated Amount"
+  },
+  {
+   "fieldname": "verification_url",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Verification URL"
   },
   {
    "fieldname": "document_date",

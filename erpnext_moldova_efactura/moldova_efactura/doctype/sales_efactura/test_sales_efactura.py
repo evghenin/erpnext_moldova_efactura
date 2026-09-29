@@ -23,7 +23,7 @@ class TestSaleseFactura(FrappeTestCase):
 			"erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.xml_rows_from_doc",
 			return_value=[{"type": "Bon fiscal (numerar)", "payment_entry": "PE-1"}],
 		), patch(
-			"erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.first_row_attachment",
+			"erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.payment_pdf_attachment",
 			return_value=None,
 		), patch(
 			"erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.sales_invoice_of",

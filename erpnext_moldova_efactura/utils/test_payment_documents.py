@@ -18,6 +18,7 @@ def _payment(name, mode, number, amount, remarks="", day=29):
 		reference_no=number,
 		reference_date=date(2026, 9, day),
 		remarks=remarks,
+		paid_amount=amount + 5,
 		allocated_amount=amount,
 	)
 
@@ -47,9 +48,14 @@ class TestPaymentDocuments(unittest.TestCase):
 			[row["type"] for row in rows],
 			["Bon fiscal (numerar)", "Ordin de plata"],
 		)
-		self.assertEqual(rows[0]["number"], "36 150.00 https://mev.sfs.md/c/abc")
+		self.assertEqual(rows[0]["number"], "36")
+		self.assertEqual(rows[0]["paid_amount"], 155)
+		self.assertEqual(rows[0]["allocated_amount"], 150)
+		self.assertEqual(rows[0]["url"], "https://mev.sfs.md/c/abc")
 		self.assertEqual(rows[0]["date"], "2026-09-29T00:00:00")
-		self.assertEqual(rows[1]["number"], "OP-9 10.00")
+		self.assertEqual(rows[1]["number"], "OP-9")
+		self.assertEqual(rows[1]["paid_amount"], 15)
+		self.assertEqual(rows[1]["allocated_amount"], 10)
 
 	@patch("erpnext_moldova_efactura.utils.payment_documents.document_names_by_mode", return_value={})
 	def test_checkbox_off_adds_nothing(self, _names):
@@ -60,16 +66,23 @@ class TestPaymentDocuments(unittest.TestCase):
 		from erpnext_moldova_efactura.utils.payment_documents import xml_rows_from_doc
 
 		row = SimpleNamespace(
-			document_type="Bon fiscal (card)",
-			document_number="7 20.00",
-			document_date=date(2026, 9, 28),
+					document_type="Bon fiscal (card)",
+					document_number="7",
+					paid_amount=25,
+					allocated_amount=20,
+					verification_url="https://mev.sfs.md/c/abc",
+					document_date=date(2026, 9, 28),
 			payment_entry="PE-CARD",
 			file=None,
 		)
 		doc = SimpleNamespace(attached_documents=[row], get=lambda key, default=None: [row])
 		rows = xml_rows_from_doc(doc)
 		self.assertEqual(rows[0]["type"], "Bon fiscal (card)")
-		self.assertEqual(rows[0]["number"], "7 20.00")
+		self.assertEqual(rows[0]["number"], "7")
+		self.assertEqual(rows[0]["date_label"], "28.09.2026")
+		self.assertEqual(rows[0]["paid_amount_label"], "25.00")
+		self.assertEqual(rows[0]["allocated_amount_label"], "20.00")
+		self.assertEqual(rows[0]["url"], "https://mev.sfs.md/c/abc")
 		self.assertEqual(rows[0]["payment_entry"], "PE-CARD")
 
 	@patch("erpnext_moldova_efactura.utils.payment_documents.payment_files", return_value={})
@@ -103,3 +116,44 @@ class TestPaymentDocuments(unittest.TestCase):
 		self.assertIn('Type="Bon fiscal (numerar)"', xml)
 		self.assertIn('Type="Bon fiscal (card)"', xml)
 		self.assertNotIn("Seria", xml)
+
+	def test_cover_html_has_bilingual_labels(self):
+		from erpnext_moldova_efactura.utils.payment_documents import cover_html
+
+		html = cover_html(
+			[
+				{
+					"type": "Bon fiscal (numerar)",
+					"number": "1",
+					"date_label": "08.09.2026",
+					"paid_amount_label": "1222.00",
+					"allocated_amount_label": "1222.00",
+					"url": "https://mev.sfs.md/c/abc",
+				}
+			]
+		)
+		self.assertIn("Tipul plății", html)
+		self.assertIn("Тип оплаты", html)
+		self.assertIn("Suma plătită", html)
+		self.assertIn("Распределённая сумма", html)
+		self.assertIn('href="https://mev.sfs.md/c/abc"', html)
+		self.assertIn("class='ro'", html)
+		self.assertIn("Bon fiscal (numerar)", html)
+		self.assertNotIn("<h2>", html)
+
+	def test_merge_pdfs_appends_source_pages(self):
+		from io import BytesIO
+
+		from pypdf import PdfReader, PdfWriter
+
+		from erpnext_moldova_efactura.utils.payment_documents import merge_pdfs
+
+		def one_page() -> bytes:
+			writer = PdfWriter()
+			writer.add_blank_page(width=200, height=200)
+			out = BytesIO()
+			writer.write(out)
+			return out.getvalue()
+
+		merged = merge_pdfs(one_page(), [one_page(), None])
+		self.assertEqual(len(PdfReader(BytesIO(merged)).pages), 2)

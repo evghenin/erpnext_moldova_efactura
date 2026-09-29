@@ -5,6 +5,9 @@ Amount (eFactura Currency),Sumă (monedă eFactura)
 Attach Payment Documents,Anexează documentele de plată
 Attached Documents,Documente anexate
 Document Type,Tip document
+Paid Amount,Suma plătită
+Allocated Amount,Suma alocată
+Verification URL,Link de verificare
 Payment Documents,Documente de plată
 Payment Document Names,Denumiri documente de plată
 Document Name,Denumire document

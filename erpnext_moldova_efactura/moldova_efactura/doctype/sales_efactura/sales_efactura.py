@@ -25,7 +25,7 @@ from erpnext_moldova_efactura.utils.timeline import log_event, log_status_change
 from lxml import etree
 from erpnext_moldova_efactura.utils.payment_documents import (
     append_attached_documents,
-    first_row_attachment,
+    payment_pdf_attachment,
     sync_attached_documents,
     xml_rows_from_doc,
 )
@@ -2250,7 +2250,7 @@ def _generate_invoice_xml(
 
 def _post_outgoing_invoices(client, efactura, invoices_xml, invoices_xml_status: int):
     rows = xml_rows_from_doc(efactura)
-    attachment = first_row_attachment(rows)
+    attachment = payment_pdf_attachment(efactura, rows)
     kwargs = {
         "request_id": efactura.name,
         "actor_role": 1,

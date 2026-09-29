@@ -37,7 +37,7 @@ def payments_for_sales_invoice(sales_invoice: str) -> list[dict]:
 	return frappe.db.sql(
 		"""
 		SELECT pe.name, pe.mode_of_payment, pe.reference_no, pe.reference_date,
-			pe.remarks, pe.posting_date, per.allocated_amount
+			pe.remarks, pe.posting_date, pe.paid_amount, per.allocated_amount
 		FROM `tabPayment Entry` pe
 		INNER JOIN `tabPayment Entry Reference` per ON per.parent = pe.name
 		WHERE per.reference_doctype = 'Sales Invoice'
@@ -77,15 +77,15 @@ def comment_text(payment_entry: str) -> str:
 	return "\n".join((row.content or "") for row in rows)
 
 
-def document_number(reference_no, allocated_amount, urls: list[str]) -> str:
-	parts = []
-	number = (reference_no or "").strip()
-	if number:
-		parts.append(number)
-	if flt(allocated_amount):
-		parts.append(f"{flt(allocated_amount):.2f}")
-	parts.extend(urls)
-	return " ".join(parts)
+_PDF_ROWS = (
+	("Tipul plății", "Тип оплаты", "type"),
+	("Numărul bonului / tranzacției", "Номер чека / транзакции", "number"),
+	("Data bonului / tranzacției", "Дата чека / транзакции", "date_label"),
+	("Suma plătită", "Оплаченная сумма", "paid_amount_label"),
+	("Suma alocată", "Распределённая сумма", "allocated_amount_label"),
+	("Link de verificare MEV", "Ссылка проверки MEV", "url"),
+)
+_PAYMENT_PDF_NAME = "Documente-plata.pdf"
 
 
 def attached_document_rows(sales_invoice: str) -> list[dict]:
@@ -98,7 +98,13 @@ def attached_document_rows(sales_invoice: str) -> list[dict]:
 		if not title:
 			continue
 		urls = mev_urls(payment.remarks, comment_text(payment.name))
-		row = {"type": title, "number": document_number(payment.reference_no, payment.allocated_amount, urls)}
+		row = {
+			"type": title,
+			"number": (payment.reference_no or "").strip(),
+			"paid_amount": flt(payment.paid_amount),
+			"allocated_amount": flt(payment.allocated_amount),
+			"url": urls[0] if urls else "",
+		}
 		if payment.reference_date:
 			row["date"] = datetime.combine(getdate(payment.reference_date), datetime.min.time()).isoformat()
 		row["payment_entry"] = payment.name
@@ -144,6 +150,9 @@ def sync_attached_documents(doc) -> None:
 				"payment_entry": row.get("payment_entry"),
 				"document_type": row["type"],
 				"document_number": row.get("number"),
+				"paid_amount": row.get("paid_amount"),
+				"allocated_amount": row.get("allocated_amount"),
+				"verification_url": row.get("url"),
 				"document_date": (row.get("date") or "")[:10] or None,
 				"file": files.get(row.get("payment_entry")),
 			},
@@ -164,6 +173,10 @@ def xml_rows_from_doc(doc) -> list[dict]:
 			item["number"] = number
 		if row.document_date:
 			item["date"] = datetime.combine(getdate(row.document_date), datetime.min.time()).isoformat()
+			item["date_label"] = getdate(row.document_date).strftime("%d.%m.%Y")
+		item["paid_amount_label"] = _money(getattr(row, "paid_amount", None))
+		item["allocated_amount_label"] = _money(getattr(row, "allocated_amount", None))
+		item["url"] = (getattr(row, "verification_url", None) or "").strip()
 		rows.append(item)
 	return rows
 
@@ -183,24 +196,146 @@ def append_attached_documents(supplier_info, rows: list[dict]) -> None:
 		ET.SubElement(parent, "Document", attrs)
 
 
-def file_attachment(file_name: str | None) -> dict | None:
+def _money(value) -> str:
+	if value is None or value == "":
+		return ""
+	return f"{flt(value):.2f}"
+
+
+def _esc(value) -> str:
+	return frappe.utils.escape_html(value or "")
+
+
+def _cell_html(key: str, row: dict) -> str:
+	if key != "url":
+		return _esc(row.get(key))
+	url = (row.get("url") or "").strip()
+	if not url:
+		return ""
+	safe = _esc(url)
+	return f'<a href="{safe}">{safe}</a>'
+
+
+def cover_html(rows: list[dict]) -> str:
+	blocks = []
+	for index, row in enumerate(rows, start=1):
+		body = []
+		for ro, ru, key in _PDF_ROWS:
+			body.append(
+				"<tr>"
+				f"<td class='label'><div class='ro'>{ro}</div><div class='ru'>{ru}</div></td>"
+				f"<td class='value'>{_cell_html(key, row)}</td>"
+				"</tr>"
+			)
+		heading = f"<h2>Document {index}</h2>" if len(rows) > 1 else ""
+		blocks.append(heading + "<table>" + "".join(body) + "</table>")
+	return f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"/>
+<style>
+body {{ font-family: DejaVu Sans, sans-serif; font-size: 12pt; color: #111; }}
+table {{ width: 100%; border-collapse: collapse; margin-bottom: 28px; }}
+td {{ border: 1px solid #ccc; padding: 10px 12px; vertical-align: top; }}
+td.label {{ width: 46%; }}
+.ro {{ font-weight: 700; }}
+.ru {{ font-weight: 400; color: #444; margin-top: 2px; }}
+td.value {{ font-size: 13pt; }}
+h2 {{ font-size: 13pt; margin: 0 0 8px; }}
+</style></head><body>
+<h1>Documente anexate</h1>
+{''.join(blocks)}
+</body></html>"""
+
+
+def _as_pdf(content: bytes, file_name: str) -> bytes | None:
+	if not content:
+		return None
+	ext = os.path.splitext(file_name or "")[1].lower()
+	if ext == ".pdf" or content[:4] == b"%PDF":
+		return content
+	if ext not in _FILE_EXTENSIONS:
+		return None
+	from io import BytesIO
+
+	from PIL import Image
+
+	image = Image.open(BytesIO(content))
+	if image.mode not in ("RGB", "L"):
+		image = image.convert("RGB")
+	out = BytesIO()
+	image.save(out, format="PDF")
+	return out.getvalue()
+
+
+def merge_pdfs(cover: bytes, sources: list[bytes]) -> bytes:
+	from io import BytesIO
+
+	from pypdf import PdfReader, PdfWriter
+
+	writer = PdfWriter()
+	for page in PdfReader(BytesIO(cover)).pages:
+		writer.add_page(page)
+	for source in sources:
+		if not source:
+			continue
+		for page in PdfReader(BytesIO(source)).pages:
+			writer.add_page(page)
+	out = BytesIO()
+	writer.write(out)
+	return out.getvalue()
+
+
+def source_pdf(file_name: str | None) -> bytes | None:
 	if not file_name:
 		return None
 	file_doc = frappe.get_doc("File", file_name)
 	content = file_doc.get_content()
-	if not content:
-		return None
 	if isinstance(content, str):
 		content = content.encode()
+	return _as_pdf(content or b"", file_doc.file_name)
+
+
+def build_payment_pdf(rows: list[dict]) -> bytes:
+	from frappe.utils.pdf import get_pdf
+
+	cover = get_pdf(cover_html(rows))
+	sources = [source_pdf(row.get("file")) for row in rows]
+	return merge_pdfs(cover, [src for src in sources if src])
+
+
+def save_payment_pdf(efactura, content: bytes):
+	existing = frappe.get_all(
+		"File",
+		filters={
+			"attached_to_doctype": "Sales eFactura",
+			"attached_to_name": efactura.name,
+			"file_name": _PAYMENT_PDF_NAME,
+		},
+		pluck="name",
+	)
+	for name in existing:
+		frappe.delete_doc("File", name, ignore_permissions=True, force=True)
+	file_doc = frappe.get_doc(
+		{
+			"doctype": "File",
+			"file_name": _PAYMENT_PDF_NAME,
+			"attached_to_doctype": "Sales eFactura",
+			"attached_to_name": efactura.name,
+			"is_private": 1,
+			"content": content,
+		}
+	)
+	file_doc.save(ignore_permissions=True)
+	return file_doc
+
+
+def payment_pdf_attachment(efactura, rows: list[dict]) -> dict | None:
+	if not rows:
+		return None
+	content = build_payment_pdf(rows)
+	save_payment_pdf(efactura, content)
 	return {
-		"FileName": file_doc.file_name,
+		"FileName": _PAYMENT_PDF_NAME,
 		"FileContent": base64.b64encode(content).decode(),
 	}
 
 
-def first_row_attachment(rows: list[dict]) -> dict | None:
-	for row in rows:
-		attachment = file_attachment(row.get("file"))
-		if attachment:
-			return attachment
-	return None
