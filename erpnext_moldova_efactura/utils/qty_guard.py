@@ -6,7 +6,7 @@ from collections import defaultdict
 
 import frappe
 from frappe import _
-from frappe.utils import cint, flt, get_link_to_form
+from frappe.utils import cint, escape_html, flt, get_link_to_form
 
 from erpnext_moldova_efactura.utils.si_link import sales_invoice_of
 
