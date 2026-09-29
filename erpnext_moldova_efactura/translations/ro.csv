@@ -2,6 +2,13 @@ Accepted by Customer,Acceptat de client
 Actualize Fiscal Status,Actualizare statut fiscal
 Actualizing Fiscal Status,Actualizare statut fiscal în curs
 Amount (eFactura Currency),Sumă (monedă eFactura)
+Attach Payment Documents,Anexează documentele de plată
+Payment Documents,Documente de plată
+Payment Document Names,Denumiri documente de plată
+Document Name,Denumire document
+"If enabled, each submitted Payment Entry for the Sales Invoice is written to Documente anexate. The document name comes from the table below and applies to every company.","Dacă este activat, fiecare Payment Entry confirmat pentru factura de vânzare este scris la Documente anexate. Denumirea documentului vine din tabelul de mai jos și se aplică tuturor companiilor."
+"Document name written on an outgoing e-Factura for this Mode of Payment. One row per mode, for the whole system.","Denumirea documentului scrisă pe e-Factura de ieșire pentru acest mod de plată. Un rând per mod, pentru tot sistemul."
+Mode of Payment {0} is listed more than once,Modul de plată {0} este indicat de mai multe ori
 Bank account,Cont bancar
 Bank code,Cod bancar
 Bank name,Denumirea băncii

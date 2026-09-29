@@ -12,6 +12,7 @@ class eFacturaSettings(Document):
 		self._validate_sales_tax_settings()
 		self._validate_company_api_accounts()
 		self._validate_outgoing_item_tax_templates()
+		self._validate_payment_documents()
 		seen = set()
 		for row in self.get("uom_map") or []:
 			key = (row.supplier_uom or "").strip().lower()
@@ -56,6 +57,16 @@ class eFacturaSettings(Document):
 			if name in seen:
 				frappe.throw(_("Item Tax Template {0} is listed more than once").format(name))
 			seen.add(name)
+
+	def _validate_payment_documents(self):
+		seen = set()
+		for row in self.get("payment_documents") or []:
+			mode = (row.mode_of_payment or "").strip()
+			if not mode:
+				continue
+			if mode in seen:
+				frappe.throw(_("Mode of Payment {0} is listed more than once").format(mode))
+			seen.add(mode)
 
 	def _validate_company_settings(self):
 		seen = set()

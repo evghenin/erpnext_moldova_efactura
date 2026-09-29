@@ -33,6 +33,9 @@
   "outgoing_item_tax_templates",
   "outgoing_sales_tax_section",
   "sales_tax_settings",
+  "outgoing_payment_section",
+  "attach_payment_documents",
+  "payment_documents",
   "tab_incoming",
   "purchases_sync_section",
   "load_archived_purchase_efactura",
@@ -155,6 +158,25 @@
    "fieldtype": "Table",
    "label": "Sales Tax Settings",
    "options": "eFactura Sales Tax Setting"
+  },
+  {
+   "fieldname": "outgoing_payment_section",
+   "fieldtype": "Section Break",
+   "label": "Payment Documents"
+  },
+  {
+   "default": "0",
+   "description": "If enabled, each submitted Payment Entry for the Sales Invoice is written to Documente anexate. The document name comes from the table below and applies to every company.",
+   "fieldname": "attach_payment_documents",
+   "fieldtype": "Check",
+   "label": "Attach Payment Documents"
+  },
+  {
+   "description": "Document name written on an outgoing e-Factura for this Mode of Payment. One row per mode, for the whole system.",
+   "fieldname": "payment_documents",
+   "fieldtype": "Table",
+   "label": "Payment Document Names",
+   "options": "eFactura Payment Document"
   },
   {
    "fieldname": "idno_column",

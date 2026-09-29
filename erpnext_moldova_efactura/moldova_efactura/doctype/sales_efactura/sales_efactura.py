@@ -23,6 +23,11 @@ from erpnext_moldova_efactura.utils.api_response import check_invoices_status_ma
 from erpnext_moldova_efactura.utils.taxpayer_type import taxpayer_type_from_sfs, taxpayer_type_to_sfs
 from erpnext_moldova_efactura.utils.timeline import log_event, log_status_change
 from lxml import etree
+from erpnext_moldova_efactura.utils.payment_documents import (
+    append_attached_documents,
+    attached_document_rows,
+    first_payment_attachment,
+)
 from erpnext_moldova_efactura.utils.sef_mode import (
     expected_party_type,
     has_selling_or_stock_links,
@@ -1079,9 +1084,7 @@ def send_unsigned(efactura_name):
         language=ef_lang,
     )
 
-    resp = client.post_invoices(
-        request_id=efactura.name, actor_role=1, invoices_xml=xml_content, invoices_xml_status=0
-    )
+    resp = _post_outgoing_invoices(client, efactura, xml_content, 0)
 
     error_message = resp.get("ErrorMessage")
     total = resp.get("TotalInvoices", 0)
@@ -1215,12 +1218,7 @@ def process_signed_xml(name, signature, content):
     post_error = None
     resp = None
     try:
-        resp = client.post_invoices(
-            request_id=ef.name,
-            actor_role=1,
-            invoices_xml=final_xml,
-            invoices_xml_status=1,
-        )
+        resp = _post_outgoing_invoices(client, ef, final_xml, 1)
     except Exception as e:
         post_error = str(e)
 
@@ -2226,6 +2224,7 @@ def _generate_invoice_xml(
         },)
 
     ET.SubElement(supplier_info, "IsFarma").text = "false"
+    append_attached_documents(supplier_info, attached_document_rows(sales_invoice_of(efactura)))
     ET.SubElement(supplier_info, "CreationMotiv").text = "4" if efactura.type == "Transfer" else "5"
 
     tree = ET.ElementTree(root)
@@ -2245,3 +2244,17 @@ def _generate_invoice_xml(
         root, encoding="utf-8", xml_declaration=declaration, method="xml", short_empty_elements=False
     )
     return xml_content
+
+
+def _post_outgoing_invoices(client, efactura, invoices_xml, invoices_xml_status: int):
+    rows = attached_document_rows(sales_invoice_of(efactura))
+    attachment = first_payment_attachment([row["payment_entry"] for row in rows])
+    kwargs = {
+        "request_id": efactura.name,
+        "actor_role": 1,
+        "invoices_xml": invoices_xml,
+        "invoices_xml_status": invoices_xml_status,
+    }
+    if attachment:
+        return client.post_invoices_with_attachment(attachment=attachment, **kwargs)
+    return client.post_invoices(**kwargs)

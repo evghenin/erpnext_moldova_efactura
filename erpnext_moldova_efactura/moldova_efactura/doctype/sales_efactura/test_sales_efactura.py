@@ -9,6 +9,30 @@ from erpnext_moldova_efactura.utils.party import new_customer_defaults
 
 
 class TestSaleseFactura(FrappeTestCase):
+	def test_post_without_payment_file_uses_post_invoices(self):
+		from unittest.mock import Mock, patch
+
+		from erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura import (
+			_post_outgoing_invoices,
+		)
+
+		client = Mock()
+		client.post_invoices.return_value = {"ok": 1}
+		ef = frappe._dict(name="SEF-1", sales_invoice="SINV-1")
+		with patch(
+			"erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.attached_document_rows",
+			return_value=[{"type": "Bon fiscal (numerar)", "payment_entry": "PE-1"}],
+		), patch(
+			"erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.first_payment_attachment",
+			return_value=None,
+		), patch(
+			"erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.sales_invoice_of",
+			return_value="SINV-1",
+		):
+			_post_outgoing_invoices(client, ef, "<xml/>", 0)
+		client.post_invoices.assert_called_once()
+		client.post_invoices_with_attachment.assert_not_called()
+
 	def test_signed_sef_total_coverage_uses_currency_precision(self):
 		from erpnext_moldova_efactura.utils.fiscal_status import classify_si_fiscal_totals
 
