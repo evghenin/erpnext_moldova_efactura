@@ -379,10 +379,6 @@ def _inline_print_styles(html: str) -> str:
 		style = soup.new_tag("style")
 		style.string = css
 		link.replace_with(style)
-	for img in soup.find_all("img"):
-		src = img.get("src") or ""
-		if src.startswith(("http://", "https://")):
-			img.decompose()
 	return str(soup)
 
 
@@ -392,14 +388,20 @@ def _cover_pdf(efactura, rows: list[dict]) -> bytes:
 	print_format = (frappe.db.get_single_value("eFactura Settings", "payment_print_format") or "").strip()
 	if not print_format:
 		return get_pdf(cover_html(rows))
-	html = frappe.get_print(
-		"Sales eFactura",
-		efactura.name,
-		print_format=print_format,
-		doc=efactura,
-		as_pdf=False,
-		no_letterhead=1,
-	)
+	language = (frappe.db.get_single_value("eFactura Settings", "payment_language") or "").strip()
+	letterhead = (frappe.db.get_single_value("eFactura Settings", "payment_letterhead") or "").strip()
+	from frappe.translate import print_language
+
+	with print_language(language):
+		html = frappe.get_print(
+			"Sales eFactura",
+			efactura.name,
+			print_format=print_format,
+			doc=efactura,
+			as_pdf=False,
+			letterhead=letterhead or None,
+			no_letterhead=0 if letterhead else 1,
+		)
 	return get_pdf(
 		_inline_print_styles(html),
 		options={

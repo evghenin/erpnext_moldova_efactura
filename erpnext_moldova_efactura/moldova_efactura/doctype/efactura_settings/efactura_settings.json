@@ -36,6 +36,8 @@
   "outgoing_payment_section",
   "attach_payment_documents",
   "payment_print_format",
+  "payment_language",
+  "payment_letterhead",
   "payment_documents",
   "tab_incoming",
   "purchases_sync_section",
@@ -180,6 +182,22 @@
    "label": "Payment Print Format",
    "link_filters": "[[\"Print Format\",\"doc_type\",\"=\",\"Sales eFactura\"]]",
    "options": "Print Format"
+  },
+  {
+   "depends_on": "eval:doc.attach_payment_documents",
+   "description": "Language used when rendering the payment Print Format.",
+   "fieldname": "payment_language",
+   "fieldtype": "Link",
+   "label": "Language",
+   "options": "Language"
+  },
+  {
+   "depends_on": "eval:doc.attach_payment_documents",
+   "description": "Letter Head used when rendering the payment Print Format.",
+   "fieldname": "payment_letterhead",
+   "fieldtype": "Link",
+   "label": "Letter Head",
+   "options": "Letter Head"
   },
   {
    "description": "Document name written on an outgoing e-Factura for this Mode of Payment. One row per mode, for the whole system.",

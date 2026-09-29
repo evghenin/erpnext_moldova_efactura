@@ -34,10 +34,36 @@ class TestPaymentDocuments(unittest.TestCase):
 			'<img src="data:image/png;base64,aaa">'
 		)
 		self.assertNotIn("development.localhost", html)
-		self.assertNotIn("mev.sfs.md", html)
+		self.assertIn("mev.sfs.md", html)
 		self.assertIn("<style>", html)
 		self.assertIn("addEventListener", html)
 		self.assertIn("data:image/png;base64,aaa", html)
+
+	def test_cover_pdf_passes_language_and_letterhead(self):
+		from erpnext_moldova_efactura.utils.payment_documents import _cover_pdf
+
+		values = {
+			"payment_print_format": "e-Factura Payment Details",
+			"payment_language": "ro",
+			"payment_letterhead": "Hotel Life",
+		}
+		with (
+			patch(
+				"erpnext_moldova_efactura.utils.payment_documents.frappe.db.get_single_value",
+				side_effect=lambda _dt, field: values[field],
+			),
+			patch(
+				"erpnext_moldova_efactura.utils.payment_documents.frappe.get_print",
+				return_value="<html></html>",
+			) as get_print,
+			patch("frappe.utils.pdf.get_pdf", return_value=b"%PDF"),
+			patch("frappe.translate.print_language") as print_language,
+		):
+			print_language.return_value.__enter__.return_value = None
+			self.assertEqual(_cover_pdf(SimpleNamespace(name="ACC-SEF-2026-00073"), []), b"%PDF")
+		print_language.assert_called_once_with("ro")
+		self.assertEqual(get_print.call_args.kwargs["letterhead"], "Hotel Life")
+		self.assertEqual(get_print.call_args.kwargs["no_letterhead"], 0)
 
 	def test_payment_pdf_file_name_uses_document_id(self):
 		from erpnext_moldova_efactura.utils.payment_documents import payment_pdf_file_name
