@@ -39,6 +39,14 @@ class TestPaymentDocuments(unittest.TestCase):
 		self.assertIn("addEventListener", html)
 		self.assertIn("data:image/png;base64,aaa", html)
 
+	def test_payment_pdf_file_name_uses_document_id(self):
+		from erpnext_moldova_efactura.utils.payment_documents import payment_pdf_file_name
+
+		self.assertEqual(
+			payment_pdf_file_name(SimpleNamespace(name="ACC-SEF-2026-00073")),
+			"situatia-platilor-ACC-SEF-2026-00073.pdf",
+		)
+
 	def test_payment_qr_returns_png_data_uri(self):
 		from erpnext_moldova_efactura.utils.payment_documents import payment_qr
 

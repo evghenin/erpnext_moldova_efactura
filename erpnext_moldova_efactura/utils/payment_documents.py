@@ -89,7 +89,8 @@ _PDF_ROWS = (
 	("Suma alocată", "Распределённая сумма", "allocated_amount_label"),
 	("Link de verificare MEV", "Ссылка проверки MEV", "url"),
 )
-_PAYMENT_PDF_NAME = "Documente-plata.pdf"
+def payment_pdf_file_name(efactura) -> str:
+	return f"situatia-platilor-{efactura.name}.pdf"
 
 
 def attached_document_rows(sales_invoice: str) -> list[dict]:
@@ -415,12 +416,13 @@ def build_payment_pdf(efactura, rows: list[dict]) -> bytes:
 
 
 def save_payment_pdf(efactura, content: bytes):
+	file_name = payment_pdf_file_name(efactura)
 	existing = frappe.get_all(
 		"File",
 		filters={
 			"attached_to_doctype": "Sales eFactura",
 			"attached_to_name": efactura.name,
-			"file_name": _PAYMENT_PDF_NAME,
+			"file_name": file_name,
 		},
 		pluck="name",
 	)
@@ -429,7 +431,7 @@ def save_payment_pdf(efactura, content: bytes):
 	file_doc = frappe.get_doc(
 		{
 			"doctype": "File",
-			"file_name": _PAYMENT_PDF_NAME,
+			"file_name": file_name,
 			"attached_to_doctype": "Sales eFactura",
 			"attached_to_name": efactura.name,
 			"is_private": 1,
@@ -441,7 +443,7 @@ def save_payment_pdf(efactura, content: bytes):
 
 
 def attach_payment_pdf(efactura) -> None:
-	"""Create Documente-plata.pdf on the Sales eFactura when it is submitted."""
+	"""Create situatia-platilor-{name}.pdf on the Sales eFactura when it is submitted."""
 	rows = xml_rows_from_doc(efactura)
 	if not rows:
 		return
@@ -450,12 +452,13 @@ def attach_payment_pdf(efactura) -> None:
 
 def payment_pdf_attachment(efactura) -> dict | None:
 	"""Send the PDF already stored on the submitted document."""
+	stored_name = payment_pdf_file_name(efactura)
 	file_name = frappe.db.get_value(
 		"File",
 		{
 			"attached_to_doctype": "Sales eFactura",
 			"attached_to_name": efactura.name,
-			"file_name": _PAYMENT_PDF_NAME,
+			"file_name": stored_name,
 		},
 		"name",
 	)
@@ -467,7 +470,7 @@ def payment_pdf_attachment(efactura) -> dict | None:
 	if not content:
 		return None
 	return {
-		"FileName": _PAYMENT_PDF_NAME,
+		"FileName": stored_name,
 		"FileContent": base64.b64encode(content).decode(),
 	}
 
