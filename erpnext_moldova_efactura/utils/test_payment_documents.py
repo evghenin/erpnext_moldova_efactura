@@ -55,6 +55,38 @@ class TestPaymentDocuments(unittest.TestCase):
 	def test_checkbox_off_adds_nothing(self, _names):
 		self.assertEqual(attached_document_rows("SINV-1"), [])
 
+	@patch("erpnext_moldova_efactura.utils.payment_documents.frappe.db.get_single_value", return_value=1)
+	def test_xml_uses_edited_child_rows(self, _setting):
+		from erpnext_moldova_efactura.utils.payment_documents import xml_rows_from_doc
+
+		row = SimpleNamespace(
+			document_type="Bon fiscal (card)",
+			document_number="7 20.00",
+			document_date=date(2026, 9, 28),
+			payment_entry="PE-CARD",
+			file=None,
+		)
+		doc = SimpleNamespace(attached_documents=[row], get=lambda key, default=None: [row])
+		rows = xml_rows_from_doc(doc)
+		self.assertEqual(rows[0]["type"], "Bon fiscal (card)")
+		self.assertEqual(rows[0]["number"], "7 20.00")
+		self.assertEqual(rows[0]["payment_entry"], "PE-CARD")
+
+	@patch("erpnext_moldova_efactura.utils.payment_documents.payment_files", return_value={})
+	@patch("erpnext_moldova_efactura.utils.payment_documents.attached_document_rows")
+	def test_existing_rows_are_not_replaced(self, source, _files):
+		from erpnext_moldova_efactura.utils.payment_documents import sync_attached_documents
+
+		doc = SimpleNamespace(
+			docstatus=0,
+			get=lambda key, default=None: [SimpleNamespace(document_type="Edited")]
+			if key == "attached_documents"
+			else default,
+			append=lambda *_args, **_kwargs: self.fail("existing rows were replaced"),
+		)
+		sync_attached_documents(doc)
+		source.assert_not_called()
+
 	def test_xml_block_before_creation_motiv(self):
 		supplier = ET.Element("SupplierInfo")
 		append_attached_documents(

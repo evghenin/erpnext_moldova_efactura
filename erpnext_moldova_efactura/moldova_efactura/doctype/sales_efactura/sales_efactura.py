@@ -25,8 +25,9 @@ from erpnext_moldova_efactura.utils.timeline import log_event, log_status_change
 from lxml import etree
 from erpnext_moldova_efactura.utils.payment_documents import (
     append_attached_documents,
-    attached_document_rows,
-    first_payment_attachment,
+    first_row_attachment,
+    sync_attached_documents,
+    xml_rows_from_doc,
 )
 from erpnext_moldova_efactura.utils.sef_mode import (
     expected_party_type,
@@ -110,6 +111,7 @@ class SaleseFactura(Document):
         self.set_ef_currency_from_settings()
         self.apply_ef_conversion_rate_rules()
         sync_sales_invoice_links(self)
+        sync_attached_documents(self)
         self._lock_return_flag()
         self._sync_is_return_from_sales_invoice()
         self._validate_unique_series_number()
@@ -2224,7 +2226,7 @@ def _generate_invoice_xml(
         },)
 
     ET.SubElement(supplier_info, "IsFarma").text = "false"
-    append_attached_documents(supplier_info, attached_document_rows(sales_invoice_of(efactura)))
+    append_attached_documents(supplier_info, xml_rows_from_doc(efactura))
     ET.SubElement(supplier_info, "CreationMotiv").text = "4" if efactura.type == "Transfer" else "5"
 
     tree = ET.ElementTree(root)
@@ -2247,8 +2249,8 @@ def _generate_invoice_xml(
 
 
 def _post_outgoing_invoices(client, efactura, invoices_xml, invoices_xml_status: int):
-    rows = attached_document_rows(sales_invoice_of(efactura))
-    attachment = first_payment_attachment([row["payment_entry"] for row in rows])
+    rows = xml_rows_from_doc(efactura)
+    attachment = first_row_attachment(rows)
     kwargs = {
         "request_id": efactura.name,
         "actor_role": 1,

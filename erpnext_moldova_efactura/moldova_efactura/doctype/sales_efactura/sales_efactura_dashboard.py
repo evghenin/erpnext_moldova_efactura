@@ -8,8 +8,11 @@ def get_data():
 			"Delivery Note": ["items", "delivery_note"],
 			"Sales Invoice": ["items", "sales_invoice"],
 			"Purchase Receipt": ["items", "purchase_receipt"],
+			"Payment Entry": ["attached_documents", "payment_entry"],
+			"File": ["attached_documents", "file"],
 		},
 		"transactions": [
 			{"label": _("Reference"), "items": ["Sales Invoice", "Delivery Note", "Purchase Receipt"]},
+			{"label": _("Attached Documents"), "items": ["Payment Entry", "File"]},
 		],
 	}

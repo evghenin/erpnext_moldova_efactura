@@ -20,10 +20,10 @@ class TestSaleseFactura(FrappeTestCase):
 		client.post_invoices.return_value = {"ok": 1}
 		ef = frappe._dict(name="SEF-1", sales_invoice="SINV-1")
 		with patch(
-			"erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.attached_document_rows",
+			"erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.xml_rows_from_doc",
 			return_value=[{"type": "Bon fiscal (numerar)", "payment_entry": "PE-1"}],
 		), patch(
-			"erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.first_payment_attachment",
+			"erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.first_row_attachment",
 			return_value=None,
 		), patch(
 			"erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.sales_invoice_of",

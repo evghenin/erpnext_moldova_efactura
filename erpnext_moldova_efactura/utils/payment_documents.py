@@ -106,6 +106,68 @@ def attached_document_rows(sales_invoice: str) -> list[dict]:
 	return rows
 
 
+def payment_files(payment_names: list[str]) -> dict[str, str]:
+	"""First pdf/image File name for each Payment Entry, in posting order of payment_names."""
+	if not payment_names:
+		return {}
+	files = frappe.get_all(
+		"File",
+		filters={"attached_to_doctype": "Payment Entry", "attached_to_name": ["in", payment_names]},
+		fields=["name", "file_name", "attached_to_name"],
+		order_by="creation asc",
+	)
+	found = {}
+	for file_row in files:
+		ext = os.path.splitext(file_row.file_name or "")[1].lower()
+		if ext not in _FILE_EXTENSIONS:
+			continue
+		found.setdefault(file_row.attached_to_name, file_row.name)
+	return found
+
+
+def sync_attached_documents(doc) -> None:
+	"""Fill an empty draft table from Payment Entries. Existing rows stay as edited."""
+	if cint(getattr(doc, "docstatus", 0)) != 0:
+		return
+	if doc.get("attached_documents"):
+		return
+	from erpnext_moldova_efactura.utils.si_link import sales_invoice_of
+
+	source = attached_document_rows(sales_invoice_of(doc))
+	if not source:
+		return
+	files = payment_files([row["payment_entry"] for row in source if row.get("payment_entry")])
+	for row in source:
+		doc.append(
+			"attached_documents",
+			{
+				"payment_entry": row.get("payment_entry"),
+				"document_type": row["type"],
+				"document_number": row.get("number"),
+				"document_date": (row.get("date") or "")[:10] or None,
+				"file": files.get(row.get("payment_entry")),
+			},
+		)
+
+
+def xml_rows_from_doc(doc) -> list[dict]:
+	if not cint(frappe.db.get_single_value("eFactura Settings", "attach_payment_documents")):
+		return []
+	rows = []
+	for row in doc.get("attached_documents") or []:
+		title = (row.document_type or "").strip()
+		if not title:
+			continue
+		item = {"type": title, "payment_entry": row.payment_entry, "file": row.file}
+		number = (row.document_number or "").strip()
+		if number:
+			item["number"] = number
+		if row.document_date:
+			item["date"] = datetime.combine(getdate(row.document_date), datetime.min.time()).isoformat()
+		rows.append(item)
+	return rows
+
+
 def append_attached_documents(supplier_info, rows: list[dict]) -> None:
 	if not rows:
 		return
@@ -121,33 +183,24 @@ def append_attached_documents(supplier_info, rows: list[dict]) -> None:
 		ET.SubElement(parent, "Document", attrs)
 
 
-def first_payment_attachment(payment_names: list[str]) -> dict | None:
-	if not payment_names:
+def file_attachment(file_name: str | None) -> dict | None:
+	if not file_name:
 		return None
-	files = frappe.get_all(
-		"File",
-		filters={"attached_to_doctype": "Payment Entry", "attached_to_name": ["in", payment_names]},
-		fields=["name", "file_name", "attached_to_name"],
-		order_by="creation asc",
-	)
-	by_payment: dict[str, list] = {}
-	for file_row in files:
-		ext = os.path.splitext(file_row.file_name or "")[1].lower()
-		if ext not in _FILE_EXTENSIONS:
-			continue
-		by_payment.setdefault(file_row.attached_to_name, []).append(file_row)
-	for payment_name in payment_names:
-		matches = by_payment.get(payment_name) or []
-		if not matches:
-			continue
-		file_doc = frappe.get_doc("File", matches[0].name)
-		content = file_doc.get_content()
-		if not content:
-			continue
-		if isinstance(content, str):
-			content = content.encode()
-		return {
-			"FileName": file_doc.file_name,
-			"FileContent": base64.b64encode(content).decode(),
-		}
+	file_doc = frappe.get_doc("File", file_name)
+	content = file_doc.get_content()
+	if not content:
+		return None
+	if isinstance(content, str):
+		content = content.encode()
+	return {
+		"FileName": file_doc.file_name,
+		"FileContent": base64.b64encode(content).decode(),
+	}
+
+
+def first_row_attachment(rows: list[dict]) -> dict | None:
+	for row in rows:
+		attachment = file_attachment(row.get("file"))
+		if attachment:
+			return attachment
 	return None

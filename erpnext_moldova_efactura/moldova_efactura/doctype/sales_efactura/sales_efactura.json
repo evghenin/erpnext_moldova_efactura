@@ -86,6 +86,8 @@
   "column_break_fglh",
   "total",
   "ef_total",
+  "section_attached_documents",
+  "attached_documents",
   "section_meta",
   "cancellation_reason",
   "connections_tab"
@@ -683,6 +685,17 @@
    "fieldtype": "Section Break",
    "label": "Totals",
    "options": "fa fa-money"
+  },
+  {
+   "fieldname": "section_attached_documents",
+   "fieldtype": "Section Break",
+   "label": "Attached Documents"
+  },
+  {
+   "fieldname": "attached_documents",
+   "fieldtype": "Table",
+   "label": "Attached Documents",
+   "options": "Sales eFactura Attached Document"
   },
   {
    "fieldname": "column_break_dypc",
