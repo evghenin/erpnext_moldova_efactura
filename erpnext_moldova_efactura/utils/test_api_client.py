@@ -18,6 +18,30 @@ def _client(service_method, http_status=0):
 
 class TestApiClientFailureLogging(unittest.TestCase):
 	@patch("erpnext_moldova_efactura.api_client.frappe.log_error")
+	def test_unposted_invoices_log_request_and_response(self, log_error):
+		client = _client(Mock())
+		client._log_if_invoices_not_posted(
+			"PostInvoicesWithAttachment",
+			{"RequestId": "EF-9", "InvoicesXml": "<Documents/>", "Attachment": {"FileName": "a.pdf"}},
+			{"TotalInvoices": 0, "TotalInvoicesPosted": 0, "Status": 2},
+		)
+		message = log_error.call_args.kwargs["message"]
+		self.assertIn("Invoices posted: 0 / 0", message)
+		self.assertIn("EF-9", message)
+		self.assertIn("<Documents/>", message)
+		self.assertIn("a.pdf", message)
+
+	@patch("erpnext_moldova_efactura.api_client.frappe.log_error")
+	def test_posted_invoices_are_not_logged(self, log_error):
+		client = _client(Mock())
+		client._log_if_invoices_not_posted(
+			"PostInvoices",
+			{"RequestId": "EF-10"},
+			{"TotalInvoices": 1, "TotalInvoicesPosted": 1, "Status": 2},
+		)
+		log_error.assert_not_called()
+
+	@patch("erpnext_moldova_efactura.api_client.frappe.log_error")
 	def test_soap_fault_logs_payload_and_redacts_password(self, log_error):
 		method = Mock(side_effect=Fault("Unknown fault occured"))
 		client = _client(method)

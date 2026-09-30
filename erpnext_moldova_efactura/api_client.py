@@ -403,7 +403,28 @@ class EFacturaAPIClient:
             "InvoicesXmlStatus": invoices_xml_status,
             "Attachment": attachment,
         }
-        return self._call("PostInvoices", request=req)
+        data = self._call("PostInvoices", request=req)
+        self._log_if_invoices_not_posted("PostInvoices", req, data)
+        return data
+
+    def _log_if_invoices_not_posted(self, method_name: str, request: dict, data: Any) -> None:
+        from erpnext_moldova_efactura.utils.api_response import sfs_action_error
+
+        if not isinstance(data, dict) or sfs_action_error(data):
+            return
+        try:
+            total = int(data.get("TotalInvoices") or 0)
+            posted = int(data.get("TotalInvoicesPosted") or 0)
+        except (TypeError, ValueError):
+            total, posted = 0, 0
+        if total == posted and posted:
+            return
+        self._log_failed_call(
+            method_name,
+            error=f"Invoices posted: {posted} / {total}",
+            request=request,
+            response=data,
+        )
 
     def post_invoices_with_attachment(
         self,
@@ -420,7 +441,9 @@ class EFacturaAPIClient:
             "InvoicesXmlStatus": invoices_xml_status,
             "Attachment": attachment,
         }
-        return self._call("PostInvoicesWithAttachment", request=req)
+        data = self._call("PostInvoicesWithAttachment", request=req)
+        self._log_if_invoices_not_posted("PostInvoicesWithAttachment", req, data)
+        return data
 
     def search_invoices(self, actor_role: int, parameters: dict, request_id: Optional[str] = None) -> Dict[str, Any]:
         req = {

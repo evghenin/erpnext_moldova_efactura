@@ -267,17 +267,18 @@ frappe.provide("erpnext_moldova_efactura.moldsign");
 			if (!signature) {
 				throw new Error("MoldSign did not return a signature.");
 			}
-			if (show_alert) {
-				frappe.show_alert({ message: __("Signed successfully"), indicator: "green" });
-			}
 
 			const result2 = await call_method(opts.process_method, {
 				name: name,
 				signature: signature,
 				content: xml_base64,
 			});
-			if (show_alert && result2.message && result2.message.message) {
-				frappe.show_alert({ message: result2.message.message, indicator: "green" });
+			if (show_alert) {
+				frappe.show_alert({
+					message:
+						(result2.message && result2.message.message) || __("Signed successfully"),
+					indicator: "green",
+				});
 			}
 			return { certificate, message: result2.message };
 		} finally {
