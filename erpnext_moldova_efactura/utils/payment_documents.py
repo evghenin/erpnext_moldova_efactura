@@ -187,7 +187,7 @@ def xml_rows_from_doc(doc) -> list[dict]:
 
 
 def append_attached_documents(_supplier_info, _rows: list[dict]) -> None:
-	"""Payment rows stay on the PDF. SFS rejects nested AttachedDocuments in the signed invoice XML."""
+	"""The 2025 API guide attaches a PDF via FileName and FileContent, not invoice XML elements."""
 	return None
 
 

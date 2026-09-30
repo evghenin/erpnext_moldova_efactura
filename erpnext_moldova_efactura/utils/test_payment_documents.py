@@ -159,11 +159,11 @@ class TestPaymentDocuments(unittest.TestCase):
 		supplier = ET.Element("SupplierInfo")
 		append_attached_documents(
 			supplier,
-			[{"type": "Bon fiscal (numerar)", "number": "36", "date": "2026-09-29T00:00:00"}],
+			[{"type": "Transfer bancar", "number": "84", "date": "2026-09-29T00:00:00"}],
 		)
 		xml = ET.tostring(supplier, encoding="unicode")
 		self.assertNotIn("AttachedDocuments", xml)
-		self.assertNotIn("Bon fiscal", xml)
+		self.assertNotIn("Transfer bancar", xml)
 
 	def test_cover_html_has_bilingual_labels(self):
 		from erpnext_moldova_efactura.utils.payment_documents import cover_html
