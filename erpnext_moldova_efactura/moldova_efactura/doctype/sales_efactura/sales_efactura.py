@@ -1193,6 +1193,9 @@ def process_signed_xml(name, signature, content):
         '<Documents>\n'
         '<Document>\n'
         f'{content_xml}\n'
+        '<AdditionalInformation>\n'
+        f'<id>{name}</id>\n'
+        '</AdditionalInformation>\n'
         '<Signatures>\n'
         '<SignatureContent>\n'
         '<SignedDoc>\n'
@@ -1233,7 +1236,7 @@ def process_signed_xml(name, signature, content):
         if remote_status is None or remote_status < 1:
             frappe.throw(
                 _("e-Factura API Error: {0}").format(
-                    post_error or error_message or _("Invoices posted: {0} / {1}").format(posted, total)
+                    post_error or error_message or _post_failure_detail(resp, posted, total)
                 )
             )
         posted = posted or 1
@@ -1249,6 +1252,13 @@ def process_signed_xml(name, signature, content):
         "total": total,
         "posted": posted,
     }
+
+
+def _post_failure_detail(resp, posted, total) -> str:
+    request_id = str((resp or {}).get("RequestId") or "")
+    if "Exception" in request_id:
+        return request_id
+    return _("Invoices posted: {0} / {1}").format(posted, total)
 
 
 def _remote_posted_status(client, ef):

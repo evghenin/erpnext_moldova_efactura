@@ -1071,6 +1071,9 @@ class TestSaleseFactura(FrappeTestCase):
 		):
 			api.from_settings.return_value = client
 			sef.process_signed_xml("ACC-SEF-1", signature, content)
+			xml = client.post_invoices.call_args.kwargs["invoices_xml"]
+			self.assertLess(xml.index("<SupplierInfo/>"), xml.index("<AdditionalInformation>"))
+			self.assertLess(xml.index("<id>ACC-SEF-1</id>"), xml.index("<Signatures>"))
 			api.from_settings.assert_called_once_with(company="Hotel Life")
 			doc.db_set.assert_any_call("ef_status", "Signed by Supplier", update_modified=False)
 
