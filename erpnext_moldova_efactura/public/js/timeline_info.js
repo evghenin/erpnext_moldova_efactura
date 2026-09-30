@@ -44,15 +44,10 @@
 		return value == null ? "" : String(value);
 	}
 
-	function patch_info_timeline() {
-		if (!frappe.ui?.form?.FormTimeline) {
+	function patch_timeline_proto(proto) {
+		if (!proto || proto.__efactura_info_patched || typeof proto.get_info_timeline_contents !== "function") {
 			return false;
 		}
-		const proto = frappe.ui.form.FormTimeline.prototype;
-		if (proto.__efactura_info_patched) {
-			return true;
-		}
-		const original = proto.get_info_timeline_contents;
 		proto.get_info_timeline_contents = function () {
 			const items = [];
 			(this.doc_info.info_logs || []).forEach((info_log) => {
@@ -75,13 +70,47 @@
 			});
 			return items;
 		};
-		proto.__efactura_info_original = original;
 		proto.__efactura_info_patched = true;
 		return true;
 	}
 
+	function patch_open_timeline() {
+		const timeline = typeof cur_frm !== "undefined" ? cur_frm?.timeline : null;
+		if (!timeline) {
+			return;
+		}
+		if (patch_timeline_proto(Object.getPrototypeOf(timeline))) {
+			timeline.refresh();
+		}
+	}
+
+	function patch_footer() {
+		const Footer = frappe.ui?.form?.Footer;
+		if (!Footer || Footer.prototype.__efactura_timeline_patched) {
+			return false;
+		}
+		const original = Footer.prototype.make_timeline;
+		if (typeof original !== "function") {
+			return false;
+		}
+		Footer.prototype.make_timeline = function () {
+			original.apply(this, arguments);
+			const timeline = this.frm?.timeline;
+			if (timeline && patch_timeline_proto(Object.getPrototypeOf(timeline))) {
+				timeline.refresh();
+			}
+		};
+		Footer.prototype.__efactura_timeline_patched = true;
+		patch_open_timeline();
+		return true;
+	}
+
 	const try_patch = () => {
-		if (patch_info_timeline()) {
+		if (typeof frappe === "undefined") {
+			setTimeout(try_patch, 200);
+			return;
+		}
+		if (patch_footer()) {
 			return;
 		}
 		setTimeout(try_patch, 200);
