@@ -155,6 +155,39 @@ class TestPaymentDocuments(unittest.TestCase):
 		sync_attached_documents(doc)
 		source.assert_not_called()
 
+	@patch("erpnext_moldova_efactura.utils.si_link.sales_invoice_of", return_value="SINV-1")
+	@patch("erpnext_moldova_efactura.utils.payment_documents.frappe.db.get_single_value", return_value=1)
+	@patch("erpnext_moldova_efactura.utils.payment_documents.attached_document_rows")
+	def test_receipt_text_writes_lines_and_mev_links(self, rows, _setting, _invoice):
+		from erpnext_moldova_efactura.utils.payment_documents import append_payment_receipt_text
+
+		rows.return_value = [
+			{
+				"type": "Bon fiscal (numerar)",
+				"number": "36",
+				"date": "2026-09-29T00:00:00",
+				"allocated_amount": 150,
+				"urls": ["https://mev.sfs.md/c/abc", "https://mev.sfs.md/c/abc"],
+			},
+			{
+				"type": "Ordin de plata",
+				"number": "OP-9",
+				"date": "2026-09-28T00:00:00",
+				"allocated_amount": 10,
+				"urls": ["https://mev.sfs.md/c/def"],
+			},
+		]
+		supplier = ET.Element("SupplierInfo")
+		append_payment_receipt_text(supplier, SimpleNamespace(ef_currency="MDL"))
+		text = ET.tostring(supplier, encoding="unicode")
+		self.assertIn(
+			"Bon fiscal (numerar) nr. 36 din 29.09.2026 suma achitată 150.00 MDL",
+			text,
+		)
+		self.assertIn("Ordin de plata nr. OP-9 din 28.09.2026 suma achitată 10.00 MDL", text)
+		notes = supplier.find("Notes").text
+		self.assertEqual(notes, "https://mev.sfs.md/c/abc\nhttps://mev.sfs.md/c/def")
+
 	def test_signed_xml_does_not_include_attached_documents(self):
 		supplier = ET.Element("SupplierInfo")
 		append_attached_documents(

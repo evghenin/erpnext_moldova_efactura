@@ -2205,6 +2205,10 @@ def _generate_invoice_xml(
                 "BranchCode": efactura.ef_transporter_bank_code or "",
         },)
 
+    from erpnext_moldova_efactura.utils.payment_documents import append_payment_receipt_text
+
+    append_payment_receipt_text(supplier_info, efactura)
+
     ET.SubElement(supplier_info, "Total").text = efactura.ef_total and str(round(flt(efactura.ef_total), 2)) or "0.00"
     ET.SubElement(supplier_info, "TotalTVA").text = efactura.ef_vat_total and str(round(flt(efactura.ef_vat_total), 2)) or "0.00"
 

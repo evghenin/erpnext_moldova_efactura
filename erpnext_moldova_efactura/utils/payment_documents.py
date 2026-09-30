@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import os
 import re
+import xml.etree.ElementTree as ET
 from datetime import datetime
 
 import frappe
@@ -19,7 +20,9 @@ _RECEIPT_DPI = 144
 
 
 def document_names_by_mode() -> dict[str, str]:
-	if not cint(frappe.db.get_single_value("eFactura Settings", "attach_payment_documents")):
+	attach = cint(frappe.db.get_single_value("eFactura Settings", "attach_payment_documents"))
+	receipt_text = cint(frappe.db.get_single_value("eFactura Settings", "include_payment_information"))
+	if not attach and not receipt_text:
 		return {}
 	rows = frappe.get_all(
 		"eFactura Payment Document",
@@ -109,6 +112,7 @@ def attached_document_rows(sales_invoice: str) -> list[dict]:
 			"paid_amount": flt(payment.paid_amount),
 			"allocated_amount": flt(payment.allocated_amount),
 			"url": urls[0] if urls else "",
+			"urls": urls,
 		}
 		if payment.reference_date:
 			row["date"] = datetime.combine(getdate(payment.reference_date), datetime.min.time()).isoformat()
@@ -189,6 +193,38 @@ def xml_rows_from_doc(doc) -> list[dict]:
 def append_attached_documents(_supplier_info, _rows: list[dict]) -> None:
 	"""The 2025 API guide attaches a PDF via FileName and FileContent, not invoice XML elements."""
 	return None
+
+
+def append_payment_receipt_text(supplier_info, efactura) -> None:
+	"""Interim text until payment files can be posted: one AttachedDocuments line per payment, MEV links in Notes."""
+	if not cint(frappe.db.get_single_value("eFactura Settings", "include_payment_information")):
+		return
+	from erpnext_moldova_efactura.utils.si_link import sales_invoice_of
+
+	rows = attached_document_rows(sales_invoice_of(efactura))
+	if not rows:
+		return
+	currency = (getattr(efactura, "ef_currency", None) or getattr(efactura, "currency", None) or "").strip()
+	lines = []
+	urls = []
+	seen = set()
+	for row in rows:
+		when = ""
+		if row.get("date"):
+			when = getdate(row["date"][:10]).strftime("%d.%m.%Y")
+		amount = f"{flt(row.get('allocated_amount')):.2f}"
+		if currency:
+			amount = f"{amount} {currency}"
+		lines.append(
+			f"{row['type']} nr. {row.get('number') or ''} din {when} suma achitată {amount}"
+		)
+		for url in row.get("urls") or []:
+			if url not in seen:
+				seen.add(url)
+				urls.append(url)
+	ET.SubElement(supplier_info, "AttachedDocuments").text = "\n".join(lines)
+	if urls:
+		ET.SubElement(supplier_info, "Notes").text = "\n".join(urls)
 
 
 def _money(value) -> str:

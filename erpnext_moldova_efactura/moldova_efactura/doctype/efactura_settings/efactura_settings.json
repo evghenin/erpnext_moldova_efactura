@@ -34,6 +34,7 @@
   "outgoing_sales_tax_section",
   "sales_tax_settings",
   "outgoing_payment_section",
+  "include_payment_information",
   "attach_payment_documents",
   "payment_print_format",
   "payment_language",
@@ -173,6 +174,13 @@
    "fieldname": "attach_payment_documents",
    "fieldtype": "Check",
    "label": "Attach Payment Documents"
+  },
+  {
+   "default": "0",
+   "description": "Write one payment line into AttachedDocuments and MEV links into Notes. Does not upload payment files. Cannot be used together with Attach Payment Documents.",
+   "fieldname": "include_payment_information",
+   "fieldtype": "Check",
+   "label": "Include Payment Information"
   },
   {
    "depends_on": "eval:doc.attach_payment_documents",
