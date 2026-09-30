@@ -25,10 +25,10 @@ class TestSaleseFactura(FrappeTestCase):
 		):
 			_post_outgoing_invoices(client, ef, "<xml/>", 0)
 		client.post_invoices.assert_called_once()
-		self.assertIsNone(client.post_invoices.call_args.kwargs["attachment"])
+		self.assertIsNone(client.post_invoices.call_args.kwargs.get("attachment"))
 		client.post_invoices_with_attachment.assert_not_called()
 
-	def test_post_with_payment_file_uses_post_invoices(self):
+	def test_post_with_payment_file_uses_post_invoices_with_attachment(self):
 		from unittest.mock import Mock, patch
 
 		from erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura import (
@@ -43,8 +43,8 @@ class TestSaleseFactura(FrappeTestCase):
 			return_value=attachment,
 		):
 			_post_outgoing_invoices(client, ef, "<xml/>", 1)
-		self.assertEqual(client.post_invoices.call_args.kwargs["attachment"], attachment)
-		client.post_invoices_with_attachment.assert_not_called()
+		self.assertEqual(client.post_invoices_with_attachment.call_args.kwargs["attachment"], attachment)
+		client.post_invoices.assert_not_called()
 
 	def test_signed_sef_total_coverage_uses_currency_precision(self):
 		from erpnext_moldova_efactura.utils.fiscal_status import classify_si_fiscal_totals

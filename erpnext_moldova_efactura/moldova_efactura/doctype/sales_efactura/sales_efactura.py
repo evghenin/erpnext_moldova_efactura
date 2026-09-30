@@ -2258,11 +2258,19 @@ def _generate_invoice_xml(
 
 
 def _post_outgoing_invoices(client, efactura, invoices_xml, invoices_xml_status: int):
-    """PostInvoices accepts the PDF on Attachment. PostInvoicesWithAttachment crashes in SFS."""
+    """Section 5.13 stores the PDF. PostInvoices registers the invoice and drops Attachment."""
+    attachment = payment_pdf_attachment(efactura)
+    if attachment:
+        return client.post_invoices_with_attachment(
+            request_id=efactura.name,
+            actor_role=1,
+            invoices_xml=invoices_xml,
+            invoices_xml_status=invoices_xml_status,
+            attachment=attachment,
+        )
     return client.post_invoices(
         request_id=efactura.name,
         actor_role=1,
         invoices_xml=invoices_xml,
         invoices_xml_status=invoices_xml_status,
-        attachment=payment_pdf_attachment(efactura),
     )
