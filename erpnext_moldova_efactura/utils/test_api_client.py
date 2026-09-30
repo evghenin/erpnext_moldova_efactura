@@ -201,3 +201,31 @@ class TestApiClientFailureLogging(unittest.TestCase):
 		message = log_error.call_args.kwargs["message"]
 		self.assertIn("SOAP RESPONSE", message)
 		self.assertIn("<Fault>bad</Fault>", message)
+
+	@patch("erpnext_moldova_efactura.api_client.frappe.log_error")
+	def test_html_500_body_in_exception_text_is_not_logged(self, log_error):
+		html = "<html><svg>logo</svg>server error</html>"
+		method = Mock(side_effect=Exception(f"Server returned response (500) with invalid XML\nContent: {html}"))
+		client = _client(method, http_status=0)
+		client.service = SimpleNamespace(CheckInvoicesStatus=method)
+		client._history = SimpleNamespace(
+			last_sent={"envelope": None},
+			last_received={"envelope": object()},
+		)
+		client._dump_soap_envelope = Mock(return_value=html)
+
+		with self.assertRaises(EFacturaAPIError):
+			client._call(
+				"CheckInvoicesStatus",
+				request={
+					"RequestId": "EF-8",
+					"SeriaAndNumbers": {
+						"InvoiceIndentificator": [{"Seria": "EBM", "Number": "000720769"}]
+					},
+				},
+			)
+
+		message = log_error.call_args.kwargs["message"]
+		self.assertNotIn("<svg>", message)
+		self.assertNotIn("SOAP RESPONSE", message)
+		self.assertNotIn("logo", message)

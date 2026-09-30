@@ -12,6 +12,7 @@ from zeep.exceptions import Fault, TransportError
 from zeep.helpers import serialize_object
 from zeep.plugins import HistoryPlugin
 from zeep.transports import Transport
+from zeep.utils import get_media_type
 from zeep.wsse.username import UsernameToken
 
 
@@ -28,7 +29,14 @@ class _StatusTransport(Transport):
 
     def post(self, address, message, headers):
         response = super().post(address, message, headers)
-        self.last_status_code = getattr(response, "status_code", 0) or 0
+        status = int(getattr(response, "status_code", 0) or 0)
+        self.last_status_code = status
+        # Zeep otherwise embeds the raw body in TransportError ("Content: ...").
+        # SFS HTTP 500 pages are HTML with a large SVG logo.
+        if status == 500:
+            media_type = get_media_type(response.headers.get("Content-Type", "text/xml"))
+            if media_type not in ("text/xml", "application/xml", "application/soap+xml"):
+                raise TransportError("HTTP 500", status_code=500)
         return response
 
 
@@ -44,6 +52,11 @@ def _http_status_code(exc: BaseException | None = None, transport=None) -> int:
         if status:
             return status
     return 0
+
+
+def _looks_like_html_error_page(text: str) -> bool:
+    sample = (text or "")[:4000].lower()
+    return "<svg" in sample or "<html" in sample or "<!doctype html" in sample
 
 
 class EFacturaAPIClient:
@@ -139,6 +152,11 @@ class EFacturaAPIClient:
         response: Any = None,
         omit_response_body: bool = False,
     ) -> None:
+        if _looks_like_html_error_page(error) or "\nContent:" in error:
+            error = error.split("\nContent:", 1)[0]
+            omit_response_body = True
+            if _looks_like_html_error_page(error):
+                error = "HTTP 500"
         parts = [f"method={method_name}", f"error={error}"]
         payload = {}
         if request is not None:
@@ -155,7 +173,9 @@ class EFacturaAPIClient:
         if sent.get("envelope") is not None:
             parts.append("SOAP REQUEST:\n" + self._dump_soap_envelope(sent["envelope"]))
         if received.get("envelope") is not None and not omit_response_body:
-            parts.append("SOAP RESPONSE:\n" + self._dump_soap_envelope(received["envelope"]))
+            dumped = self._dump_soap_envelope(received["envelope"])
+            if not _looks_like_html_error_page(dumped):
+                parts.append("SOAP RESPONSE:\n" + dumped)
 
         title = f"SFS API {method_name} failed"
         ident = self._request_ident_label(request)
@@ -241,7 +261,7 @@ class EFacturaAPIClient:
                 extra=extra,
                 omit_response_body=status == 500,
             )
-            raise EFacturaAPIError(error) from e
+            raise EFacturaAPIError(error) from None
         except Exception as e:
             error = f"Unexpected error in {method_name}: {str(e)}"
             self._log_failed_call(
