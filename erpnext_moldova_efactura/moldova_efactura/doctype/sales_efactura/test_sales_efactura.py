@@ -36,16 +36,16 @@ class TestSaleseFactura(FrappeTestCase):
 		)
 
 		client = Mock()
-		attachment = {"FileName": "situatia-platilor-SEF-1.pdf", "FileContent": "QQ=="}
+		attachment = {"FileName": "situatia-platilor.pdf", "FileContent": "QQ=="}
 		ef = frappe._dict(name="SEF-1")
-		xml = "<Documents><Document><SupplierInfo/><AdditionalInformation><id>SEF-1</id></AdditionalInformation></Document></Documents>"
+		xml = b"<Documents><Document><SupplierInfo/><AdditionalInformation><id>SEF-1</id></AdditionalInformation></Document></Documents>"
 		with patch(
 			"erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.payment_pdf_attachment",
 			return_value=attachment,
 		):
 			_post_outgoing_invoices(client, ef, xml, 1)
 		posted_xml = client.post_invoices_with_attachment.call_args.kwargs["invoices_xml"]
-		self.assertIn("<FileName>situatia-platilor-SEF-1.pdf</FileName>", posted_xml)
+		self.assertIn("<FileName>situatia-platilor.pdf</FileName>", posted_xml)
 		self.assertIn("<FileContent>QQ==</FileContent>", posted_xml)
 		self.assertNotIn("attachment", client.post_invoices_with_attachment.call_args.kwargs)
 		client.post_invoices.assert_not_called()

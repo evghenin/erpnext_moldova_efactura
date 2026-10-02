@@ -4,7 +4,6 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import cint
 
 
 class eFacturaSettings(Document):
@@ -14,10 +13,6 @@ class eFacturaSettings(Document):
 		self._validate_company_api_accounts()
 		self._validate_outgoing_item_tax_templates()
 		self._validate_payment_documents()
-		if cint(self.get("include_payment_information")) and cint(self.get("attach_payment_documents")):
-			frappe.throw(
-				_("Include Payment Information and Attach Payment Documents cannot both be enabled.")
-			)
 		self._validate_payment_print_format()
 		seen = set()
 		for row in self.get("uom_map") or []:

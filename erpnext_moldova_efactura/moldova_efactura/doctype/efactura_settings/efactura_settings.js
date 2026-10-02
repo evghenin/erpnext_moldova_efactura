@@ -100,16 +100,6 @@ frappe.ui.form.on('eFactura Settings', {
             );
         });
     },
-    include_payment_information(frm) {
-        if (frm.doc.include_payment_information && frm.doc.attach_payment_documents) {
-            frm.set_value("attach_payment_documents", 0);
-        }
-    },
-    attach_payment_documents(frm) {
-        if (frm.doc.attach_payment_documents && frm.doc.include_payment_information) {
-            frm.set_value("include_payment_information", 0);
-        }
-    },
 });
 
 function set_options_for_idno_selects(frm) {

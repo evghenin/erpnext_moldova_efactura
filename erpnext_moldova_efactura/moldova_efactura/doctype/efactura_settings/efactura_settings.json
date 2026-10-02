@@ -35,6 +35,7 @@
   "sales_tax_settings",
   "outgoing_payment_section",
   "include_payment_information",
+  "payment_information_annotation",
   "attach_payment_documents",
   "payment_print_format",
   "payment_language",
@@ -170,17 +171,25 @@
   },
   {
    "default": "0",
-   "description": "If enabled, each submitted Payment Entry for the Sales Invoice is written to Documente anexate. The document name comes from the table below and applies to every company.",
+   "description": "Attach a PDF with the payment details. Does not write AttachedDocuments or Notes.",
    "fieldname": "attach_payment_documents",
    "fieldtype": "Check",
    "label": "Attach Payment Documents"
   },
   {
    "default": "0",
-   "description": "Write one payment line into AttachedDocuments and MEV links into Notes. Does not upload payment files. Cannot be used together with Attach Payment Documents.",
+   "description": "Write the payment details into Notes.",
    "fieldname": "include_payment_information",
    "fieldtype": "Check",
    "label": "Include Payment Information"
+  },
+  {
+   "default": "Detalii privind plățile aferente facturii fiscale",
+   "depends_on": "eval:doc.include_payment_information",
+   "description": "First line of the Notes text when payment information is included.",
+   "fieldname": "payment_information_annotation",
+   "fieldtype": "Data",
+   "label": "Payment Information Annotation"
   },
   {
    "depends_on": "eval:doc.attach_payment_documents",

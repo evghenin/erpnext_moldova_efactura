@@ -97,6 +97,11 @@ def payment_pdf_file_name(efactura) -> str:
 	return f"situatia-platilor-{efactura.name}.pdf"
 
 
+def sfs_payment_pdf_file_name() -> str:
+	"""Name SFS shows in the attached-documents list. The stored file keeps the document id."""
+	return "situatia-platilor.pdf"
+
+
 def attached_document_rows(sales_invoice: str) -> list[dict]:
 	names = document_names_by_mode()
 	if not names or not sales_invoice:
@@ -197,7 +202,7 @@ def append_attached_documents(_supplier_info, _rows: list[dict]) -> None:
 
 
 def append_payment_receipt_text(supplier_info, efactura) -> None:
-	"""Interim text until payment files can be posted: one AttachedDocuments line per payment, MEV links in Notes."""
+	"""Write payment lines into Notes. The PDF attachment does not fill this element."""
 	if not cint(frappe.db.get_single_value("eFactura Settings", "include_payment_information")):
 		return
 	from erpnext_moldova_efactura.utils.si_link import sales_invoice_of
@@ -206,26 +211,38 @@ def append_payment_receipt_text(supplier_info, efactura) -> None:
 	if not rows:
 		return
 	currency = (getattr(efactura, "ef_currency", None) or getattr(efactura, "currency", None) or "").strip()
-	lines = []
-	urls = []
-	seen = set()
-	for row in rows:
+	annotation = (frappe.db.get_single_value("eFactura Settings", "payment_information_annotation") or "").strip()
+	ET.SubElement(supplier_info, "Notes").text = _payment_notes(rows, currency, annotation)
+
+
+def _payment_notes(rows: list[dict], currency: str, annotation: str) -> str:
+	blocks = []
+	allocated_total = 0
+	for index, row in enumerate(rows, start=1):
 		when = ""
 		if row.get("date"):
 			when = getdate(row["date"][:10]).strftime("%d.%m.%Y")
-		amount = f"{flt(row.get('allocated_amount')):.2f}"
-		if currency:
-			amount = f"{amount} {currency}"
-		lines.append(
-			f"{row['type']} nr. {row.get('number') or ''} din {when} suma achitată {amount}"
-		)
-		for url in row.get("urls") or []:
-			if url not in seen:
-				seen.add(url)
-				urls.append(url)
-	ET.SubElement(supplier_info, "AttachedDocuments").text = "\n".join(lines)
-	if urls:
-		ET.SubElement(supplier_info, "Notes").text = "\n".join(urls)
+		paid = _format_money(row.get("paid_amount"), currency)
+		allocated = flt(row.get("allocated_amount"))
+		allocated_total += allocated
+		lines = [f"{index}. {row.get('type') or ''} nr. {row.get('number') or ''} din {when} în sumă de {paid}"]
+		lines.append(f"   Sumă alocată facturii: {_format_money(allocated, currency)}")
+		url = (row.get("url") or "").strip()
+		if not url and row.get("urls"):
+			url = (row["urls"][0] or "").strip()
+		if url:
+			lines.append(f"   {url}")
+		blocks.append("\n".join(lines))
+	parts = []
+	if annotation:
+		parts.append(annotation)
+	parts.append("\n\n".join(blocks))
+	parts.append(f"Total alocat facturii: {_format_money(allocated_total, currency)}")
+	return "\n\n".join(parts)
+
+
+def _format_money(amount, currency: str) -> str:
+	return frappe.utils.fmt_money(flt(amount), currency=currency or None).strip()
 
 
 def _money(value) -> str:
@@ -499,13 +516,15 @@ def payment_pdf_attachment(efactura) -> dict | None:
 	if not content:
 		return None
 	return {
-		"FileName": stored_name,
+		"FileName": sfs_payment_pdf_file_name(),
 		"FileContent": base64.b64encode(content).decode(),
 	}
 
 
-def embed_payment_file(invoices_xml: str, attachment: dict) -> str:
+def embed_payment_file(invoices_xml: str | bytes, attachment: dict) -> str:
 	"""Put the PDF inside AdditionalInformation. SFS stores that pair and drops SOAP Attachment."""
+	if isinstance(invoices_xml, bytes):
+		invoices_xml = invoices_xml.decode("utf-8")
 	file_name = escape(str(attachment.get("FileName") or ""))
 	file_content = str(attachment.get("FileContent") or "")
 	if not file_name or not file_content:

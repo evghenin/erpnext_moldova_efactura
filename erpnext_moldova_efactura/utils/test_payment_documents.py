@@ -156,37 +156,60 @@ class TestPaymentDocuments(unittest.TestCase):
 		source.assert_not_called()
 
 	@patch("erpnext_moldova_efactura.utils.si_link.sales_invoice_of", return_value="SINV-1")
-	@patch("erpnext_moldova_efactura.utils.payment_documents.frappe.db.get_single_value", return_value=1)
+	@patch(
+		"erpnext_moldova_efactura.utils.payment_documents.frappe.db.get_single_value",
+		side_effect=lambda _doctype, field, *_args, **_kwargs: {
+			"include_payment_information": 1,
+			"attach_payment_documents": 1,
+			"payment_information_annotation": "Detalii privind plățile aferente facturii fiscale",
+		}.get(field, 0),
+	)
 	@patch("erpnext_moldova_efactura.utils.payment_documents.attached_document_rows")
-	def test_receipt_text_writes_lines_and_mev_links(self, rows, _setting, _invoice):
+	@patch(
+		"erpnext_moldova_efactura.utils.payment_documents._format_money",
+		side_effect=lambda amount, currency: f"{float(amount):,.2f} {currency}".replace(",", " ").replace(".", ","),
+	)
+	def test_receipt_text_writes_lines_and_mev_links(self, _money, rows, _setting, _invoice):
 		from erpnext_moldova_efactura.utils.payment_documents import append_payment_receipt_text
 
 		rows.return_value = [
 			{
 				"type": "Bon fiscal (numerar)",
-				"number": "36",
-				"date": "2026-09-29T00:00:00",
-				"allocated_amount": 150,
-				"urls": ["https://mev.sfs.md/c/abc", "https://mev.sfs.md/c/abc"],
+				"number": "1",
+				"date": "2026-10-01T00:00:00",
+				"paid_amount": 1465,
+				"allocated_amount": 1465,
+				"url": "https://mev.sfs.md/receipt-verifier/4E3C3926F74A7D974DDC0708CB084C80",
 			},
 			{
-				"type": "Ordin de plata",
-				"number": "OP-9",
-				"date": "2026-09-28T00:00:00",
-				"allocated_amount": 10,
-				"urls": ["https://mev.sfs.md/c/def"],
+				"type": "Transfer bancar",
+				"number": "4245",
+				"date": "2026-10-06T00:00:00",
+				"paid_amount": 200000,
+				"allocated_amount": 5000,
 			},
 		]
 		supplier = ET.Element("SupplierInfo")
 		append_payment_receipt_text(supplier, SimpleNamespace(ef_currency="MDL"))
-		text = ET.tostring(supplier, encoding="unicode")
-		self.assertIn(
-			"Bon fiscal (numerar) nr. 36 din 29.09.2026 suma achitată 150.00 MDL",
-			text,
-		)
-		self.assertIn("Ordin de plata nr. OP-9 din 28.09.2026 suma achitată 10.00 MDL", text)
 		notes = supplier.find("Notes").text
-		self.assertEqual(notes, "https://mev.sfs.md/c/abc\nhttps://mev.sfs.md/c/def")
+		self.assertIsNone(supplier.find("AttachedDocuments"))
+		self.assertEqual(
+			notes,
+			"\n".join(
+				[
+					"Detalii privind plățile aferente facturii fiscale",
+					"",
+					"1. Bon fiscal (numerar) nr. 1 din 01.10.2026 în sumă de 1 465,00 MDL",
+					"   Sumă alocată facturii: 1 465,00 MDL",
+					"   https://mev.sfs.md/receipt-verifier/4E3C3926F74A7D974DDC0708CB084C80",
+					"",
+					"2. Transfer bancar nr. 4245 din 06.10.2026 în sumă de 200 000,00 MDL",
+					"   Sumă alocată facturii: 5 000,00 MDL",
+					"",
+					"Total alocat facturii: 6 465,00 MDL",
+				]
+			),
+		)
 
 	def test_signed_xml_does_not_include_attached_documents(self):
 		supplier = ET.Element("SupplierInfo")
