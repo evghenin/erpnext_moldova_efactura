@@ -54,6 +54,31 @@ def _http_status_code(exc: BaseException | None = None, transport=None) -> int:
     return 0
 
 
+def _parse_invoice_post_result(xml_text: str) -> Dict[str, Any]:
+    root = etree.fromstring((xml_text or "").encode("utf-8"))
+    ns = {"a": "http://schemas.datacontract.org/2004/07/AX.EFactura.Model.ApiModel"}
+
+    def text(tag: str) -> str:
+        element = root.find(f".//a:{tag}", ns)
+        if element is None or element.text is None:
+            return ""
+        return element.text
+
+    def number(tag: str) -> int:
+        try:
+            return int(text(tag) or 0)
+        except ValueError:
+            return 0
+
+    return {
+        "RequestId": text("RequestId"),
+        "Status": number("Status"),
+        "ErrorMessage": text("ErrorMessage") or None,
+        "TotalInvoices": number("TotalInvoices"),
+        "TotalInvoicesPosted": number("TotalInvoicesPosted"),
+    }
+
+
 def _looks_like_html_error_page(text: str) -> bool:
     sample = (text or "")[:4000].lower()
     return "<svg" in sample or "<html" in sample or "<!doctype html" in sample
@@ -451,17 +476,65 @@ class EFacturaAPIClient:
         actor_role: int,
         invoices_xml: str,
         invoices_xml_status: int,
-        attachment: Optional[dict],
         request_id: Optional[str] = None,
     ) -> Dict[str, Any]:
+        """Post without a SOAP Attachment element. The PDF is already inside InvoicesXml."""
+        request_id = request_id or self._new_request_id()
         req = {
-            "RequestId": request_id or self._new_request_id(),
+            "RequestId": request_id,
             "ActorRole": actor_role,
             "InvoicesXml": invoices_xml,
             "InvoicesXmlStatus": invoices_xml_status,
-            "Attachment": attachment,
         }
-        data = self._call("PostInvoicesWithAttachment", request=req)
+        endpoint = self.wsdl_url.split("?")[0]
+        envelope = (
+            '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"'
+            ' xmlns:tem="http://tempuri.org/"'
+            ' xmlns:ax="http://schemas.datacontract.org/2004/07/AX.EFactura.Model.ApiModel">'
+            '<soapenv:Header xmlns:wsa="http://www.w3.org/2005/08/addressing">'
+            "<wsa:Action>http://tempuri.org/IService/PostInvoicesWithAttachment</wsa:Action>"
+            f"<wsa:MessageID>urn:uuid:{uuid.uuid4()}</wsa:MessageID>"
+            f"<wsa:To>{endpoint}</wsa:To>"
+            "<wsse:Security"
+            ' xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd">'
+            "<wsse:UsernameToken>"
+            f"<wsse:Username>{self.username}</wsse:Username>"
+            "<wsse:Password"
+            ' Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText">'
+            f"{self.password}</wsse:Password>"
+            "</wsse:UsernameToken></wsse:Security></soapenv:Header>"
+            "<soapenv:Body><tem:PostInvoicesWithAttachment><tem:request>"
+            f"<ax:RequestId>{request_id}</ax:RequestId>"
+            f"<ax:ActorRole>{int(actor_role)}</ax:ActorRole>"
+            f"<ax:InvoicesXml><![CDATA[{invoices_xml}]]></ax:InvoicesXml>"
+            f"<ax:InvoicesXmlStatus>{int(invoices_xml_status)}</ax:InvoicesXmlStatus>"
+            "</tem:request></tem:PostInvoicesWithAttachment></soapenv:Body></soapenv:Envelope>"
+        )
+        try:
+            response = self._transport.session.post(
+                endpoint,
+                data=envelope.encode("utf-8"),
+                headers={
+                    "Content-Type": "text/xml; charset=utf-8",
+                    "SOAPAction": "http://tempuri.org/IService/PostInvoicesWithAttachment",
+                },
+                timeout=self._transport.operation_timeout,
+            )
+        except Exception as e:
+            error = f"Transport error in PostInvoicesWithAttachment: {e}"
+            self._log_failed_call("PostInvoicesWithAttachment", error=error, request=req)
+            raise EFacturaAPIError(error) from e
+        self._transport.last_status_code = int(response.status_code or 0)
+        if response.status_code >= 400:
+            error = f"Transport error in PostInvoicesWithAttachment: HTTP {response.status_code}"
+            self._log_failed_call(
+                "PostInvoicesWithAttachment",
+                error=error,
+                request=req,
+                omit_response_body=response.status_code == 500,
+            )
+            raise EFacturaAPIError(error)
+        data = _parse_invoice_post_result(response.text)
         self._log_if_invoices_not_posted("PostInvoicesWithAttachment", req, data)
         return data
 

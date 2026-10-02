@@ -38,13 +38,28 @@ class TestSaleseFactura(FrappeTestCase):
 		client = Mock()
 		attachment = {"FileName": "situatia-platilor-SEF-1.pdf", "FileContent": "QQ=="}
 		ef = frappe._dict(name="SEF-1")
+		xml = "<Documents><Document><SupplierInfo/><AdditionalInformation><id>SEF-1</id></AdditionalInformation></Document></Documents>"
 		with patch(
 			"erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura.payment_pdf_attachment",
 			return_value=attachment,
 		):
-			_post_outgoing_invoices(client, ef, "<xml/>", 1)
-		self.assertEqual(client.post_invoices_with_attachment.call_args.kwargs["attachment"], attachment)
+			_post_outgoing_invoices(client, ef, xml, 1)
+		posted_xml = client.post_invoices_with_attachment.call_args.kwargs["invoices_xml"]
+		self.assertIn("<FileName>situatia-platilor-SEF-1.pdf</FileName>", posted_xml)
+		self.assertIn("<FileContent>QQ==</FileContent>", posted_xml)
+		self.assertNotIn("attachment", client.post_invoices_with_attachment.call_args.kwargs)
 		client.post_invoices.assert_not_called()
+
+	def test_status_2_empty_error_message_is_not_a_post_failure(self):
+		from erpnext_moldova_efactura.moldova_efactura.doctype.sales_efactura.sales_efactura import (
+			_invoice_post_error_message,
+		)
+
+		self.assertEqual(
+			_invoice_post_error_message({"ErrorMessage": "ErrorCode=2;ErrorMessage=;"}),
+			"",
+		)
+		self.assertEqual(_invoice_post_error_message({"ErrorMessage": "Motivul Crearii este null"}), "Motivul Crearii este null")
 
 	def test_signed_sef_total_coverage_uses_currency_precision(self):
 		from erpnext_moldova_efactura.utils.fiscal_status import classify_si_fiscal_totals

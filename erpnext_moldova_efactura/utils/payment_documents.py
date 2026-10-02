@@ -6,6 +6,7 @@ import base64
 import os
 import re
 import xml.etree.ElementTree as ET
+from xml.sax.saxutils import escape
 from datetime import datetime
 
 import frappe
@@ -501,5 +502,20 @@ def payment_pdf_attachment(efactura) -> dict | None:
 		"FileName": stored_name,
 		"FileContent": base64.b64encode(content).decode(),
 	}
+
+
+def embed_payment_file(invoices_xml: str, attachment: dict) -> str:
+	"""Put the PDF inside AdditionalInformation. SFS stores that pair and drops SOAP Attachment."""
+	file_name = escape(str(attachment.get("FileName") or ""))
+	file_content = str(attachment.get("FileContent") or "")
+	if not file_name or not file_content:
+		return invoices_xml
+	block = f"<FileName>{file_name}</FileName><FileContent>{file_content}</FileContent>"
+	if "<FileContent>" in invoices_xml and "<AdditionalInformation>" in invoices_xml:
+		return invoices_xml
+	marker = "<AdditionalInformation>"
+	if marker not in invoices_xml:
+		return invoices_xml
+	return invoices_xml.replace(marker, marker + block, 1)
 
 

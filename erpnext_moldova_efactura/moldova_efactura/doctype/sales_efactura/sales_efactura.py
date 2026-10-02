@@ -25,6 +25,7 @@ from erpnext_moldova_efactura.utils.timeline import log_event, log_status_change
 from lxml import etree
 from erpnext_moldova_efactura.utils.payment_documents import (
     attach_payment_pdf,
+    embed_payment_file,
     payment_pdf_attachment,
     sync_attached_documents,
 )
@@ -1087,7 +1088,7 @@ def send_unsigned(efactura_name):
 
     resp = _post_outgoing_invoices(client, efactura, xml_content, 0)
 
-    error_message = resp.get("ErrorMessage")
+    error_message = _invoice_post_error_message(resp)
     total = resp.get("TotalInvoices", 0)
     posted = resp.get("TotalInvoicesPosted", 0)
 
@@ -1226,7 +1227,7 @@ def process_signed_xml(name, signature, content):
     except Exception as e:
         post_error = str(e)
 
-    error_message = (resp or {}).get("ErrorMessage")
+    error_message = _invoice_post_error_message(resp)
     total = (resp or {}).get("TotalInvoices", 0) or 0
     posted = (resp or {}).get("TotalInvoicesPosted", 0) or 0
     posted_ok = not post_error and not error_message and total == posted and posted != 0
@@ -1252,6 +1253,14 @@ def process_signed_xml(name, signature, content):
         "total": total,
         "posted": posted,
     }
+
+
+def _invoice_post_error_message(resp) -> str:
+    """Blank when SFS accepted the invoice. Status 2 still returns ErrorCode=2 with an empty message."""
+    message = str((resp or {}).get("ErrorMessage") or "").strip()
+    if message in {"ErrorCode=2;ErrorMessage=;", "ErrorCode=2;ErrorMessage="}:
+        return ""
+    return message
 
 
 def _post_failure_detail(resp, posted, total) -> str:
@@ -2262,15 +2271,14 @@ def _generate_invoice_xml(
 
 
 def _post_outgoing_invoices(client, efactura, invoices_xml, invoices_xml_status: int):
-    """Section 5.13 stores the PDF. PostInvoices registers the invoice and drops Attachment."""
+    """SFS stores one PDF from AdditionalInformation/FileName and FileContent, not from SOAP Attachment."""
     attachment = payment_pdf_attachment(efactura)
     if attachment:
         return client.post_invoices_with_attachment(
             request_id=efactura.name,
             actor_role=1,
-            invoices_xml=invoices_xml,
+            invoices_xml=embed_payment_file(invoices_xml, attachment),
             invoices_xml_status=invoices_xml_status,
-            attachment=attachment,
         )
     return client.post_invoices(
         request_id=efactura.name,
