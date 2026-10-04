@@ -43,6 +43,29 @@ Version 3 adds **Purchase Factura (PF)** for fiscal invoices received outside th
 - Supplier / buyer / transporter shown as HTML (same pattern as Sales eFactura).
 - Status sync prefers invoices awaiting buyer action (SFS 1 / 7 / 9). SearchInvoices uses 7-day `IssuedOn` windows (the SFS API has no pagination).
 
+#### Return to supplier
+
+Goods go back to the supplier on a **Purchase Receipt Return**. Two facturas cover that movement, and they stay separate:
+
+- **Sales eFactura, Non-Transfer** (SFS Non-livrare) is the outgoing goods document. **Mark as Return** sets the party to the Supplier. It links 1:1 to the submitted Purchase Receipt Return. Quantities on the e-Factura stay positive. Sales Invoice, Sales Order, and Delivery Note are not used.
+- **Purchase eFactura, Transfer** (SFS Livrare) is the supplier's credit factura. It is a mirror of the original purchase: the same items and the same positive unit prices, with **negative quantities**, **negative line totals**, and a **negative document total**. Map it to a **Purchase Invoice** with `is_return = 1`. That invoice is the accounting document. The Purchase Receipt Return is the only stock document.
+
+When the original receipt is already in ERPNext:
+
+1. Create a **Purchase Receipt Return** from the submitted Purchase Receipt (`is_return`, `return_against`) and submit it. Stock decreases.
+2. From that receipt, create **Sales eFactura for return (Non-Transfer)** and **Mark as Return**. Submit only when the e-Factura covers the return in full. Before submit, empty supplier and customer IDNO, name, address, and taxpayer type are loaded from SFS; submit is blocked if any of them stay empty. Sign and register as for any outgoing e-Factura.
+3. The supplier issues a **Livrare** that mirrors the returned lines: negative quantity, positive unit price, negative line amounts, and a negative grand total. Fetch that Purchase eFactura. Do not mark it as a return and do not create a Purchase Order (the total is negative).
+4. Map the supplier items and UOM, then create or link a **Purchase Invoice** with `is_return = 1` for the same supplier. Leave **Update Stock** off: the Purchase Receipt Return has already reduced stock, and a second stock posting would remove the quantity again. On the invoice, quantity is negative, rate is positive, and line and document totals are negative, matching the Livrare. Submit the invoice. It reduces the supplier balance (Accounts Payable) and clears **Stock Received But Not Billed** left by the receipt return. Submit the Purchase eFactura only when the invoice covers every line. Accept it in SFS as for any incoming Transfer.
+5. If the supplier instead sends **+qty / −rate** with a negative total, ERPNext still needs the return invoice as −qty / +rate. The form explains this. XML lines stay as received. Stock is still only the Purchase Receipt Return, so **Update Stock** stays off.
+
+When the goods were received before this database (no Purchase Order, Purchase Invoice, or Purchase Receipt), create the missing receipt as a technical document:
+
+1. Submit a **Purchase Receipt** for that supplier, the same items, quantity, and warehouse. Do not link a Purchase Order or Purchase Invoice. Set the posting date **before** the opening Stock Reconciliation, so the receipt does not increase the current balance.
+2. Create and submit the **Purchase Receipt Return** against that receipt, dated in the current period. This return is what decreases stock.
+3. Continue with the Sales eFactura and the supplier's Purchase eFactura as above.
+
+Cancelling the Sales eFactura removes its link to the Purchase Receipt and does not cancel the receipt. Cancelling the receipt is blocked while that Sales eFactura is submitted.
+
 #### Purchase Factura (version 3)
 
 - Manually register a Moldovan purchase factura received on paper. Preserve its original series, number, dates, issuer/recipient IDNO, VAT details, item values, references, and an optional private scan.
