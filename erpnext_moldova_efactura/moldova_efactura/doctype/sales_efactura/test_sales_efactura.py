@@ -1296,6 +1296,9 @@ class TestSaleseFactura(FrappeTestCase):
 
 		doc = frappe.new_doc("Sales eFactura")
 		doc.ef_supplier_idno = "1002600023594"
+		doc.ef_supplier_name = "Acme"
+		doc.ef_supplier_address = "Chisinau"
+		doc.ef_supplier_taxpayer_type = "Company"
 		doc.get_valid_columns = lambda: []
 
 		get_client = Mock(side_effect=AssertionError("SFS client must not be created"))
@@ -1339,6 +1342,54 @@ class TestSaleseFactura(FrappeTestCase):
 			doc._autofill_party_block(get_client, "supplier", "Company", "Acme", "tax_id")
 		get_client.assert_called_once()
 		client.get_taxpayers_info.assert_called_once_with(["1002600023594"])
+
+	def test_autofill_party_block_fills_empty_address_when_idno_matches(self):
+		from unittest.mock import Mock, patch
+
+		doc = frappe.new_doc("Sales eFactura")
+		doc.ef_supplier_idno = "1002600023594"
+		doc.ef_supplier_name = "Acme"
+		doc.ef_supplier_address = ""
+		doc.ef_supplier_taxpayer_type = "Company"
+		doc.db_set = Mock()
+		doc.get_valid_columns = lambda: []
+
+		client = Mock()
+		client.get_taxpayers_info.return_value = {
+			"Results": {
+				"Taxpayer": [
+					{
+						"IDNO": "1002600023594",
+						"CodTVA": "",
+						"Name": "Other",
+						"Address": "Chisinau",
+						"TaxpayerType": 0,
+						"IsEFacturaActor": True,
+					}
+				]
+			}
+		}
+		get_client = Mock(return_value=client)
+		with (
+			patch("frappe.get_meta") as get_meta,
+			patch("frappe.db.get_value", return_value="1002600023594"),
+		):
+			get_meta.return_value.has_field.return_value = True
+			doc._autofill_party_block(get_client, "supplier", "Company", "Acme", "tax_id")
+		self.assertEqual(doc.ef_supplier_address, "Chisinau")
+		self.assertEqual(doc.ef_supplier_name, "Acme")
+
+	def test_submit_blocked_when_customer_address_stays_empty(self):
+		doc = frappe.new_doc("Sales eFactura")
+		doc.ef_supplier_idno = "1"
+		doc.ef_supplier_name = "Supplier"
+		doc.ef_supplier_address = "Addr"
+		doc.ef_supplier_taxpayer_type = "Company"
+		doc.ef_customer_idno = "2"
+		doc.ef_customer_name = "Buyer"
+		doc.ef_customer_taxpayer_type = "Company"
+		with self.assertRaises(frappe.ValidationError):
+			doc._throw_if_party_requisites_missing()
 
 	def test_update_items_available_qty_uses_bulk_queries(self):
 		from unittest.mock import patch

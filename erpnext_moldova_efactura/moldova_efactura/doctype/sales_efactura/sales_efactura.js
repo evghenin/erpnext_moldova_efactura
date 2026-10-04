@@ -69,6 +69,7 @@ frappe.ui.form.on('Sales eFactura', {
 
     refresh(frm) {
         frm._ef_in_submit = false;
+        frm.ignore_doctypes_on_cancel_all = ["Purchase Receipt"];
         apply_sef_item_code_indicator(frm);
         setup_sales_invoice_query(frm);
         update_company_bank_account(frm);

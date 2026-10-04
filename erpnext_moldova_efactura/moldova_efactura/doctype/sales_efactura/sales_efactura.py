@@ -172,6 +172,8 @@ class SaleseFactura(Document):
         enforce_si_qty_on_draft_save(self)
 
     def before_submit(self):
+        self._autofill_parties_from_efactura_api_after_save(strict=True)
+        self._throw_if_party_requisites_missing()
         self._validate_ready_to_submit()
         from erpnext_moldova_efactura.utils.qty_guard import enforce_si_qty_on_submit
 
@@ -224,6 +226,32 @@ class SaleseFactura(Document):
             from erpnext_moldova_efactura.utils.sef_pr_alloc import throw_unallocated_pr
 
             throw_unallocated_pr(self.items, self.currency)
+
+    def _throw_if_party_requisites_missing(self):
+        missing = []
+        for prefix, label in (("supplier", _("Supplier")), ("customer", _("Customer"))):
+            missing.extend(self._missing_party_requisites(prefix, label))
+        if self.transporter_party_type and self.transporter_party:
+            missing.extend(self._missing_party_requisites("transporter", _("Transporter")))
+        if missing:
+            frappe.throw(
+                _("e-Factura party details are incomplete after the SFS lookup: {0}").format(
+                    ", ".join(missing)
+                )
+            )
+
+    def _missing_party_requisites(self, prefix, label):
+        labels = {
+            "idno": _("IDNO"),
+            "name": _("Name"),
+            "address": _("Address"),
+            "taxpayer_type": _("Taxpayer Type"),
+        }
+        missing = []
+        for key, field_label in labels.items():
+            if not (getattr(self, f"ef_{prefix}_{key}", None) or "").strip():
+                missing.append(f"{label} {field_label}")
+        return missing
 
     def on_submit(self):
         self.set_status(log=False)
@@ -696,7 +724,7 @@ class SaleseFactura(Document):
         self.apply_ef_conversion_rate_rules()
         self._apply_sfs_xml_amounts()
 
-    def _autofill_parties_from_efactura_api_after_save(self):
+    def _autofill_parties_from_efactura_api_after_save(self, strict=False):
         # Prevent recursion
         if getattr(self.flags, "ef_autofill_running", False):
             return
@@ -757,8 +785,9 @@ class SaleseFactura(Document):
                 self._clear_party_block("transporter")
 
         except Exception:
-            # Do not block saving in draft; log for diagnostics.
             frappe.log_error(frappe.get_traceback(), "eFactura: autofill parties failed")
+            if strict:
+                raise
         finally:
             self.flags.ef_autofill_running = False
 
@@ -793,26 +822,29 @@ class SaleseFactura(Document):
         if not party_idno:
             return
 
-        # If IDNO already filled and equal to party IDNO do not overwrite / call SFS.
-        idno_value = getattr(self, f"ef_{prefix}_idno", None)
-        if not idno_value or party_idno != idno_value:
+        # Reload from SFS when IDNO is missing or differs, or when name/address/type are still empty.
+        idno_value = (getattr(self, f"ef_{prefix}_idno", None) or "").strip()
+        fill_only_empty = bool(idno_value) and party_idno == idno_value
+        if not fill_only_empty or self._missing_party_requisites(prefix, prefix):
             tax_resp = get_client().get_taxpayers_info([party_idno])
             taxpayers = (tax_resp.get("Results") or {}).get("Taxpayer") or []
             taxpayer = taxpayers[0] if taxpayers else {}
 
-            idno = taxpayer.get("IDNO") or ""
-            vat_id = taxpayer.get("CodTVA") or ""
-            name = taxpayer.get("Name") or ""
-            address = taxpayer.get("Address") or ""
-            taxpayer_type = taxpayer_type_from_sfs(taxpayer.get("TaxpayerType") or "")
-            is_user = "Yes" if taxpayer.get("IsEFacturaActor") else "No"
-
-            self.db_set(f"ef_{prefix}_idno", idno, update_modified=False)
-            self.db_set(f"ef_{prefix}_vat_id", vat_id, update_modified=False)
-            self.db_set(f"ef_{prefix}_name", name, update_modified=False)
-            self.db_set(f"ef_{prefix}_address", address, update_modified=False)
-            self.db_set(f"ef_{prefix}_taxpayer_type", taxpayer_type, update_modified=False)
-            self.db_set(f"ef_{prefix}_is_user", is_user, update_modified=False)
+            values = {
+                f"ef_{prefix}_idno": taxpayer.get("IDNO") or "",
+                f"ef_{prefix}_vat_id": taxpayer.get("CodTVA") or "",
+                f"ef_{prefix}_name": taxpayer.get("Name") or "",
+                f"ef_{prefix}_address": taxpayer.get("Address") or "",
+                f"ef_{prefix}_taxpayer_type": taxpayer_type_from_sfs(taxpayer.get("TaxpayerType") or ""),
+                f"ef_{prefix}_is_user": "Yes" if taxpayer.get("IsEFacturaActor") else "No",
+            }
+            for fieldname, value in values.items():
+                current = (getattr(self, fieldname, None) or "").strip()
+                if fill_only_empty and current:
+                    continue
+                if not value and fill_only_empty:
+                    continue
+                self._assign_ef_field(fieldname, value)
 
         # Bank from local Bank Account only on save (no GetBankAccountInfo / WSDL).
         ba_field = _party_bank_link_field(prefix)
@@ -834,7 +866,13 @@ class SaleseFactura(Document):
         }
         for field, value in updates.items():
             if (getattr(self, field, None) or "") != (value or ""):
-                self.db_set(field, value or "", update_modified=False)
+                self._assign_ef_field(field, value or "")
+
+    def _assign_ef_field(self, fieldname, value):
+        value = value or ""
+        setattr(self, fieldname, value)
+        if getattr(self, "name", None) and not self.is_new():
+            self.db_set(fieldname, value, update_modified=False)
 
 @frappe.whitelist()
 def download_xml(efactura_name):
