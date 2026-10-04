@@ -481,3 +481,15 @@ The document has not been modified since the signature was applied,Докуме�
 Timestamp was not checked,Метка времени не проверялась
 has not been altered,не был изменён
 Verify Signatures,Проверить подписи
+Supplier Inbox,Входящие поставщика
+Import Factura from Supplier Inbox,Импортировать фактуру из входящих поставщика
+"When enabled, Supplier Inbox Email runs the eFactura handler. A matching file is imported as a Purchase Factura.","Если включено, Supplier Inbox Email запускает обработчик eFactura. Подходящий файл импортируется как Purchase Factura."
+"A file is imported when every filled pattern matches. Use % as wildcard. Patterns are not case-sensitive. An empty pattern matches any value. If both PDF and AI are checked, PDF is tried first.","Файл импортируется, когда совпадает каждый заполненный шаблон. Используйте % как маску. Регистр не учитывается. Пустой шаблон совпадает с любым значением. Если отмечены и PDF, и AI, сначала выполняется PDF."
+Import Rules,Правила импорта
+Sender Name,Имя отправителя
+Sender Email,Email отправителя
+Subject,Тема
+File Name,Имя файла
+"Each Supplier Inbox rule needs at least one of sender, subject, or file name",У каждого правила Supplier Inbox должны быть отправитель, тема или имя файла
+"Each Supplier Inbox rule needs the PDF handler, the AI handler, or both","У каждого правила Supplier Inbox должен быть обработчик PDF, обработчик AI или оба"
+"Moldova Supplier Inbox keeps one document per supplier email and the files from that letter. When it is installed, eFactura can match those files by sender name, sender email, subject, and file name, then import a Purchase Factura. A rule can use the PDF parser, the AI paper reader, or the PDF parser first and the AI reader when the PDF parser fails.","Moldova Supplier Inbox хранит по одному документу на письмо поставщика и файлы из этого письма. Когда приложение установлено, eFactura сопоставляет эти файлы по имени отправителя, email, теме и имени файла и импортирует Purchase Factura. Правило может использовать разбор PDF, чтение через AI или сначала PDF, а при неудаче — AI."

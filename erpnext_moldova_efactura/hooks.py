@@ -10,6 +10,10 @@ app_license = "mit"
 
 required_apps = ["erpnext"]
 
+inbound_email_handlers = [
+	"erpnext_moldova_efactura.inbox.handle_inbound_email",
+]
+
 # Each item in the list will be shown as an app in the apps page
 # add_to_apps_screen = [
 # 	{

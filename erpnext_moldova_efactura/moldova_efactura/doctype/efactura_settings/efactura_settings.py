@@ -14,6 +14,7 @@ class eFacturaSettings(Document):
 		self._validate_outgoing_item_tax_templates()
 		self._validate_payment_documents()
 		self._validate_payment_print_format()
+		self._validate_inbox_rules()
 		seen = set()
 		for row in self.get("uom_map") or []:
 			key = (row.supplier_uom or "").strip().lower()
@@ -140,6 +141,19 @@ class eFacturaSettings(Document):
 							row.sales_taxes_and_charges, row.company
 						)
 					)
+
+	def _validate_inbox_rules(self):
+		for row in self.get("inbox_rules") or []:
+			filled = [
+				row.sender_name,
+				row.sender_email,
+				row.subject,
+				row.file_name,
+			]
+			if not any((value or "").strip() for value in filled):
+				frappe.throw(_("Each Supplier Inbox rule needs at least one of sender, subject, or file name"))
+			if not row.import_via_pdf and not row.import_via_ai:
+				frappe.throw(_("Each Supplier Inbox rule needs the PDF handler, the AI handler, or both"))
 
 
 @frappe.whitelist()

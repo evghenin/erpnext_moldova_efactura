@@ -497,3 +497,15 @@ The document has not been modified since the signature was applied,Documentul nu
 Timestamp was not checked,Marcajul de timp nu a fost verificat
 has not been altered,nu a fost alterat
 Verify Signatures,Verifică semnăturile
+Supplier Inbox,Inbox furnizor
+Import Factura from Supplier Inbox,Importă factura din Inbox furnizor
+"When enabled, Supplier Inbox Email runs the eFactura handler. A matching file is imported as a Purchase Factura.","Dacă este activat, Supplier Inbox Email pornește handler-ul eFactura. Un fișier potrivit este importat ca Purchase Factura."
+"A file is imported when every filled pattern matches. Use % as wildcard. Patterns are not case-sensitive. An empty pattern matches any value. If both PDF and AI are checked, PDF is tried first.","Un fișier este importat când fiecare șablon completat se potrivește. Folosiți % ca metacaracter. Șabloanele nu țin cont de majuscule. Un șablon gol se potrivește cu orice valoare. Dacă sunt bifate atât PDF, cât și AI, se încearcă mai întâi PDF."
+Import Rules,Reguli de import
+Sender Name,Nume expeditor
+Sender Email,Email expeditor
+Subject,Subiect
+File Name,Nume fișier
+"Each Supplier Inbox rule needs at least one of sender, subject, or file name","Fiecare regulă Supplier Inbox trebuie să aibă expeditorul, subiectul sau numele fișierului."
+"Each Supplier Inbox rule needs the PDF handler, the AI handler, or both","Fiecare regulă Supplier Inbox trebuie să aibă handler-ul PDF, handler-ul AI sau ambele."
+"Moldova Supplier Inbox keeps one document per supplier email and the files from that letter. When it is installed, eFactura can match those files by sender name, sender email, subject, and file name, then import a Purchase Factura. A rule can use the PDF parser, the AI paper reader, or the PDF parser first and the AI reader when the PDF parser fails.","Moldova Supplier Inbox păstrează câte un document pentru fiecare email de la furnizor și fișierele din acel mesaj. După instalare, eFactura poate potrivi aceste fișiere după numele expeditorului, email, subiect și numele fișierului, apoi importă o Purchase Factura. O regulă poate folosi parserul PDF, citirea AI sau mai întâi parserul PDF și citirea AI dacă parserul PDF eșuează."

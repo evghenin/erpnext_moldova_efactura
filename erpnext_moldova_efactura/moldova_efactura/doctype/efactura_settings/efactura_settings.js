@@ -3,6 +3,17 @@
 
 frappe.ui.form.on('eFactura Settings', {
     refresh(frm) {
+        const inbox = !!frappe.boot.moldova_efactura_inbox;
+        frm.set_df_property(
+            "inbox_unavailable",
+            "options",
+            `<p>${__(
+                "Moldova Supplier Inbox keeps one document per supplier email and the files from that letter. When it is installed, eFactura can match those files by sender name, sender email, subject, and file name, then import a Purchase Factura. A rule can use the PDF parser, the AI paper reader, or the PDF parser first and the AI reader when the PDF parser fails."
+            )}</p><p><a href="https://github.com/evghenin/erpnext_moldova_inbox" target="_blank" rel="noopener">https://github.com/evghenin/erpnext_moldova_inbox</a></p>`
+        );
+        frm.toggle_display("inbox_unavailable", !inbox);
+        frm.toggle_display("inbox_import_enabled", inbox);
+        frm.toggle_display("inbox_rules", inbox);
         set_options_for_idno_selects(frm);
         const company_account_query = (doc, cdt, cdn) => {
             const row = locals[cdt][cdn];

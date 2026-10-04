@@ -51,7 +51,11 @@
   "gemini_api_key",
   "gemini_model",
   "buying_tax_section",
-  "company_settings"
+  "company_settings",
+  "tab_inbox",
+  "inbox_unavailable",
+  "inbox_import_enabled",
+  "inbox_rules"
  ],
  "fields": [
   {
@@ -184,7 +188,7 @@
    "label": "Include Payment Information"
   },
   {
-   "default": "Detalii privind plățile aferente facturii fiscale",
+   "default": "Detalii privind pl\u0103\u021bile aferente facturii fiscale",
    "depends_on": "eval:doc.include_payment_information",
    "description": "First line of the Notes text when payment information is included.",
    "fieldname": "payment_information_annotation",
@@ -338,6 +342,33 @@
    "options": "eFactura Company Setting"
   },
   {
+   "fieldname": "tab_inbox",
+   "fieldtype": "Tab Break",
+   "label": "Supplier Inbox"
+  },
+  {
+   "fieldname": "inbox_unavailable",
+   "fieldtype": "HTML",
+   "label": "Supplier Inbox",
+   "options": "<p>Moldova Supplier Inbox keeps one document per supplier email and the files from that letter. When it is installed, eFactura can match those files by sender name, sender email, subject, and file name, then import a Purchase Factura. A rule can use the PDF parser, the AI paper reader, or the PDF parser first and the AI reader when the PDF parser fails.</p><p><a href=\"https://github.com/evghenin/erpnext_moldova_inbox\" target=\"_blank\" rel=\"noopener\">https://github.com/evghenin/erpnext_moldova_inbox</a></p>"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:frappe.boot.moldova_efactura_inbox",
+   "description": "When enabled, Supplier Inbox Email runs the eFactura handler. A matching file is imported as a Purchase Factura.",
+   "fieldname": "inbox_import_enabled",
+   "fieldtype": "Check",
+   "label": "Enable import from Supplier Inbox"
+  },
+  {
+   "depends_on": "eval:frappe.boot.moldova_efactura_inbox",
+   "description": "A file is imported when every filled pattern matches. Use % as wildcard. Patterns are not case-sensitive. An empty pattern matches any value. If both PDF and AI are checked, PDF is tried first.",
+   "fieldname": "inbox_rules",
+   "fieldtype": "Table",
+   "label": "Import Rules",
+   "options": "eFactura Inbox Rule"
+  },
+  {
    "description": "Maps e-Factura UOM text from SFS XML to an ERPNext UOM. Used when Fetch / sync creates Sales eFactura and Purchase eFactura.",
    "fieldname": "uom_section",
    "fieldtype": "Section Break",
@@ -361,7 +392,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-09-11 00:56:39.930731",
+ "modified": "2026-10-04 18:09:07.813510",
  "modified_by": "Administrator",
  "module": "Moldova eFactura",
  "name": "eFactura Settings",
