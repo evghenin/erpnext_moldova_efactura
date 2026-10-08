@@ -2701,6 +2701,33 @@ class TestEFacturaBuyerPIMatch(FrappeTestCase):
 		self.assertEqual(allocs, [])
 		self.assertTrue(any("quantity" in e.lower() for e in errors))
 
+	def test_remaining_match_return_negative_qty(self):
+		from erpnext_moldova_efactura.utils.pi_alloc import match_pi_to_remaining
+
+		buyer, pi = self._pair()
+		buyer.total = -118
+		buyer.vat_total = -18
+		buyer.net_total = -100
+		buyer.items[0].name = "BI-1"
+		buyer.items[0].item_code = "ITEM-A"
+		buyer.items[0].qty = -2
+		buyer.items[0].ef_qty = -2
+		buyer.items[0].rate = 50
+		buyer.items[0].net_amount = -100
+		buyer.items[0].amount = -118
+		pi.is_return = 1
+		pi.grand_total = -118
+		pi.total_taxes_and_charges = -18
+		pi.items[0].name = "PII-1"
+		pi.items[0].item_code = "ITEM-A"
+		pi.items[0].qty = -2
+		pi.items[0].rate = 50
+		pi.items[0].amount = -100
+		allocs, errors = match_pi_to_remaining(buyer, pi)
+		self.assertEqual(errors, [])
+		self.assertEqual(len(allocs), 1)
+		self.assertEqual(allocs[0]["qty"], -2)
+
 	def test_remaining_match_split_qty(self):
 		from types import SimpleNamespace
 

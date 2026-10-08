@@ -18,6 +18,7 @@ from erpnext_moldova_efactura.utils.pi_match import (
 	fmt_money,
 	fmt_qty,
 	identity_rate_compatible,
+	is_erpnext_return_invoice,
 	join_child_names,
 	money_precision,
 	pi_line_name,
@@ -289,10 +290,12 @@ def match_pi_to_remaining(buyer, pi) -> tuple[list[dict], list[str]]:
 		key = brow.name or f"idx-{brow.idx}"
 		if key in used_buyer:
 			continue
-		if abs_qty:
-			if abs(flt(remaining_qty_for_item(buyer, brow), qprec)) <= 0:
+		remaining = flt(remaining_qty_for_item(buyer, brow), qprec)
+		# Return lines keep a negative qty. Zero is closed; a negative balance is still open.
+		if abs_qty or is_erpnext_return_invoice(pi):
+			if abs(remaining) <= 0:
 				continue
-		elif flt(remaining_qty_for_item(buyer, brow), qprec) <= 0:
+		elif remaining <= 0:
 			continue
 		open_idx = [
 			i
