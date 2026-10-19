@@ -181,14 +181,20 @@ def _iban(value: str) -> str:
 	return value[:24] if value.startswith("MD") and len(value) >= 24 else ""
 
 
+def _qty_rate_tolerance(qty):
+	"""Pret unitar is printed to 2 decimals, so qty × rate can miss the line net by half a ban per unit."""
+	half_ban = (decimal(qty) * decimal("0.005")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+	return max(decimal("0.05"), half_ban)
+
+
 def _qty_from_net(qty, rate, net):
 	"""METRO Unit/Vanz. mix-ups send qty=1; recover Van. from printed net / Pret unitar."""
-	if abs(money(qty * rate) - net) <= decimal("0.05"):
+	if abs(money(qty * rate) - net) <= _qty_rate_tolerance(qty):
 		return qty
 	if rate <= 0:
 		return None
 	whole = (net / rate).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
-	if whole >= 1 and abs(money(whole * rate) - net) <= decimal("0.05"):
+	if whole >= 1 and abs(money(whole * rate) - net) <= _qty_rate_tolerance(whole):
 		return whole
 	return None
 

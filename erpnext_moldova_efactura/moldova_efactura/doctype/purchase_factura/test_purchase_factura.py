@@ -181,6 +181,41 @@ class TestFacturaPDF(TestCase):
 		self.assertEqual(data["items"][0]["net_amount"], "620.83")
 		self.assertEqual(data["items"][0]["source_qty"], "5.00")
 
+	def test_gemini_extraction_keeps_line_when_unit_rounding_exceeds_five_bani(self):
+		from erpnext_moldova_efactura.utils.factura_ai import document_from_extraction
+
+		payload = {
+			"series": "AAY",
+			"number": "0175553",
+			"issue_date": "2026-10-19",
+			"supplier_name": "VITRA SRL",
+			"supplier_idno": "1012600040037",
+			"buyer_name": "HOTEL LIFE SRL",
+			"buyer_idno": "1024600026571",
+			"net_total": "580.00",
+			"vat_total": "116.00",
+			"total": "696.00",
+			"items": [
+				{
+					"description": "KM XPY 300 Cerna universala (7016) metal",
+					"supplier_item_code": "108201",
+					"source_uom": "buc.",
+					"source_qty": "24.000",
+					"source_rate": "24.17",
+					"net_amount": "580.00",
+					"vat_rate": "20",
+					"vat_amount": "116.00",
+					"amount": "696.00",
+				}
+			],
+		}
+		data = document_from_extraction(payload, b"\xff\xd8\xff")
+		self.assertEqual(len(data["items"]), 1)
+		hinge = data["items"][0]
+		self.assertEqual(hinge["source_qty"], "24.000")
+		self.assertEqual(hinge["net_amount"], "580.00")
+		self.assertEqual(data["total"], "696.00")
+
 	def test_gemini_extraction_splits_glued_idno_and_vat(self):
 		from erpnext_moldova_efactura.utils.factura_ai import document_from_extraction
 
