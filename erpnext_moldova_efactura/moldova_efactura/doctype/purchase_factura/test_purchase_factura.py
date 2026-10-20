@@ -216,6 +216,41 @@ class TestFacturaPDF(TestCase):
 		self.assertEqual(hinge["net_amount"], "580.00")
 		self.assertEqual(data["total"], "696.00")
 
+	def test_gemini_extraction_reads_thousands_comma_and_zero_vat(self):
+		from erpnext_moldova_efactura.utils.factura_ai import document_from_extraction
+
+		payload = {
+			"series": "AAZ",
+			"number": "1607248",
+			"issue_date": "2026-09-17",
+			"delivery_date": "2026-09-28",
+			"supplier_name": "MAGAS TRANS S.R.L.",
+			"supplier_idno": "1004600061235",
+			"buyer_name": "HOTEL LIFE SRL",
+			"buyer_idno": "1024600026571",
+			"net_total": "8,850.00",
+			"vat_total": "0.00",
+			"total": "8,850.00",
+			"items": [
+				{
+					"description": "Servicii de transport auto international",
+					"source_uom": "Serv.",
+					"source_qty": "1",
+					"source_rate": "8,850.00",
+					"net_amount": "8,850.00",
+					"vat_rate": "0",
+					"vat_amount": "0.00",
+					"amount": "8,850.00",
+				}
+			],
+		}
+		data = document_from_extraction(payload, b"\xff\xd8\xff")
+		self.assertEqual(data["net_total"], "8850.00")
+		self.assertEqual(data["vat_total"], "0.00")
+		self.assertEqual(data["total"], "8850.00")
+		self.assertEqual(data["items"][0]["net_amount"], "8850.00")
+		self.assertEqual(data["items"][0]["vat_rate"], "0")
+
 	def test_gemini_extraction_splits_glued_idno_and_vat(self):
 		from erpnext_moldova_efactura.utils.factura_ai import document_from_extraction
 

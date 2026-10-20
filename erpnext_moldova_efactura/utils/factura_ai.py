@@ -206,19 +206,41 @@ def _vat_rate_for(net, vat):
 	return None
 
 
-def _optional_decimal(value, *, percent=False):
-	text = _blank(value).replace("−", "-").replace(",", ".")
-	if percent:
-		text = text.replace("%", "")
+def _normalize_amount_text(text: str) -> str:
+	"""Keep a comma as the decimal mark. When both separators are present, the last one is the decimal mark."""
+	text = text.replace("−", "-").replace("\u00a0", "")
 	text = re.sub(r"\s+", "", text)
 	if text.endswith("-") and not text.startswith("-"):
 		text = "-" + text[:-1]
+	sign = "-" if text.startswith("-") else ""
+	body = text[1:] if sign else text
+	if "," in body and "." in body:
+		if body.rfind(",") > body.rfind("."):
+			body = body.replace(".", "").replace(",", ".")
+		else:
+			body = body.replace(",", "")
+	else:
+		body = body.replace(",", ".")
+	return sign + body
+
+
+def _optional_decimal(value, *, percent=False):
+	text = _normalize_amount_text(_blank(value))
+	if percent:
+		text = text.replace("%", "")
 	if not text or text in {".", "-"}:
 		return None
 	match = re.search(r"-?\d+(?:\.\d+)?", text)
 	if not match:
 		return None
 	return decimal(match.group(0))
+
+
+def _document_money(value):
+	parsed = _optional_decimal(value)
+	if parsed is None:
+		raise FacturaImportError("Invalid numeric value")
+	return money(parsed)
 
 
 def _item(raw: dict) -> dict | None:
@@ -472,9 +494,16 @@ def document_from_extraction(data: dict, content: bytes) -> dict:
 	if missing:
 		_fail("could not extract " + ", ".join(missing))
 	try:
-		detected = tuple(
-			money(_blank(data.get(key)).replace(",", ".")) for key in ("net_total", "vat_total", "total")
-		)
+		net_total = _document_money(data.get("net_total"))
+		total = _document_money(data.get("total"))
+		vat_raw = _blank(data.get("vat_total"))
+		if not vat_raw or vat_raw.casefold() == "x":
+			if net_total != total:
+				raise FacturaImportError("Invalid numeric value")
+			vat_total = decimal("0.00")
+		else:
+			vat_total = _document_money(vat_raw)
+		detected = (net_total, vat_total, total)
 	except FacturaImportError:
 		_fail("could not read document totals")
 	extracted = items
