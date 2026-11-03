@@ -32,12 +32,14 @@ def resolve_api_credentials(company: str | None = None) -> dict:
 
 	timeout = int(getattr(settings, "api_timeout_seconds", 20) or 20)
 	verify_tls = bool(getattr(settings, "api_verify_tls", 1))
+	force_ipv4 = getattr(settings, "force_ipv4", 1)
 	return {
 		"wsdl_url": wsdl_url,
 		"username": username,
 		"password": password,
 		"timeout": timeout,
 		"verify_tls": verify_tls,
+		"force_ipv4": True if force_ipv4 is None else bool(int(force_ipv4)),
 		"service_name": getattr(settings, "api_service_name", None),
 		"port_name": getattr(settings, "api_port_name", None),
 	}

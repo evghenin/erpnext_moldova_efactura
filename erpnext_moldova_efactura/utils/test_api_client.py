@@ -1,10 +1,20 @@
+import socket
 import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+import urllib3.util.connection as urllib3_connection
+from urllib3.connection import HTTPSConnection
 from zeep.exceptions import Fault, TransportError
 
-from erpnext_moldova_efactura.api_client import EFacturaAPIClient, EFacturaAPIError
+from erpnext_moldova_efactura.api_client import (
+	EFacturaAPIClient,
+	EFacturaAPIError,
+	_build_http_session,
+	_create_ipv4_connection,
+	_IPv4HTTPAdapter,
+	_IPv4HTTPSConnection,
+)
 
 
 def _client(service_method, http_status=0):
@@ -229,3 +239,81 @@ class TestApiClientFailureLogging(unittest.TestCase):
 		self.assertNotIn("<svg>", message)
 		self.assertNotIn("SOAP RESPONSE", message)
 		self.assertNotIn("logo", message)
+
+
+class _FakeSocket:
+	def __init__(self):
+		self.connected = None
+
+	def setsockopt(self, *_args):
+		return None
+
+	def settimeout(self, _value):
+		return None
+
+	def connect(self, address):
+		self.connected = address
+
+	def close(self):
+		return None
+
+
+class TestForceIPv4(unittest.TestCase):
+	def test_dns_lookup_is_ipv4_and_process_default_stays(self):
+		family_before = urllib3_connection.allowed_gai_family
+		seen = {}
+
+		def getaddrinfo(host, port, family, socktype):
+			seen["host"] = host
+			seen["family"] = family
+			seen["socktype"] = socktype
+			return [(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("203.0.113.10", port))]
+
+		with patch("erpnext_moldova_efactura.api_client.socket.getaddrinfo", getaddrinfo), patch(
+			"erpnext_moldova_efactura.api_client.socket.socket", return_value=_FakeSocket()
+		):
+			_create_ipv4_connection(("efactura-api.sfs.md", 443), timeout=5)
+
+		self.assertEqual(seen["host"], "efactura-api.sfs.md")
+		self.assertEqual(seen["family"], socket.AF_INET)
+		self.assertIs(urllib3_connection.allowed_gai_family, family_before)
+
+	def test_tls_handshake_method_is_unchanged(self):
+		self.assertIs(_IPv4HTTPSConnection.connect, HTTPSConnection.connect)
+
+	def test_socket_uses_resolved_address_and_keeps_hostname(self):
+		sock = _FakeSocket()
+
+		def getaddrinfo(host, port, family, _socktype):
+			self.assertEqual(host, "efactura-api.sfs.md")
+			self.assertEqual(family, socket.AF_INET)
+			return [(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("203.0.113.10", port))]
+
+		conn = _IPv4HTTPSConnection(host="efactura-api.sfs.md", port=443)
+		with patch("erpnext_moldova_efactura.api_client.socket.getaddrinfo", getaddrinfo), patch(
+			"erpnext_moldova_efactura.api_client.socket.socket", return_value=sock
+		):
+			conn._new_conn()
+
+		self.assertEqual(conn.host, "efactura-api.sfs.md")
+		self.assertEqual(sock.connected, ("203.0.113.10", 443))
+
+	def test_session_forces_ipv4_only_for_api_host(self):
+		wsdl = "https://efactura-api.sfs.md/Service.svc?wsdl"
+		session = _build_http_session(wsdl, verify_tls=True, force_ipv4=True)
+		self.assertEqual(session.headers["User-Agent"], "erpnext-moldova-efactura/1.0")
+		self.assertIs(session.verify, True)
+		api_adapter = session.get_adapter("https://efactura-api.sfs.md/Service.svc?wsdl")
+		self.assertIsInstance(api_adapter, _IPv4HTTPAdapter)
+		self.assertNotIsInstance(
+			session.get_adapter("https://efactura-api.sfs.md.example/Service.svc"),
+			_IPv4HTTPAdapter,
+		)
+		self.assertNotIsInstance(
+			session.get_adapter("https://generativelanguage.googleapis.com/v1beta"),
+			_IPv4HTTPAdapter,
+		)
+
+		plain = _build_http_session(wsdl, verify_tls=True, force_ipv4=False)
+		self.assertNotIsInstance(plain.get_adapter(wsdl), _IPv4HTTPAdapter)
+		self.assertEqual(plain.headers["User-Agent"], "erpnext-moldova-efactura/1.0")

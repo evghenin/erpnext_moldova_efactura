@@ -1,12 +1,20 @@
 from __future__ import annotations
 
 import json
+import socket
+import sys
 import uuid
 from typing import Any, Dict, Optional
+from urllib.parse import urlsplit
 
 import frappe
 import requests
 from lxml import etree
+from requests.adapters import HTTPAdapter
+from urllib3.connection import HTTPConnection, HTTPSConnection
+from urllib3.connectionpool import HTTPConnectionPool, HTTPSConnectionPool
+from urllib3.exceptions import ConnectTimeoutError, NameResolutionError, NewConnectionError
+from urllib3.util.timeout import _DEFAULT_TIMEOUT
 from zeep import Client, Settings
 from zeep.exceptions import Fault, TransportError
 from zeep.helpers import serialize_object
@@ -18,6 +26,134 @@ from zeep.wsse.username import UsernameToken
 
 class EFacturaAPIError(Exception):
     pass
+
+
+def _create_ipv4_connection(address, timeout=_DEFAULT_TIMEOUT, source_address=None, socket_options=None):
+    """Connect using DNS A records only. Does not change process-wide name resolution."""
+    host, port = address
+    if host.startswith("["):
+        host = host.strip("[]")
+    try:
+        host.encode("idna")
+    except UnicodeError:
+        from urllib3.exceptions import LocationParseError
+
+        raise LocationParseError(f"'{host}', label empty or too long") from None
+
+    err = None
+    records = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+    for res in records:
+        af, socktype, proto, _canonname, sa = res
+        sock = None
+        try:
+            sock = socket.socket(af, socktype, proto)
+            if socket_options:
+                for opt in socket_options:
+                    sock.setsockopt(*opt)
+            if timeout is not _DEFAULT_TIMEOUT:
+                sock.settimeout(timeout)
+            if source_address:
+                sock.bind(source_address)
+            sock.connect(sa)
+            return sock
+        except OSError as exc:
+            err = exc
+            if sock is not None:
+                sock.close()
+
+    if err is not None:
+        raise err
+    raise OSError("getaddrinfo returns an empty list")
+
+
+def _open_ipv4_socket(conn) -> socket.socket:
+    try:
+        sock = _create_ipv4_connection(
+            (conn._dns_host, conn.port),
+            conn.timeout,
+            source_address=conn.source_address,
+            socket_options=conn.socket_options,
+        )
+    except socket.gaierror as exc:
+        raise NameResolutionError(conn.host, conn, exc) from exc
+    except TimeoutError as exc:
+        raise ConnectTimeoutError(
+            conn,
+            f"Connection to {conn.host} timed out. (connect timeout={conn.timeout})",
+        ) from exc
+    except OSError as exc:
+        raise NewConnectionError(conn, f"Failed to establish a new connection: {exc}") from exc
+
+    sys.audit("http.client.connect", conn, conn.host, conn.port)
+    return sock
+
+
+class _IPv4HTTPConnection(HTTPConnection):
+    def _new_conn(self) -> socket.socket:
+        return _open_ipv4_socket(self)
+
+
+class _IPv4HTTPSConnection(HTTPSConnection):
+    def _new_conn(self) -> socket.socket:
+        return _open_ipv4_socket(self)
+
+
+class _IPv4HTTPConnectionPool(HTTPConnectionPool):
+    ConnectionCls = _IPv4HTTPConnection
+
+
+class _IPv4HTTPSConnectionPool(HTTPSConnectionPool):
+    ConnectionCls = _IPv4HTTPSConnection
+
+
+def _use_ipv4_pools(manager) -> None:
+    manager.pool_classes_by_scheme["http"] = _IPv4HTTPConnectionPool
+    manager.pool_classes_by_scheme["https"] = _IPv4HTTPSConnectionPool
+
+
+class _IPv4HTTPAdapter(HTTPAdapter):
+    """requests adapter whose sockets are opened with AF_INET. TLS still uses the URL hostname."""
+
+    def init_poolmanager(self, connections, maxsize, block=False, **pool_kwargs):
+        super().init_poolmanager(connections, maxsize, block=block, **pool_kwargs)
+        _use_ipv4_pools(self.poolmanager)
+
+    def proxy_manager_for(self, proxy, **proxy_kwargs):
+        manager = super().proxy_manager_for(proxy, **proxy_kwargs)
+        _use_ipv4_pools(manager)
+        return manager
+
+
+def _api_host(wsdl_url: str) -> tuple[str, int | None]:
+    parts = urlsplit(wsdl_url or "")
+    host = (parts.hostname or "").rstrip(".")
+    return host, parts.port
+
+
+def _mount_prefixes(host: str, port: int | None) -> list[str]:
+    prefixes = [f"https://{host}/", f"http://{host}/"]
+    ports = {443, 80}
+    if port:
+        ports.add(port)
+    for item in sorted(ports):
+        prefixes.append(f"https://{host}:{item}/")
+        prefixes.append(f"http://{host}:{item}/")
+    return prefixes
+
+
+def _build_http_session(wsdl_url: str, verify_tls: bool, force_ipv4: bool) -> requests.Session:
+    session = requests.Session()
+    session.verify = verify_tls
+    session.headers.update({"User-Agent": "erpnext-moldova-efactura/1.0"})
+    if not force_ipv4:
+        return session
+    host, port = _api_host(wsdl_url)
+    if not host:
+        return session
+    adapter = _IPv4HTTPAdapter()
+    for prefix in _mount_prefixes(host, port):
+        session.mount(prefix, adapter)
+    return session
 
 
 class _StatusTransport(Transport):
@@ -90,15 +226,22 @@ class EFacturaAPIClient:
     Authentication via HTTP Basic Auth (requests.Session.auth)
     """
 
-    def __init__(self, wsdl_url, username, password, timeout=20, verify_tls=True, service_name=None, port_name=None):
+    def __init__(
+        self,
+        wsdl_url,
+        username,
+        password,
+        timeout=20,
+        verify_tls=True,
+        service_name=None,
+        port_name=None,
+        force_ipv4=False,
+    ):
         self.wsdl_url = wsdl_url.rstrip("?wsdl") + "?wsdl"
         self.username = username
         self.password = password
 
-        session = requests.Session()
-        # session.auth = HTTPBasicAuth(username, password)
-        session.verify = verify_tls
-        session.headers.update({"User-Agent": "erpnext-moldova-efactura/1.0"})
+        session = _build_http_session(self.wsdl_url, verify_tls, bool(force_ipv4))
 
         transport = _StatusTransport(session=session, timeout=timeout)
         wsse = UsernameToken(username, password, use_digest=False)
@@ -246,6 +389,7 @@ class EFacturaAPIClient:
             verify_tls=creds["verify_tls"],
             service_name=creds["service_name"],
             port_name=creds["port_name"],
+            force_ipv4=creds["force_ipv4"],
         )
 
     def _new_request_id(self) -> str:
