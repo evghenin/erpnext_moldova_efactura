@@ -67,6 +67,9 @@ class TestCompanyAPI(FrappeTestCase):
 			creds = resolve_api_credentials(companies[0])
 			self.assertEqual(creds["username"], "user-a")
 			self.assertEqual(creds["password"], "pass-a")
+			self.assertIsInstance(creds["force_ipv4"], bool)
+			if getattr(settings, "force_ipv4", 1) in (None, 1, True):
+				self.assertTrue(creds["force_ipv4"])
 			if len(companies) > 1:
 				one = get_sync_targets(company=companies[1])
 				self.assertEqual(len(one), 1)

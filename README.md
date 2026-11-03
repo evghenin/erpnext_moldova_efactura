@@ -74,7 +74,7 @@ Submitted **Sales Invoice** and **Purchase Invoice** show **Fiscalization** (for
 
 Configure API credentials per Company (**Company API Accounts**), IDNO fields, eFactura currency, VAT-in-rate, **Fiscal Territory**, UOM map (optional auto-add; Sales and Purchase fetch), buying tax templates per company, sales tax settings per company, and Sales / Purchase options under **eFactura Settings**.
 
-There is no site-wide API user. Add one **Company API Accounts** row per legal entity (username and password required). Fetch and daily sync poll each account into that Company. The API URL on Settings is shared.
+There is no site-wide API user. Add one **Company API Accounts** row per legal entity (username and password required). Fetch and daily sync poll each account into that Company. The API URL on Settings is shared. **Force IPv4** (on by default) resolves only that API host over IPv4. The URL and certificate hostname stay the same, and other ERPNext integrations keep normal DNS.
 
 #### Roles
 
