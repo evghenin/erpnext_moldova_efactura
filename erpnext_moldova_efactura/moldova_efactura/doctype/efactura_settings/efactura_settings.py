@@ -157,6 +157,16 @@ class eFacturaSettings(Document):
 
 
 @frappe.whitelist()
+def clear_taxpayer_cache():
+	"""Drop cached GetTaxpayersInfo rows. The next lookup calls e-Factura again."""
+	if not frappe.has_permission("eFactura Settings", "write"):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+	from erpnext_moldova_efactura.utils.taxpayer_cache import clear_taxpayer_cache as drop_cache
+
+	return {"cleared": drop_cache()}
+
+
+@frappe.whitelist()
 def get_form_settings():
 	"""Return the non-sensitive e-Factura settings used by SEF/PEF forms."""
 	if not frappe.has_permission("eFactura Settings", "read"):

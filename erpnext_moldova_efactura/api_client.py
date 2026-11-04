@@ -465,7 +465,37 @@ class EFacturaAPIClient:
     def test(self, message: str) -> Dict[str, Any]:
         return self._call("Test", request=None, message=message)
 
-    def get_taxpayers_info(self, fiscal_codes: list[str], request_id: Optional[str] = None) -> Dict[str, Any]:
+    def get_taxpayers_info(self, fiscal_codes: list[str], request_id: str | None = None) -> dict[str, Any]:
+        from erpnext_moldova_efactura.utils.api_response import sfs_action_error
+        from erpnext_moldova_efactura.utils.taxpayer_cache import (
+            lookup_taxpayers,
+            normalize_fiscal_codes,
+            store_taxpayers,
+            taxpayer_response,
+        )
+
+        codes = normalize_fiscal_codes(fiscal_codes)
+        if not codes:
+            return self._fetch_taxpayers_info(fiscal_codes, request_id)
+
+        cached, missing = lookup_taxpayers(codes)
+        if not missing:
+            return taxpayer_response(codes, cached, request_id or self._new_request_id())
+
+        data = self._fetch_taxpayers_info(missing, request_id)
+        if sfs_action_error(data):
+            return data
+
+        fresh = store_taxpayers(data)
+        if not cached:
+            return data
+        return taxpayer_response(
+            codes,
+            {**cached, **fresh},
+            str((data or {}).get("RequestId") or request_id or self._new_request_id()),
+        )
+
+    def _fetch_taxpayers_info(self, fiscal_codes, request_id: str | None = None) -> dict[str, Any]:
         req = {
             "RequestId": request_id or self._new_request_id(),
             "FiscalCodes": {"string": fiscal_codes},

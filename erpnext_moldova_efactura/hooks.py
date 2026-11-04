@@ -10,6 +10,11 @@ app_license = "mit"
 
 required_apps = ["erpnext"]
 
+# GetTaxpayersInfo rows. Redis TTL is 120 days; this keeps them across bench clear-cache.
+persistent_cache_keys = [
+	"efactura_taxpayer:*",
+]
+
 inbound_email_handlers = [
 	"erpnext_moldova_efactura.inbox.handle_inbound_email",
 ]

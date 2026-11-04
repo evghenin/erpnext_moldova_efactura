@@ -110,6 +110,29 @@ frappe.ui.form.on('eFactura Settings', {
                 __('Fetch')
             );
         });
+        if (frm.has_perm("write")) {
+            frm.add_custom_button(__("Clear Taxpayer Cache"), () => {
+                frappe.confirm(
+                    __(
+                        "Clear cached taxpayer data loaded from e-Factura? The next lookup will call the API again."
+                    ),
+                    () => {
+                        frappe.call({
+                            method: "erpnext_moldova_efactura.moldova_efactura.doctype.efactura_settings.efactura_settings.clear_taxpayer_cache",
+                            freeze: true,
+                            freeze_message: __("Clearing taxpayer cache..."),
+                            callback(r) {
+                                const cleared = (r.message && r.message.cleared) || 0;
+                                frappe.show_alert({
+                                    message: __("Cleared {0} cached taxpayer records.", [cleared]),
+                                    indicator: "green",
+                                });
+                            },
+                        });
+                    }
+                );
+            });
+        }
     },
 });
 
