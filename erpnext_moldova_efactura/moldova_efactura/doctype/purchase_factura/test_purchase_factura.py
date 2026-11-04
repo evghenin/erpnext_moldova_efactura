@@ -1203,6 +1203,47 @@ class TestPurchaseFactura(FrappeTestCase):
 		)
 		return doc.insert()
 
+	def test_reuses_mapping_from_earlier_purchase_factura(self):
+		title = "Recurring supplier line"
+		previous = self.factura(
+			items=[
+				{
+					"supplier_item_code": "EAN-1",
+					"supplier_item_name": title,
+					"f_qty": 1,
+					"f_rate": 10,
+					"f_vat_rate": 0,
+					"item_code": self.item.name,
+					"uom": "Nos",
+					"qty": 1,
+				}
+			]
+		)
+		self.assertEqual(
+			frappe.db.get_value(
+				"eFactura Supplier Item Map",
+				{"supplier": previous.supplier_party, "supplier_item_name": title},
+				"item_code",
+			),
+			self.item.name,
+		)
+		frappe.db.delete(
+			"eFactura Supplier Item Map",
+			{"supplier": previous.supplier_party, "supplier_item_name": title},
+		)
+		current = self.factura(
+			items=[
+				{
+					"supplier_item_code": "EAN-1",
+					"supplier_item_name": title,
+					"f_qty": 2,
+					"f_rate": 10,
+					"f_vat_rate": 0,
+				}
+			]
+		)
+		self.assertEqual((current.items[0].item_code, current.items[0].uom), (self.item.name, "Nos"))
+
 	def test_paper_row_accepts_printed_unit_rate_rounding(self):
 		pf = self.factura(
 			original_format="Paper",

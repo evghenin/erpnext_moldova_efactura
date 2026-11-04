@@ -44,7 +44,7 @@ def resolve_item_code(
 	1) By supplier_item_code — only trusted if supplier_item_name also matches
 	   (code alone is unreliable / may be random)
 	2) By supplier_item_name (stable product title):
-	   - past Purchase eFactura of this supplier
+	   - past Purchase eFactura or Purchase Factura of this supplier
 	   - Supplier Item Map (exact, then % wildcard in the map name)
 	   - direct Item.item_name match
 	"""
@@ -57,7 +57,7 @@ def resolve_item_code(
 			return direct
 
 		if supplier:
-			past_item, past_name = _from_past_invoices(supplier, supplier_item_code=code)
+			past_item, past_name, _past_uom = _from_past_invoices(supplier, supplier_item_code=code)
 			if past_item and _code_hit_trusted(past_item, name, expected_supplier_name=past_name):
 				return past_item
 
@@ -74,7 +74,7 @@ def resolve_item_code(
 
 	if name:
 		if supplier:
-			past_item, _past_name = _from_past_invoices(supplier, supplier_item_name=name)
+			past_item, _past_name, _past_uom = _from_past_invoices(supplier, supplier_item_name=name)
 			if past_item:
 				return past_item
 
@@ -111,6 +111,11 @@ def resolve_item_and_uom(
 		mapped = _best_wildcard_map(supplier, supplier_item_name)
 	if mapped and mapped.item_code == item_code:
 		return item_code, mapped.uom
+	_past_item, _past_name, past_uom = _from_past_invoices(
+		supplier, supplier_item_name=supplier_item_name
+	)
+	if _past_item == item_code and past_uom:
+		return item_code, past_uom
 	return item_code, None
 
 
@@ -150,8 +155,32 @@ def _from_past_invoices(
 	supplier: str,
 	supplier_item_code: str | None = None,
 	supplier_item_name: str | None = None,
-) -> tuple[str | None, str | None]:
-	"""Return (item_code, supplier_item_name) from the latest matching buyer line."""
+) -> tuple[str | None, str | None, str | None]:
+	"""Return (item_code, supplier_item_name, uom) from the latest matching buyer line."""
+	best: tuple | None = None
+	for parent, child in (
+		("Purchase eFactura", "Purchase eFactura Item"),
+		("Purchase Factura", "Purchase Factura Item"),
+	):
+		if not frappe.db.table_exists(parent):
+			continue
+		row = _latest_mapped_line(
+			parent, child, supplier, supplier_item_code, supplier_item_name
+		)
+		if row and (best is None or row[3] > best[3]):
+			best = row
+	if not best:
+		return None, None, None
+	return best[0], best[1], best[2]
+
+
+def _latest_mapped_line(
+	parent: str,
+	child: str,
+	supplier: str,
+	supplier_item_code: str | None,
+	supplier_item_name: str | None,
+) -> tuple | None:
 	conditions = [
 		"p.supplier_party = %s",
 		"p.supplier_party_type = 'Supplier'",
@@ -159,7 +188,6 @@ def _from_past_invoices(
 		"p.docstatus < 2",
 	]
 	values: list = [supplier]
-
 	if supplier_item_code:
 		conditions.append("i.supplier_item_code = %s")
 		values.append(supplier_item_code)
@@ -167,22 +195,20 @@ def _from_past_invoices(
 		conditions.append("i.supplier_item_name = %s")
 		values.append(supplier_item_name)
 	else:
-		return None, None
+		return None
 
 	rows = frappe.db.sql(
 		f"""
-		SELECT i.item_code, i.supplier_item_name
-		FROM `tabPurchase eFactura Item` i
-		INNER JOIN `tabPurchase eFactura` p ON p.name = i.parent
+		SELECT i.item_code, i.supplier_item_name, i.uom, p.modified
+		FROM `tab{child}` i
+		INNER JOIN `tab{parent}` p ON p.name = i.parent
 		WHERE {" AND ".join(conditions)}
 		ORDER BY p.modified DESC
 		LIMIT 1
 		""",
 		tuple(values),
 	)
-	if not rows:
-		return None, None
-	return rows[0][0], rows[0][1]
+	return rows[0] if rows else None
 
 
 def _best_wildcard_map(supplier: str, name: str):

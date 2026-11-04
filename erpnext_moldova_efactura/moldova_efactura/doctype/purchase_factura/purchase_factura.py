@@ -151,6 +151,8 @@ class PurchaseFactura(Document):
 			frappe.throw(_("Supplier IDNO does not match the original factura"))
 		prepare_currency(self)
 		self._validate_original()
+		if self.docstatus == 0:
+			self._apply_item_maps()
 		self._calculate()
 		for row in self.items:
 			row.purchase_invoice = self.purchase_invoice
@@ -171,6 +173,52 @@ class PurchaseFactura(Document):
 			from erpnext_moldova_efactura.utils.pf_invoice import match_invoice
 
 			match_invoice(self, frappe.get_doc("Purchase Invoice", self.purchase_invoice))
+		if self.docstatus == 0:
+			self._persist_learned_maps()
+
+	def _apply_item_maps(self):
+		"""Fill empty Item/UOM from this supplier's earlier facturas and item map."""
+		if not self.supplier_party:
+			return
+		from erpnext_moldova_efactura.utils.item_map import resolve_item_and_uom
+		from erpnext_moldova_efactura.utils.uom_map import resolve_uom
+
+		for row in self.items or []:
+			if row.item_code:
+				continue
+			item_code, mapped_uom = resolve_item_and_uom(
+				self.supplier_party, row.supplier_item_code, row.supplier_item_name
+			)
+			if not item_code:
+				continue
+			item = frappe.get_cached_value(
+				"Item", item_code, ["purchase_uom", "stock_uom"], as_dict=True
+			)
+			if not item:
+				continue
+			row.item_code = item_code
+			if not row.uom:
+				row.uom = mapped_uom or resolve_uom(row.supplier_uom) or item.purchase_uom or item.stock_uom
+
+	def _persist_learned_maps(self):
+		"""Remember a reviewed supplier item so the next factura of this supplier maps itself."""
+		from erpnext_moldova_efactura.utils.item_map import upsert_item_map
+		from erpnext_moldova_efactura.utils.uom_map import ensure_uom_map
+
+		for row in self.items or []:
+			if row.supplier_uom and row.f_uom:
+				ensure_uom_map(row.supplier_uom, row.f_uom)
+			if not (self.supplier_party and row.item_code):
+				continue
+			if not (row.supplier_item_name or row.supplier_item_code):
+				continue
+			upsert_item_map(
+				self.supplier_party,
+				row.supplier_item_code,
+				row.supplier_item_name or row.supplier_item_code,
+				row.item_code,
+				row.uom,
+			)
 
 	def _validate_original(self):
 		previous = self.get_doc_before_save()
