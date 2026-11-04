@@ -243,7 +243,11 @@ class EFacturaAPIClient:
 
         session = _build_http_session(self.wsdl_url, verify_tls, bool(force_ipv4))
 
-        transport = _StatusTransport(session=session, timeout=timeout)
+        transport = _StatusTransport(
+            session=session,
+            timeout=timeout,
+            operation_timeout=timeout,
+        )
         wsse = UsernameToken(username, password, use_digest=False)
         settings = Settings(strict=False, xml_huge_tree=True)
 
