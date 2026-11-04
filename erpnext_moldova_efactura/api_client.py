@@ -381,10 +381,12 @@ class EFacturaAPIClient:
 
 
     @classmethod
-    def from_settings(cls, company):
+    def from_settings(cls, company, timeout=None):
         from erpnext_moldova_efactura.utils.company_api import resolve_api_credentials
 
         creds = resolve_api_credentials(company)
+        if timeout is not None:
+            creds["timeout"] = int(timeout)
         return cls(
             wsdl_url=creds["wsdl_url"],
             username=creds["username"],

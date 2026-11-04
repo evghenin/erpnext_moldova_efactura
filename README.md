@@ -270,7 +270,7 @@ cd $PATH_TO_YOUR_BENCH
 bench update --apps erpnext_moldova_efactura
 ```
 
-Confirm `bench version` shows `erpnext_moldova_efactura 3.3.0`. Version 3 adds `pypdf`, the Purchase Factura DocTypes, a Purchase Invoice link, and purchase workspace entries. Version 3.1 writes linked Payment Entries into outgoing e-Factura attached documents. Version 3.2 imports Purchase Factura from Moldova Supplier Inbox when that app is installed. Version 3.3 caches GetTaxpayersInfo rows for 120 days.
+Confirm `bench version` shows `erpnext_moldova_efactura 3.4.0`. Version 3 adds `pypdf`, the Purchase Factura DocTypes, a Purchase Invoice link, and purchase workspace entries. Version 3.1 writes linked Payment Entries into outgoing e-Factura attached documents. Version 3.2 imports Purchase Factura from Moldova Supplier Inbox when that app is installed. Version 3.3 caches GetTaxpayersInfo rows for 120 days. Version 3.4 queues Fetch and runs daily buyer, supplier, and cancellation loads as separate jobs, with a 120-second SearchInvoices read in those background tasks.
 
 Confirm that **Company IDNO Field** and **Supplier IDNO Field** are configured in eFactura Settings before creating or importing PF records. For paper photos, set **Gemini API Key** (and optionally **Gemini Model**, default `gemini-3.6-flash`). Configure the existing Purchase Tax Settings and supplier Item/UOM mappings used to create Purchase Invoices. Supplier payable-account currency must match its billing currency under the normal ERPNext rules.
 

@@ -55,18 +55,7 @@ frappe.ui.form.on('eFactura Settings', {
                         args: { lookback_days: values.lookback_days },
                         freeze: true,
                         callback(r) {
-                            if (r.message) {
-                                frappe.msgprint(
-                                    __('Found {0}, created {1}, updated {2}, skipped {3}, details {4}, errors {5}', [
-                                        r.message.found,
-                                        r.message.created,
-                                        r.message.updated,
-                                        r.message.skipped || 0,
-                                        r.message.details_loaded,
-                                        r.message.errors,
-                                    ])
-                                );
-                            }
+                            show_fetch_queue_message(r);
                         },
                     });
                 },
@@ -91,18 +80,7 @@ frappe.ui.form.on('eFactura Settings', {
                         args: { lookback_days: values.lookback_days },
                         freeze: true,
                         callback(r) {
-                            if (r.message) {
-                                frappe.msgprint(
-                                    __('Found {0}, created {1}, updated {2}, skipped {3}, details {4}, errors {5}', [
-                                        r.message.found,
-                                        r.message.created,
-                                        r.message.updated,
-                                        r.message.skipped || 0,
-                                        r.message.details_loaded,
-                                        r.message.errors,
-                                    ])
-                                );
-                            }
+                            show_fetch_queue_message(r);
                         },
                     });
                 },
@@ -135,6 +113,17 @@ frappe.ui.form.on('eFactura Settings', {
         }
     },
 });
+
+function show_fetch_queue_message(r) {
+    const status = r && r.message && r.message.status;
+    if (status === "already_running") {
+        frappe.msgprint(__("The previous fetch is still running."));
+        return;
+    }
+    if (status === "queued") {
+        frappe.msgprint(__("Fetch has been queued."));
+    }
+}
 
 function set_options_for_idno_selects(frm) {
     // Company

@@ -1,18 +1,18 @@
-import frappe
-from frappe.utils import now_datetime, add_days
 from collections import defaultdict
+
+import frappe
+from frappe.utils import add_days, now_datetime
+
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient, EFacturaAPIError
+from erpnext_moldova_efactura.tasks.schedule import SEARCH_READ_TIMEOUT
 from erpnext_moldova_efactura.utils.api_response import check_invoices_status_map
 from erpnext_moldova_efactura.utils.company_api import get_sync_targets
-from erpnext_moldova_efactura.utils.search_windows import iter_search_invoices
-
-
 from erpnext_moldova_efactura.utils.fiscal_status import (
     SEF_CANCELED_BY_SUPPLIER,
     SEF_REGISTERED_AS_DRAFT,
     sef_status_label,
 )
-
+from erpnext_moldova_efactura.utils.search_windows import iter_search_invoices
 
 CHECKABLE_EF_STATUSES = (
     "Registered as Draft",
@@ -184,7 +184,9 @@ def sync_efactura_cancelled_from_search_invoices():
 
     for target in get_sync_targets():
         try:
-            client = EFacturaAPIClient.from_settings(company=target["company"])
+            client = EFacturaAPIClient.from_settings(
+                company=target["company"], timeout=SEARCH_READ_TIMEOUT
+            )
         except Exception:
             frappe.log_error(
                 title=f"e-Factura SearchInvoices failed company={target['company']}",
@@ -210,6 +212,7 @@ def sync_efactura_cancelled_from_search_invoices():
         cancelled = list(dict.fromkeys(cancelled))[:MAX_RESULTS_PER_RUN]
         cancelled_count += len(cancelled)
         updated += _apply_cancelled_status_to_local_docs(cancelled, company=target["company"])
+        frappe.db.commit()
 
     frappe.logger().info(
         f"e-Factura cancelled sync finished. from={date_from} to={date_to} cancelled={cancelled_count} updated={updated}"
@@ -324,74 +327,93 @@ def sync_efactura_draft_invoices_by_api_invoice_id():
 
     # List of statuses to check in sequence (eFactura API requires status filter)
     search_statuses = [0,1,7,8,3,2,5,10,4,6,9]
-
+    grouped = defaultdict(list)
     for row in docs:
+        grouped[row.company or ""].append(row)
+
+    for company, company_docs in grouped.items():
+        if not company:
+            errors += len(company_docs)
+            frappe.log_error(
+                title="eFactura draft sync skipped: missing Company",
+                message="\n".join(row.name for row in company_docs),
+            )
+            continue
         try:
-            client = EFacturaAPIClient.from_settings(company=row.company)
-            inv = None
-            for status in search_statuses:
-                params = {
-                    "APIeInvoiceId": row.name,
-                    "InvoiceStatus": status,
-                }
-                try:
-                    resp = client.search_invoices(actor_role=1, parameters=params)
-                except EFacturaAPIError:
-                    continue
-                inv = _extract_single_invoice_from_search_response(resp)
-                if inv:
-                    break
-
-            if inv is None:
-                missing_in_api += 1
-                if len(sample_missing) < 5:
-                    sample_missing.append(row.name)
-                continue
-
-            if isinstance(inv, list):
-                multiple_found += 1
-                if len(sample_multi) < 5:
-                    sample_multi.append(row.name)
-                continue
-
-            remote_series = (inv.get("Seria") or "").strip()
-            remote_number = (inv.get("Number") or "").strip()
-            remote_status = inv.get("InvoiceStatus")
-
-            try:
-                remote_status_code = int(remote_status) if remote_status is not None else None
-            except Exception:
-                remote_status_code = None
-
-            doc = frappe.get_doc("Sales eFactura", row.name)
-
-            changed = False
-
-            # Set series/number if available
-            if remote_series:
-                doc.db_set("ef_series", remote_series, update_modified=False)
-                changed = True
-
-            if remote_number:
-                doc.db_set("ef_number", remote_number, update_modified=False)
-                changed = True
-
-            # Update status if present and different
-            if remote_status_code is not None and doc.ef_status != sef_status_label(remote_status_code):
-                doc.db_set("ef_status", sef_status_label(remote_status_code), update_modified=False)
-                doc.set_status()
-                changed = True
-
-            # Always touch last_status_check so we don't re-check too aggressively
-            doc.db_set("last_status_check", now_ts, update_modified=False)
-
-            if changed:
-                updated += 1
-            else:
-                unchanged += 1
-
+            client = EFacturaAPIClient.from_settings(company=company, timeout=SEARCH_READ_TIMEOUT)
         except Exception:
-            errors += 1
+            errors += len(company_docs)
+            frappe.log_error(
+                title=f"eFactura draft sync client failed company={company}",
+                message=frappe.get_traceback(),
+            )
+            continue
+        for row in company_docs:
+            try:
+                inv = None
+                for status in search_statuses:
+                    params = {
+                        "APIeInvoiceId": row.name,
+                        "InvoiceStatus": status,
+                    }
+                    try:
+                        resp = client.search_invoices(actor_role=1, parameters=params)
+                    except EFacturaAPIError:
+                        frappe.log_error(
+                            title=f"eFactura draft SearchInvoices failed status={status} {row.name}",
+                            message=frappe.get_traceback(),
+                        )
+                        continue
+                    inv = _extract_single_invoice_from_search_response(resp)
+                    if inv:
+                        break
+
+                if inv is None:
+                    missing_in_api += 1
+                    if len(sample_missing) < 5:
+                        sample_missing.append(row.name)
+                    continue
+
+                if isinstance(inv, list):
+                    multiple_found += 1
+                    if len(sample_multi) < 5:
+                        sample_multi.append(row.name)
+                    continue
+
+                remote_series = (inv.get("Seria") or "").strip()
+                remote_number = (inv.get("Number") or "").strip()
+                remote_status = inv.get("InvoiceStatus")
+
+                try:
+                    remote_status_code = int(remote_status) if remote_status is not None else None
+                except Exception:
+                    remote_status_code = None
+
+                doc = frappe.get_doc("Sales eFactura", row.name)
+                changed = False
+
+                if remote_series:
+                    doc.db_set("ef_series", remote_series, update_modified=False)
+                    changed = True
+
+                if remote_number:
+                    doc.db_set("ef_number", remote_number, update_modified=False)
+                    changed = True
+
+                if remote_status_code is not None and doc.ef_status != sef_status_label(remote_status_code):
+                    doc.db_set("ef_status", sef_status_label(remote_status_code), update_modified=False)
+                    doc.set_status()
+                    changed = True
+
+                doc.db_set("last_status_check", now_ts, update_modified=False)
+
+                if changed:
+                    updated += 1
+                    frappe.db.commit()
+                else:
+                    unchanged += 1
+            except Exception:
+                errors += 1
 
     if missing_in_api or multiple_found or errors:
         msg_lines = [

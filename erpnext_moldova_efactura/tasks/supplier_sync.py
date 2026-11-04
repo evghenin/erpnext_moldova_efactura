@@ -7,16 +7,17 @@ from frappe import _
 from frappe.utils import add_days, cint, flt, now_datetime
 
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient
+from erpnext_moldova_efactura.tasks.schedule import SEARCH_READ_TIMEOUT
 from erpnext_moldova_efactura.utils.api_response import extract_invoices, invoice_xml
-from erpnext_moldova_efactura.utils.fiscal_status import sef_status_label
 from erpnext_moldova_efactura.utils.buyer_status import (
 	SFS_ARCHIVED,
 	do_not_create_cancelled_invoices,
 	is_canceled_by_supplier,
 	load_archived_sales_efactura,
 )
-from erpnext_moldova_efactura.utils.invoice_xml import parse_invoice_xml
 from erpnext_moldova_efactura.utils.company_api import get_sync_targets
+from erpnext_moldova_efactura.utils.fiscal_status import sef_status_label
+from erpnext_moldova_efactura.utils.invoice_xml import parse_invoice_xml
 from erpnext_moldova_efactura.utils.party import find_customer_by_idno, find_supplier_by_idno
 from erpnext_moldova_efactura.utils.search_windows import iter_search_invoices
 
@@ -29,7 +30,7 @@ SUPPLIER_SEARCH_STATUSES = (0, 1, 2, 3, 5, 7, 8, 9, 10, 11)
 
 def supplier_search_statuses() -> tuple[int, ...]:
 	if load_archived_sales_efactura():
-		return SUPPLIER_SEARCH_STATUSES + (SFS_ARCHIVED,)
+		return (*SUPPLIER_SEARCH_STATUSES, SFS_ARCHIVED)
 	return SUPPLIER_SEARCH_STATUSES
 
 
@@ -46,7 +47,9 @@ def sync_supplier_invoices(lookback_days: int | None = None, company: str | None
 	}
 	by_company = []
 	for target in get_sync_targets(company):
-		client = EFacturaAPIClient.from_settings(company=target["company"])
+		client = EFacturaAPIClient.from_settings(
+			company=target["company"], timeout=SEARCH_READ_TIMEOUT
+		)
 		result = _sync_supplier_invoices_for_company(client, target["company"], lookback_days)
 		by_company.append({"company": target["company"], **result})
 		for key in totals:
@@ -60,7 +63,9 @@ def _sync_supplier_invoices_for_company(client, company: str, lookback_days: int
 	date_to = now_datetime()
 
 	seen: dict[tuple[str, str], int] = {}
+	created = updated = skipped = details = errors = 0
 	for st in supplier_search_statuses():
+		batch: dict[tuple[str, str], int] = {}
 		for inv in iter_search_invoices(
 			client,
 			actor_role=1,
@@ -77,13 +82,32 @@ def _sync_supplier_invoices_for_company(client, company: str, lookback_days: int
 				code = int(inv.get("InvoiceStatus"))
 			except (TypeError, ValueError):
 				code = st
-			seen[(seria, number)] = code
+			batch[(seria, number)] = code
+		seen.update(batch)
+		batch_result = _upsert_supplier_invoices(client, company, batch)
+		created += batch_result["created"]
+		updated += batch_result["updated"]
+		skipped += batch_result["skipped"]
+		details += batch_result["details_loaded"]
+		errors += batch_result["errors"]
+		frappe.db.commit()
 
+	return {
+		"found": len(seen),
+		"created": created,
+		"updated": updated,
+		"skipped": skipped,
+		"details_loaded": details,
+		"errors": errors,
+	}
+
+
+def _upsert_supplier_invoices(client, company: str, invoices: dict[tuple[str, str], int]) -> dict:
+	"""Write series and number for one SearchInvoices status. Caller commits."""
 	created = updated = skipped = details = errors = 0
 	skip_cancelled = do_not_create_cancelled_invoices()
 	bank = _default_company_bank(company)
-
-	for (seria, number), ef_status in seen.items():
+	for (seria, number), ef_status in invoices.items():
 		try:
 			name = frappe.db.exists(
 				"Sales eFactura",
@@ -148,9 +172,7 @@ def _sync_supplier_invoices_for_company(client, company: str, lookback_days: int
 				message=frappe.get_traceback(),
 			)
 
-	frappe.db.commit()
 	return {
-		"found": len(seen),
 		"created": created,
 		"updated": updated,
 		"skipped": skipped,
@@ -209,4 +231,16 @@ def _default_company_bank(company: str) -> str | None:
 def fetch_supplier_invoices(lookback_days: int = 180):
 	if not frappe.has_permission("Sales eFactura", "write"):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
-	return sync_supplier_invoices(lookback_days=int(lookback_days))
+	from erpnext_moldova_efactura.tasks.schedule import (
+		FETCH_JOB_TIMEOUT,
+		FETCH_SUPPLIER_JOB_ID,
+		enqueue_job,
+	)
+
+	status = enqueue_job(
+		"erpnext_moldova_efactura.tasks.supplier_sync.sync_supplier_invoices",
+		FETCH_SUPPLIER_JOB_ID,
+		FETCH_JOB_TIMEOUT,
+		lookback_days=int(lookback_days),
+	)
+	return {"status": status}

@@ -7,6 +7,7 @@ from frappe import _
 from frappe.utils import add_days, cint, now_datetime
 
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient
+from erpnext_moldova_efactura.tasks.schedule import SEARCH_READ_TIMEOUT
 from erpnext_moldova_efactura.utils.api_response import (
 	check_invoices_status_map,
 	extract_invoices,
@@ -40,7 +41,9 @@ def sync_buyer_invoices(lookback_days: int | None = None, company: str | None = 
 	}
 	by_company = []
 	for target in get_sync_targets(company):
-		client = EFacturaAPIClient.from_settings(company=target["company"])
+		client = EFacturaAPIClient.from_settings(
+			company=target["company"], timeout=SEARCH_READ_TIMEOUT
+		)
 		result = _sync_buyer_invoices_for_company(client, target["company"], lookback_days)
 		by_company.append({"company": target["company"], **result})
 		for key in totals:
@@ -54,7 +57,10 @@ def _sync_buyer_invoices_for_company(client, company: str, lookback_days: int) -
 	date_to = now_datetime()
 
 	seen: dict[tuple[str, str], int] = {}
+	created = updated = skipped = details = errors = 0
+	detail_candidates = []
 	for st in buyer_search_statuses():
+		batch: dict[tuple[str, str], int] = {}
 		for inv in iter_search_invoices(
 			client,
 			actor_role=2,
@@ -63,17 +69,64 @@ def _sync_buyer_invoices_for_company(client, company: str, lookback_days: int) -
 			date_to=date_to,
 			error_title=f"Purchase eFactura SearchInvoices failed status={st} company={company}",
 		):
-			_remember_invoice(seen, inv, default_status=st)
+			_remember_invoice(batch, inv, default_status=st)
+		seen.update(batch)
+		batch_details = _upsert_buyer_invoices(company, batch)
+		detail_candidates.extend(batch_details["candidates"])
+		created += batch_details["created"]
+		updated += batch_details["updated"]
+		skipped += batch_details["skipped"]
+		errors += batch_details["errors"]
+		frappe.db.commit()
 
 	# IssuedOn search often misses buyer-inbox invoices still at "Signed by Supplier".
+	before = dict(seen)
 	_merge_signed_by_supplier_inbox(client, seen, company)
+	inbox_batch = {key: status for key, status in seen.items() if before.get(key) != status}
+	if inbox_batch:
+		batch_details = _upsert_buyer_invoices(company, inbox_batch)
+		detail_candidates.extend(batch_details["candidates"])
+		created += batch_details["created"]
+		updated += batch_details["updated"]
+		skipped += batch_details["skipped"]
+		errors += batch_details["errors"]
+		frappe.db.commit()
 
-	created = updated = skipped = details = errors = 0
+	detail_names = []
+	seen_details = set()
+	for _priority, name in sorted(detail_candidates, key=lambda row: row[0]):
+		if name in seen_details:
+			continue
+		seen_details.add(name)
+		detail_names.append(name)
+	for name in detail_names[:BATCH_DETAIL]:
+		try:
+			if _fill_details(client, name):
+				details += 1
+		except Exception:
+			errors += 1
+			frappe.log_error(
+				title=f"Purchase eFactura detail fetch failed {name}",
+				message=frappe.get_traceback(),
+			)
+
+	frappe.db.commit()
+	return {
+		"found": len(seen),
+		"created": created,
+		"updated": updated,
+		"skipped": skipped,
+		"details_loaded": details,
+		"errors": errors,
+	}
+
+
+def _upsert_buyer_invoices(company: str, invoices: dict[tuple[str, str], int]) -> dict:
+	"""Write series and number for one SearchInvoices status. Caller commits."""
+	created = updated = skipped = errors = 0
+	candidates = []
 	skip_cancelled = do_not_create_cancelled_invoices()
-	# Fetch XML details for a limited batch (prefer awaiting-action, then missing items/xml)
-	detail_candidates = []
-
-	for (seria, number), ef_status in seen.items():
+	for (seria, number), ef_status in invoices.items():
 		try:
 			name = frappe.db.exists(
 				"Purchase eFactura",
@@ -91,8 +144,7 @@ def _sync_buyer_invoices_for_company(client, company: str, lookback_days: int) -
 				doc.set_status(update=False)
 				doc.save(ignore_permissions=True)
 				updated += 1
-				# Drafts always re-read XML so totals/items can be corrected
-				detail_candidates.append((priority, doc.name))
+				candidates.append((priority, doc.name))
 			else:
 				if skip_cancelled and is_canceled_by_supplier(ef_status):
 					skipped += 1
@@ -112,34 +164,19 @@ def _sync_buyer_invoices_for_company(client, company: str, lookback_days: int) -
 				doc.flags.from_efactura_sync = True
 				doc.insert(ignore_permissions=True)
 				created += 1
-				detail_candidates.append((priority, doc.name))
+				candidates.append((priority, doc.name))
 		except Exception:
 			errors += 1
 			frappe.log_error(
 				title=f"Purchase eFactura upsert failed {seria}{number} company={company}",
 				message=frappe.get_traceback(),
 			)
-
-	detail_candidates.sort(key=lambda row: row[0])
-	for _priority, name in detail_candidates[:BATCH_DETAIL]:
-		try:
-			if _fill_details(client, name):
-				details += 1
-		except Exception:
-			errors += 1
-			frappe.log_error(
-				title=f"Purchase eFactura detail fetch failed {name}",
-				message=frappe.get_traceback(),
-			)
-
-	frappe.db.commit()
 	return {
-		"found": len(seen),
 		"created": created,
 		"updated": updated,
 		"skipped": skipped,
-		"details_loaded": details,
 		"errors": errors,
+		"candidates": candidates,
 	}
 
 
@@ -283,4 +320,16 @@ def sync_buyer_statuses(batch_size: int = 50) -> dict:
 def fetch_buyer_invoices(lookback_days: int = 180):
 	if not frappe.has_permission("Purchase eFactura", "write"):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
-	return sync_buyer_invoices(lookback_days=int(lookback_days))
+	from erpnext_moldova_efactura.tasks.schedule import (
+		FETCH_BUYER_JOB_ID,
+		FETCH_JOB_TIMEOUT,
+		enqueue_job,
+	)
+
+	status = enqueue_job(
+		"erpnext_moldova_efactura.tasks.buyer_sync.sync_buyer_invoices",
+		FETCH_BUYER_JOB_ID,
+		FETCH_JOB_TIMEOUT,
+		lookback_days=int(lookback_days),
+	)
+	return {"status": status}
