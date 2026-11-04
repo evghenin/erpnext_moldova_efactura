@@ -265,3 +265,14 @@ class TestForceIPv4(unittest.TestCase):
 		plain = _build_http_session(wsdl, verify_tls=True, force_ipv4=False)
 		self.assertNotIsInstance(plain.get_adapter(wsdl), _IPv4HTTPAdapter)
 		self.assertEqual(plain.headers["User-Agent"], "erpnext-moldova-efactura/1.0")
+
+	def test_soap_operation_timeout_matches_load_timeout(self):
+		wsdl = "https://efactura-api.sfs.md/Service.svc?wsdl"
+		fake_client = Mock()
+		fake_client.wsdl.services = {"Service": SimpleNamespace(ports={"BasicHttpBinding": object()})}
+		fake_client.bind.return_value = Mock()
+		with patch("erpnext_moldova_efactura.api_client.Client", return_value=fake_client) as client_cls:
+			EFacturaAPIClient(wsdl, "user", "pass", timeout=20)
+		transport = client_cls.call_args.kwargs["transport"]
+		self.assertEqual(transport.load_timeout, 20)
+		self.assertEqual(transport.operation_timeout, 20)
