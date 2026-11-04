@@ -280,6 +280,8 @@ Include Archived Invoices,Включать архивные фактуры
 "If enabled, Fetch and daily sync also include Sales eFactura with SFS status Archived (6).","Если включено, загрузка и ежедневная синхронизация также получают Sales eFactura со статусом SFS «Архивная» (6)."
 "If enabled, Fetch and daily sync also include Purchase eFactura with SFS status Archived (6).","Если включено, загрузка и ежедневная синхронизация также получают Purchase eFactura со статусом SFS «Архивная» (6)."
 "Found {0}, created {1}, updated {2}, skipped {3}, details {4}, errors {5}","Найдено {0}, создано {1}, обновлено {2}, пропущено {3}, детали {4}, ошибок {5}"
+Fetch has been queued.,Загрузка поставлена в очередь.
+The previous fetch is still running.,Предыдущая загрузка ещё выполняется.
 Fetch Supplier Invoices,Загрузить исходящие фактуры
 Fetching supplier invoices...,Загрузка исходящих фактур...
 All rows must link to the same Sales Invoice.,Все строки должны ссылаться на один счёт продажи.

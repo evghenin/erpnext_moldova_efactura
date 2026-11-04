@@ -297,6 +297,8 @@ Include Archived Invoices,Include facturile arhivate
 "If enabled, Fetch and daily sync also include Sales eFactura with SFS status Archived (6).","Dacă este activat, încărcarea și sincronizarea zilnică preiau și Sales eFactura cu statutul SFS Arhivată (6)."
 "If enabled, Fetch and daily sync also include Purchase eFactura with SFS status Archived (6).","Dacă este activat, încărcarea și sincronizarea zilnică preiau și Purchase eFactura cu statutul SFS Arhivată (6)."
 "Found {0}, created {1}, updated {2}, skipped {3}, details {4}, errors {5}","Găsite {0}, create {1}, actualizate {2}, omise {3}, detalii {4}, erori {5}"
+Fetch has been queued.,Încărcarea a fost pusă în coadă.
+The previous fetch is still running.,Încărcarea anterioară este încă în curs.
 Fetch Supplier Invoices,Încarcă facturi de ieșire
 Fetching supplier invoices...,Se încarcă facturile de ieșire...
 All rows must link to the same Sales Invoice.,Toate rândurile trebuie să fie legate de aceeași factură de vânzare.
