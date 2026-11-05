@@ -781,13 +781,17 @@ def get_xml_for_sign(name: str):
 	doc = _get_purchase_efactura(name)
 	_require_signable(doc)
 	client = EFacturaAPIClient.from_settings(company=doc.company, timeout=ACTION_READ_TIMEOUT)
-	resp = client.get_invoices_by_seria_number(
-		[{"Seria": doc.ef_series, "Number": doc.ef_number}]
-	)
-	invs = extract_invoices(resp)
-	xml = invoice_xml(invs[0]) if invs else ""
+	# Ghid de integrare, 5.5: XML for the next signature comes from GetInvoicesForSigning.
+	# Order 2 is the invoice already signed by the supplier.
+	resp = client.get_invoices_for_signing(actor_role=2, order=2)
+	wanted = (str(doc.ef_series), str(doc.ef_number))
+	xml = ""
+	for inv in extract_invoices(resp):
+		if (str(inv.get("Seria") or ""), str(inv.get("Number") or "")) == wanted:
+			xml = invoice_xml(inv)
+			break
 	if not xml:
-		frappe.throw(_("No XML returned from e-Factura for signing"))
+		frappe.throw(_("e-Factura did not return {0}{1} for buyer signing.").format(doc.ef_series, doc.ef_number))
 
 	xml_bytes = xml.encode("utf-8") if isinstance(xml, str) else xml
 	parser = etree.XMLParser(remove_blank_text=True)
@@ -844,13 +848,13 @@ def process_signed_xml(name: str, signature: str, content: str):
 
 
 def _buyer_signed_documents(content_xml: str, signature_xml: str) -> str:
-	"""Place the buyer signature inside Document. Documents may contain only Document."""
+	"""Place the buyer signature inside Document, in the same SignedDoc envelope as the supplier signature."""
 	import uuid
 	buyer = (
-		"<SignatureContent>"
+		"<SignatureContent><SignedDoc>"
 		f'<hash Id="_{uuid.uuid4()}">Hash is incapsulated into the signature</hash>'
 		f"{signature_xml}"
-		"</SignatureContent>"
+		"</SignedDoc></SignatureContent>"
 	)
 	body = (content_xml or "").strip()
 	if "</Signatures>" in body:
