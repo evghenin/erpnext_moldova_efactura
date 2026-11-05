@@ -770,17 +770,13 @@ def get_xml_for_sign(name: str):
 	doc = _get_purchase_efactura(name)
 	_require_signable(doc)
 	client = EFacturaAPIClient.from_settings(company=doc.company)
-	# Ghid de integrare, 5.5: XML for the next signature comes from GetInvoicesForSigning.
-	# Order 2 is the invoice already signed by the supplier.
-	resp = client.get_invoices_for_signing(actor_role=2, order=2)
-	wanted = (str(doc.ef_series), str(doc.ef_number))
-	xml = ""
-	for inv in extract_invoices(resp):
-		if (str(inv.get("Seria") or ""), str(inv.get("Number") or "")) == wanted:
-			xml = invoice_xml(inv)
-			break
+	resp = client.get_invoices_by_seria_number(
+		[{"Seria": doc.ef_series, "Number": doc.ef_number}]
+	)
+	invs = extract_invoices(resp)
+	xml = invoice_xml(invs[0]) if invs else ""
 	if not xml:
-		frappe.throw(_("e-Factura did not return {0}{1} for buyer signing.").format(doc.ef_series, doc.ef_number))
+		frappe.throw(_("No XML returned from e-Factura for signing"))
 
 	xml_bytes = xml.encode("utf-8") if isinstance(xml, str) else xml
 	parser = etree.XMLParser(remove_blank_text=True)
@@ -831,6 +827,7 @@ def process_signed_xml(name: str, signature: str, content: str):
 
 def _buyer_signed_documents(content_xml: str, signature_xml: str) -> str:
 	"""Place the buyer signature inside Document, in the same SignedDoc envelope as the supplier signature."""
+	import re
 	import uuid
 	buyer = (
 		"<SignatureContent><SignedDoc>"
@@ -838,7 +835,8 @@ def _buyer_signed_documents(content_xml: str, signature_xml: str) -> str:
 		f"{signature_xml}"
 		"</SignedDoc></SignatureContent>"
 	)
-	body = (content_xml or "").strip()
+	# PostInvoices rejects OtherInfo. Sales XML never emits it.
+	body = re.sub(r'\s+OtherInfo="[^"]*"', "", (content_xml or "").strip())
 	if "</Signatures>" in body:
 		body = body.replace("</Signatures>", buyer + "</Signatures>", 1)
 	elif "</Document>" in body:
