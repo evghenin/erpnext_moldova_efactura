@@ -237,11 +237,19 @@ frappe.ui.form.on('Sales eFactura', {
                         freeze: true,
                         freeze_message: __("Updating e-Factura status..."),
                         callback: (r) => {
+                            if (r.exc || !r.message) {
+                                return;
+                            }
+                            const changed = !!r.message.changed;
                             frappe.show_alert({
-                                message: __("e-Factura status updated successfully."),
-                                indicator: "green",
+                                message: changed
+                                    ? __("e-Factura status updated successfully.")
+                                    : __("e-Factura status is unchanged."),
+                                indicator: changed ? "green" : "orange",
                             }, 5);
-                            frm.reload_doc();
+                            if (changed) {
+                                frm.reload_doc();
+                            }
                         },
                     });
                 },

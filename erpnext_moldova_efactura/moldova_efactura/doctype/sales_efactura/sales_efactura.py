@@ -759,7 +759,9 @@ class SaleseFactura(Document):
             if client is None:
                 from erpnext_moldova_efactura.api_client import EFacturaAPIClient
 
-                client = EFacturaAPIClient.from_settings(company=self.company)
+                client = EFacturaAPIClient.from_settings(
+                    company=self.company, timeout=ACTION_READ_TIMEOUT
+                )
             return client
 
         try:
@@ -899,12 +901,14 @@ def download_xml(efactura_name):
 @frappe.whitelist()
 def update_ef_status(efactura_name):
     efactura = _get_sales_efactura(efactura_name)
-    client = EFacturaAPIClient.from_settings(company=efactura.company)
+    client = EFacturaAPIClient.from_settings(company=efactura.company, timeout=ACTION_READ_TIMEOUT)
 
+    before = efactura.ef_status
     if not efactura.ef_series or not efactura.ef_number:
         # List of statuses to check in sequence (eFactura API requires status filter)
         search_statuses = [0,1,7,8,3,2,5,10,4,6,9]
         inv = None
+        last_error = None
         for status in search_statuses:
             params = {
                 "APIeInvoiceId": efactura.name,
@@ -912,7 +916,8 @@ def update_ef_status(efactura_name):
             }
             try:
                 resp = client.search_invoices(actor_role=1, parameters=params)
-            except EFacturaAPIError:
+            except EFacturaAPIError as exc:
+                last_error = exc
                 continue
             inv = _extract_single_invoice_from_search_response(resp)
             if inv:
@@ -921,35 +926,52 @@ def update_ef_status(efactura_name):
         if isinstance(inv, list):
             frappe.throw(_("e-Factura returned multiple invoices for APIeInvoiceId={0}: {1}").format(efactura.name, len(inv)))
 
-        if isinstance(inv, dict):
-            remote_series = (inv.get("Seria") or "").strip()
-            remote_number = (inv.get("Number") or "").strip()
-            remote_status = inv.get("InvoiceStatus")
-        
-            if remote_series and remote_number and remote_status is not None:
-                assigned = not (efactura.ef_series and efactura.ef_number)
-                efactura.db_set("ef_series", remote_series, update_modified=False)
-                efactura.db_set("ef_number", remote_number, update_modified=False)
-                efactura.db_set("ef_status", sef_status_label(remote_status), update_modified=False)
-                efactura.set_status()
-                if assigned:
-                    log_event(
-                        efactura,
-                        "assigned series and number {0}{1} from e-Factura",
-                        remote_series,
-                        remote_number,
-                    ) 
+        if not isinstance(inv, dict):
+            if last_error:
+                frappe.throw(_("e-Factura API Error: {0}").format(str(last_error)))
+            frappe.throw(_("e-Factura did not return a status for {0}").format(efactura.name))
 
+        remote_series = (inv.get("Seria") or "").strip()
+        remote_number = (inv.get("Number") or "").strip()
+        remote_status = inv.get("InvoiceStatus")
+        if not remote_series or not remote_number or remote_status is None:
+            frappe.throw(_("e-Factura did not return a status for {0}").format(efactura.name))
+
+        label = sef_status_label(remote_status)
+        efactura.db_set("ef_series", remote_series, update_modified=False)
+        efactura.db_set("ef_number", remote_number, update_modified=False)
+        efactura.ef_series = remote_series
+        efactura.ef_number = remote_number
+        if label != before:
+            efactura.db_set("ef_status", label, update_modified=False)
+            efactura.ef_status = label
+            efactura.set_status()
+        log_event(
+            efactura,
+            "assigned series and number {0}{1} from e-Factura",
+            remote_series,
+            remote_number,
+        )
+        changed = True
     else:
         identifiers = [{"Seria": efactura.ef_series, "Number": efactura.ef_number}]
         statuses = _status_map_with_fallback(client, identifiers)
 
         key = (str(efactura.ef_series), str(efactura.ef_number))
         status = statuses.get(key)
+        if status is None:
+            frappe.throw(
+                _("e-Factura did not return a status for {0}{1}").format(efactura.ef_series, efactura.ef_number)
+            )
 
-        if status is not None and sef_status_label(status) != efactura.ef_status:
-            efactura.db_set("ef_status", sef_status_label(status), update_modified=False)
+        label = sef_status_label(status)
+        changed = label != before
+        if changed:
+            efactura.db_set("ef_status", label, update_modified=False)
+            efactura.ef_status = label
             efactura.set_status()
+
+    return {"ef_status": efactura.ef_status, "changed": changed}
 
 
 def _status_map_with_fallback(client, identifiers):

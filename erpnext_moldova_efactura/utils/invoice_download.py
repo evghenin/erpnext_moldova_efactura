@@ -6,6 +6,7 @@ import frappe
 from frappe import _
 
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient
+from erpnext_moldova_efactura.tasks.schedule import ACTION_READ_TIMEOUT
 
 
 def download_sfs_pdf(doc, actor_role: int) -> None:
@@ -13,7 +14,7 @@ def download_sfs_pdf(doc, actor_role: int) -> None:
 	if not doc.ef_series or not doc.ef_number:
 		frappe.throw(_("eFactura Series/Number is required to download PDF"))
 
-	client = EFacturaAPIClient.from_settings(company=doc.company)
+	client = EFacturaAPIClient.from_settings(company=doc.company, timeout=ACTION_READ_TIMEOUT)
 	response = client.get_invoices_content_for_print(
 		seria_and_numbers={"Seria": doc.ef_series, "Number": doc.ef_number},
 		actor_role=actor_role,

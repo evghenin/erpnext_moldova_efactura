@@ -190,11 +190,17 @@ frappe.ui.form.on("Purchase eFactura", {
 						freeze: true,
 						freeze_message: __("Updating e-Factura status..."),
 						callback(r) {
-							if (!r.exc) {
-								frappe.show_alert({
-									message: __("e-Factura status updated successfully."),
-									indicator: "green",
-								});
+							if (r.exc || !r.message) {
+								return;
+							}
+							const changed = !!r.message.changed;
+							frappe.show_alert({
+								message: changed
+									? __("e-Factura status updated successfully.")
+									: __("e-Factura status is unchanged."),
+								indicator: changed ? "green" : "orange",
+							});
+							if (changed) {
 								frm.reload_doc();
 							}
 						},

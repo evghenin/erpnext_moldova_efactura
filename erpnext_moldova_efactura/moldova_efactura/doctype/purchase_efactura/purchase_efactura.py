@@ -523,7 +523,7 @@ class PurchaseeFactura(Document):
 		self.apply_item_maps()
 
 	def refresh_from_api(self):
-		client = EFacturaAPIClient.from_settings(company=self.company)
+		client = EFacturaAPIClient.from_settings(company=self.company, timeout=ACTION_READ_TIMEOUT)
 		resp = client.get_invoices_by_seria_number(
 			[{"Seria": self.ef_series, "Number": self.ef_number}]
 		)
@@ -731,7 +731,7 @@ def download_xml(name: str):
 	if not doc.ef_series or not doc.ef_number:
 		frappe.throw(_("eFactura Series/Number is required to download XML"))
 
-	client = EFacturaAPIClient.from_settings(company=doc.company)
+	client = EFacturaAPIClient.from_settings(company=doc.company, timeout=ACTION_READ_TIMEOUT)
 	resp = client.get_invoices_by_seria_number(
 		[{"Seria": doc.ef_series, "Number": doc.ef_number}]
 	)
@@ -881,8 +881,17 @@ def update_status(name: str):
 	doc = _get_purchase_efactura(name)
 	if not doc.ef_series or not doc.ef_number:
 		frappe.throw(_("eFactura Series/Number is required to update status"))
-	_refresh_status(doc)
-	return {"status": doc.status, "ef_status": doc.ef_status}
+	before = doc.ef_status
+	client = EFacturaAPIClient.from_settings(company=doc.company, timeout=ACTION_READ_TIMEOUT)
+	identifiers = [{"Seria": doc.ef_series, "Number": doc.ef_number}]
+	statuses = check_invoices_status_map(client, identifiers)
+	status = statuses.get((str(doc.ef_series), str(doc.ef_number)))
+	if status is None:
+		frappe.throw(
+			_("e-Factura did not return a status for {0}{1}").format(doc.ef_series, doc.ef_number)
+		)
+	doc.persist_sfs_status(status)
+	return {"status": doc.status, "ef_status": doc.ef_status, "changed": doc.ef_status != before}
 
 
 @frappe.whitelist()
