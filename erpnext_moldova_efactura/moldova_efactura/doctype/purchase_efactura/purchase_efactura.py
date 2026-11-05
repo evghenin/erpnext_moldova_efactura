@@ -808,7 +808,6 @@ def process_signed_xml(name: str, signature: str, content: str):
 	"""Post buyer-signed XML to SFS (ActorRole=2). Same envelope pattern as supplier."""
 	import base64
 	import re
-	import uuid
 
 	doc = _get_purchase_efactura(name)
 	_require_signable(doc)
@@ -824,14 +823,7 @@ def process_signed_xml(name: str, signature: str, content: str):
 
 	content_xml = _strip_xml_declaration(_b64_to_text(content))
 	signature_xml = _strip_xml_declaration(_b64_to_text(signature))
-	wrapped = (
-		'<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n'
-		"<Documents>\n"
-		f'<hash Id="_{uuid.uuid4()}">Hash is incapsulated into the signature</hash>\n'
-		f"{signature_xml}\n"
-		f"{content_xml}\n"
-		"</Documents>"
-	)
+	wrapped = _buyer_signed_documents(content_xml, signature_xml)
 
 	client = EFacturaAPIClient.from_settings(company=doc.company, timeout=ACTION_READ_TIMEOUT)
 	before = doc.ef_status
@@ -849,6 +841,27 @@ def process_signed_xml(name: str, signature: str, content: str):
 	_refresh_status(doc)
 	log_event(doc, "signed this document in e-Factura (buyer)")
 	return {"status": doc.status, "ef_status": doc.ef_status}
+
+
+def _buyer_signed_documents(content_xml: str, signature_xml: str) -> str:
+	"""Place the buyer signature inside Document. Documents may contain only Document."""
+	import uuid
+	buyer = (
+		"<SignatureContent>"
+		f'<hash Id="_{uuid.uuid4()}">Hash is incapsulated into the signature</hash>'
+		f"{signature_xml}"
+		"</SignatureContent>"
+	)
+	body = (content_xml or "").strip()
+	if "</Signatures>" in body:
+		body = body.replace("</Signatures>", buyer + "</Signatures>", 1)
+	elif "</Document>" in body:
+		body = body.replace("</Document>", "<Signatures>" + buyer + "</Signatures></Document>", 1)
+	else:
+		frappe.throw(_("Invoice XML has no Document to attach the buyer signature to."))
+	if not body.lstrip().startswith("<Documents"):
+		body = f"<Documents>\n{body}\n</Documents>"
+	return '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n' + body
 
 
 def _status_changed_to(doc, before, label: str) -> bool:
