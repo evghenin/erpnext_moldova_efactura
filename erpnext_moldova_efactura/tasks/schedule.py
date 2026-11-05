@@ -17,6 +17,8 @@ JOB_TIMEOUT = 30 * 60
 # Buyer/supplier search is many SearchInvoices calls of up to 120 seconds, plus XML loads.
 FETCH_JOB_TIMEOUT = 4 * 60 * 60
 SEARCH_READ_TIMEOUT = 120
+# User actions (sign, accept, reject, cancel, register) use the same read budget.
+ACTION_READ_TIMEOUT = SEARCH_READ_TIMEOUT
 # One hourly pass checks at most 50 drafts, each with up to 11 SearchInvoices reads.
 DRAFT_JOB_TIMEOUT = 50 * 11 * SEARCH_READ_TIMEOUT + STAGGER_MAX_SECONDS
 

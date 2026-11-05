@@ -9,10 +9,12 @@ from frappe.model.document import Document
 from frappe.utils import cint, cstr, flt, get_time, now_datetime
 
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient
+from erpnext_moldova_efactura.tasks.schedule import ACTION_READ_TIMEOUT
 from erpnext_moldova_efactura.utils.api_response import (
 	check_invoices_status_map,
 	extract_invoices,
 	invoice_xml,
+	is_sfs_read_timeout,
 	sfs_action_error as _sfs_action_error,
 )
 from erpnext_moldova_efactura.utils.buyer_status import (
@@ -668,10 +670,14 @@ def fetch_details(name: str):
 def accept_invoice(name: str):
 	doc = _get_purchase_efactura(name)
 	_require_actionable(doc)
-	client = EFacturaAPIClient.from_settings(company=doc.company)
+	client = EFacturaAPIClient.from_settings(company=doc.company, timeout=ACTION_READ_TIMEOUT)
+	before = doc.ef_status
 	try:
 		resp = client.post_accepted_invoices([{"Seria": doc.ef_series, "Number": doc.ef_number}])
 	except Exception as e:
+		if is_sfs_read_timeout(e) and _status_changed_to(doc, before, "Accepted"):
+			log_event(doc, "accepted this document in e-Factura")
+			return {"status": doc.status, "ef_status": doc.ef_status}
 		frappe.throw(_("e-Factura API Error: {0}").format(str(e)))
 	err = _sfs_action_error(resp)
 	if err:
@@ -689,7 +695,8 @@ def reject_invoice(name: str, reason: str | None = None):
 	if not comment:
 		frappe.throw(_("Rejection Reason is required"))
 
-	client = EFacturaAPIClient.from_settings(company=doc.company)
+	client = EFacturaAPIClient.from_settings(company=doc.company, timeout=ACTION_READ_TIMEOUT)
+	before = doc.ef_status
 	try:
 		resp = client.post_rejected_invoices(
 			[
@@ -701,6 +708,10 @@ def reject_invoice(name: str, reason: str | None = None):
 			]
 		)
 	except Exception as e:
+		if is_sfs_read_timeout(e) and _status_changed_to(doc, before, "Rejected"):
+			doc.db_set("rejection_reason", comment, update_modified=False)
+			log_event(doc, "rejected this document in e-Factura: {0}", comment)
+			return {"status": doc.status, "ef_status": doc.ef_status, "rejection_reason": comment}
 		frappe.throw(_("e-Factura API Error: {0}").format(str(e)))
 	err = _sfs_action_error(resp)
 	if err:
@@ -769,7 +780,7 @@ def get_xml_for_sign(name: str):
 
 	doc = _get_purchase_efactura(name)
 	_require_signable(doc)
-	client = EFacturaAPIClient.from_settings(company=doc.company)
+	client = EFacturaAPIClient.from_settings(company=doc.company, timeout=ACTION_READ_TIMEOUT)
 	resp = client.get_invoices_by_seria_number(
 		[{"Seria": doc.ef_series, "Number": doc.ef_number}]
 	)
@@ -822,19 +833,42 @@ def process_signed_xml(name: str, signature: str, content: str):
 		"</Documents>"
 	)
 
-	client = EFacturaAPIClient.from_settings(company=doc.company)
-	client.post_invoices(
-		actor_role=2,
-		invoices_xml=wrapped,
-		invoices_xml_status=1,
-	)
+	client = EFacturaAPIClient.from_settings(company=doc.company, timeout=ACTION_READ_TIMEOUT)
+	before = doc.ef_status
+	try:
+		client.post_invoices(
+			actor_role=2,
+			invoices_xml=wrapped,
+			invoices_xml_status=1,
+		)
+	except Exception as e:
+		if not (is_sfs_read_timeout(e) and _buyer_status_moved(doc, before)):
+			frappe.throw(_("e-Factura API Error: {0}").format(str(e)))
+		log_event(doc, "signed this document in e-Factura (buyer)")
+		return {"status": doc.status, "ef_status": doc.ef_status}
 	_refresh_status(doc)
 	log_event(doc, "signed this document in e-Factura (buyer)")
 	return {"status": doc.status, "ef_status": doc.ef_status}
 
 
+def _status_changed_to(doc, before, label: str) -> bool:
+	try:
+		_refresh_status(doc)
+	except Exception:
+		return False
+	return doc.ef_status != before and doc.ef_status == label
+
+
+def _buyer_status_moved(doc, before) -> bool:
+	try:
+		_refresh_status(doc)
+	except Exception:
+		return False
+	return doc.ef_status != before
+
+
 def _refresh_status(doc):
-	client = EFacturaAPIClient.from_settings(company=doc.company)
+	client = EFacturaAPIClient.from_settings(company=doc.company, timeout=ACTION_READ_TIMEOUT)
 	identifiers = [{"Seria": doc.ef_series, "Number": doc.ef_number}]
 	statuses = check_invoices_status_map(client, identifiers)
 	key = (str(doc.ef_series), str(doc.ef_number))

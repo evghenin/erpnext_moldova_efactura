@@ -1,6 +1,8 @@
 # Copyright (c) 2026, Evgheni Nemerenco and Contributors
 # See license.txt
 
+from unittest.mock import patch
+
 from frappe.tests.utils import FrappeTestCase
 from frappe.utils import get_datetime
 
@@ -84,6 +86,29 @@ class TestSearchWindows(FrappeTestCase):
 		span = client.calls[0]["IssuedOn"]["EndDate"] - client.calls[0]["IssuedOn"]["StartDate"]
 		self.assertGreater(span.total_seconds(), 300 * 24 * 3600)
 
+	@patch("erpnext_moldova_efactura.utils.search_windows.time.sleep")
+	def test_http_500_retries_then_slices_year(self, sleep):
+		start = get_datetime("2025-11-05 06:38:52")
+		end = get_datetime("2026-11-05 06:38:52")
+		client = _Http500ThenOkClient(fail_full_range=2)
+		rows = list(
+			iter_search_invoices(
+				client,
+				actor_role=1,
+				invoice_status=5,
+				date_from=start,
+				date_to=end,
+				error_title="test",
+				recover_http_500=True,
+			)
+		)
+		sleep.assert_called_once()
+		self.assertGreater(len(client.calls), 2)
+		self.assertEqual(len(rows), len(client.calls) - 2)
+		for call in client.calls[2:]:
+			span = call["IssuedOn"]["EndDate"] - call["IssuedOn"]["StartDate"]
+			self.assertLessEqual(span.days, 90)
+
 
 class _FakeSearchClient:
 	def __init__(self):
@@ -91,6 +116,20 @@ class _FakeSearchClient:
 
 	def search_invoices(self, actor_role, parameters, request_id=None):
 		self.calls.append(parameters)
+		return {"Results": {"Invoice": [{"Seria": "A", "Number": str(len(self.calls))}]}}
+
+
+class _Http500ThenOkClient:
+	def __init__(self, fail_full_range):
+		self.fail_full_range = fail_full_range
+		self.calls = []
+
+	def search_invoices(self, actor_role, parameters, request_id=None):
+		self.calls.append(parameters)
+		issued = parameters["IssuedOn"]
+		if (issued["EndDate"] - issued["StartDate"]).days > 90 and self.fail_full_range:
+			self.fail_full_range -= 1
+			raise EFacturaAPIError("Transport error in SearchInvoices: HTTP 500")
 		return {"Results": {"Invoice": [{"Seria": "A", "Number": str(len(self.calls))}]}}
 
 

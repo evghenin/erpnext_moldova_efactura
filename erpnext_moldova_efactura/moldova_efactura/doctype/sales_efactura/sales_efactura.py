@@ -19,7 +19,13 @@ from frappe.model.document import Document
 from frappe.model.mapper import get_mapped_doc
 from frappe.utils import cint, flt
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient, EFacturaAPIError
-from erpnext_moldova_efactura.utils.api_response import check_invoices_status_map, sfs_action_error
+from erpnext_moldova_efactura.tasks.schedule import ACTION_READ_TIMEOUT
+from erpnext_moldova_efactura.utils.api_response import (
+    check_invoices_status_map,
+    extract_invoices,
+    is_sfs_read_timeout,
+    sfs_action_error,
+)
 from erpnext_moldova_efactura.utils.taxpayer_type import taxpayer_type_from_sfs, taxpayer_type_to_sfs
 from erpnext_moldova_efactura.utils.timeline import log_event, log_status_change
 from lxml import etree
@@ -979,8 +985,40 @@ def _assert_can_cancel(doc):
         )
 
 
+def _status_changed_to(doc, before, label: str) -> bool:
+    try:
+        _refresh_sfs_status(doc)
+    except Exception:
+        return False
+    return doc.ef_status != before and doc.ef_status == label
+
+
+def _unsigned_invoice_landed(client, name: str) -> bool:
+    try:
+        resp = client.search_invoices(
+            actor_role=1,
+            parameters={"InvoiceStatus": 0, "APIInvoiceId": name},
+        )
+    except Exception:
+        return False
+    return bool(extract_invoices(resp))
+
+
+def _finish_unsigned_send(efactura, posted):
+    efactura.db_set("ef_status", SEF_REGISTERED_AS_DRAFT, update_modified=False)
+    efactura.set_status()
+    # series and number are assigned only after signing in eFactura system,
+    # so we need to clear them for unsigned invoices to avoid confusion
+    efactura.db_set("ef_series", None, update_modified=False)
+    efactura.db_set("ef_number", None, update_modified=False)
+    log_event(efactura, "sent unsigned invoice to e-Factura (draft)")
+    return {
+        "message": _("Successfully sent {0} unsigned invoice(s) to e-Factura system.").format(posted)
+    }
+
+
 def _refresh_sfs_status(doc):
-    client = EFacturaAPIClient.from_settings(company=doc.company)
+    client = EFacturaAPIClient.from_settings(company=doc.company, timeout=ACTION_READ_TIMEOUT)
     statuses = _status_map_with_fallback(
         client, [{"Seria": doc.ef_series, "Number": doc.ef_number}]
     )
@@ -1001,7 +1039,8 @@ def cancel_invoice(name: str, reason: str | None = None):
     if not comment:
         frappe.throw(_("Cancellation Reason is required"))
 
-    client = EFacturaAPIClient.from_settings(company=doc.company)
+    client = EFacturaAPIClient.from_settings(company=doc.company, timeout=ACTION_READ_TIMEOUT)
+    before = doc.ef_status
     try:
         resp = client.post_canceled_invoices(
             [
@@ -1013,6 +1052,10 @@ def cancel_invoice(name: str, reason: str | None = None):
             ]
         )
     except Exception as e:
+        if is_sfs_read_timeout(e) and _status_changed_to(doc, before, "Canceled by Supplier"):
+            doc.db_set("cancellation_reason", comment, update_modified=False)
+            log_event(doc, "canceled this document in e-Factura: {0}", comment)
+            return {"status": doc.status, "ef_status": doc.ef_status, "cancellation_reason": comment}
         frappe.throw(_("e-Factura API Error: {0}").format(str(e)))
     err = sfs_action_error(resp)
     if err:
@@ -1068,7 +1111,7 @@ def get_for_sign(efactura_name):
     ef_lang = frappe.db.get_single_value("eFactura Settings", "language")
 
     if not efactura.ef_series or not efactura.ef_number:
-        client = EFacturaAPIClient.from_settings(company=efactura.company)
+        client = EFacturaAPIClient.from_settings(company=efactura.company, timeout=ACTION_READ_TIMEOUT)
         resp = client.get_series_and_numbers(count=1)
         data = resp.get("Results", {}).get("SeriaAndNumber", [{}])[0]
 
@@ -1117,14 +1160,19 @@ def send_unsigned(efactura_name):
     _assert_can_register_signed(efactura)
     ef_lang = frappe.db.get_single_value("eFactura Settings", "language")
 
-    client = EFacturaAPIClient.from_settings(company=efactura.company)
+    client = EFacturaAPIClient.from_settings(company=efactura.company, timeout=ACTION_READ_TIMEOUT)
 
     xml_content = _generate_invoice_xml(
         efactura=efactura,
         language=ef_lang,
     )
 
-    resp = _post_outgoing_invoices(client, efactura, xml_content, 0)
+    try:
+        resp = _post_outgoing_invoices(client, efactura, xml_content, 0)
+    except Exception as e:
+        if is_sfs_read_timeout(e) and _unsigned_invoice_landed(client, efactura.name):
+            return _finish_unsigned_send(efactura, posted=1)
+        frappe.throw(_("e-Factura API Error: {0}").format(str(e)))
 
     error_message = _invoice_post_error_message(resp)
     total = resp.get("TotalInvoices", 0)
@@ -1137,17 +1185,7 @@ def send_unsigned(efactura_name):
         frappe.throw(_("e-Factura API Error: Invoices posted: {0} / {1}").format(posted, total))
 
     else:
-        efactura.db_set("ef_status", SEF_REGISTERED_AS_DRAFT, update_modified=False)
-        efactura.set_status()
-        # series and number are assigned only after signing in eFactura system, 
-        # so we need to clear them for unsigned invoices to avoid confusion
-        efactura.db_set("ef_series", None, update_modified=False)
-        efactura.db_set("ef_number", None, update_modified=False)
-        log_event(efactura, "sent unsigned invoice to e-Factura (draft)")
-        return {
-            "message": _("Successfully sent {0} unsigned invoice(s) to e-Factura system.").format(
-                posted
-        )}
+        return _finish_unsigned_send(efactura, posted)
 
 
 @frappe.whitelist()
@@ -1251,7 +1289,7 @@ def process_signed_xml(name, signature, content):
     _assert_can_register_signed(ef)
 
     # Send signed XML via PostInvoices
-    client = EFacturaAPIClient.from_settings(company=ef.company)
+    client = EFacturaAPIClient.from_settings(company=ef.company, timeout=ACTION_READ_TIMEOUT)
 
     # NOTE:
     # - send_unsigned() uses invoices_xml_status=0 (unsigned)

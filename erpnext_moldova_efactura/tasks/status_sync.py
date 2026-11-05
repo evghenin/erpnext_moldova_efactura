@@ -5,7 +5,7 @@ from frappe.utils import add_days, now_datetime
 
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient, EFacturaAPIError
 from erpnext_moldova_efactura.tasks.schedule import SEARCH_READ_TIMEOUT
-from erpnext_moldova_efactura.utils.api_response import check_invoices_status_map
+from erpnext_moldova_efactura.utils.api_response import check_invoices_status_resilient
 from erpnext_moldova_efactura.utils.company_api import get_sync_targets
 from erpnext_moldova_efactura.utils.fiscal_status import (
     SEF_CANCELED_BY_SUPPLIER,
@@ -81,8 +81,8 @@ def sync_efactura_statuses():
             continue
         seria_and_numbers = [{"Seria": row.ef_series, "Number": row.ef_number} for row in company_docs]
         try:
-            client = EFacturaAPIClient.from_settings(company=company)
-            statuses = check_invoices_status_map(client, seria_and_numbers)
+            client = EFacturaAPIClient.from_settings(company=company, timeout=SEARCH_READ_TIMEOUT)
+            statuses, failed_parts = check_invoices_status_resilient(client, seria_and_numbers)
         except Exception:
             frappe.log_error(
                 title=f"eFactura batch status request failed company={company}",
@@ -90,10 +90,20 @@ def sync_efactura_statuses():
             )
             errors += len(company_docs)
             continue
+        failed_keys = {(str(part["Seria"]), str(part["Number"])) for part in failed_parts}
+        if failed_keys:
+            frappe.log_error(
+                title=f"eFactura batch status request failed company={company}",
+                message="CheckInvoicesStatus timed out for "
+                + ", ".join(f"{seria}{number}" for seria, number in sorted(failed_keys)),
+            )
+            errors += len(failed_keys)
 
         for row in company_docs:
             try:
                 key = (str(row.ef_series), str(row.ef_number))
+                if key in failed_keys:
+                    continue
                 new_status = statuses.get(key)
 
                 if new_status is None:
@@ -201,6 +211,7 @@ def sync_efactura_cancelled_from_search_invoices():
             date_from=date_from,
             date_to=date_to,
             error_title=f"e-Factura SearchInvoices failed company={target['company']}",
+            recover_http_500=True,
         ):
             row = _cancelled_row_from_invoice(inv)
             if row:

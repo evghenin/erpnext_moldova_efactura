@@ -4,6 +4,7 @@ from __future__ import annotations
 
 # SFS GetTaxpayersInfo / XML TaxpayerType:
 # 1 — Juridic, 2 — Persoană fizică, 3 — Nerezident
+# Some supplier XML sends TaxpayerType 0 for a legal entity. Treat it as 1.
 # Stored Select values are English. Translate "Company" only with DocType context
 # (Purchase eFactura / Sales eFactura) so ERPNext's global Company label is unchanged.
 CODE_TO_LABEL = {
@@ -22,6 +23,8 @@ def taxpayer_type_from_sfs(value) -> str:
 	raw = str(value).strip()
 	if not raw:
 		return ""
+	if raw == "0":
+		return CODE_TO_LABEL["1"]
 	if raw in LABEL_TO_CODE:
 		return raw
 	return CODE_TO_LABEL.get(raw, raw)

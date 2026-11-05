@@ -69,11 +69,43 @@ def invoice_status_map(response: dict | None) -> dict[tuple[str, str], int]:
 	return out
 
 
+STATUS_TIMEOUT_CHUNK = 10
+
+
+def is_sfs_read_timeout(exc: BaseException) -> bool:
+	return "timed out" in str(exc).lower()
+
+
 def check_invoices_status_map(client, identifiers: list[dict]) -> dict[tuple[str, str], int]:
 	"""One CheckInvoicesStatus call for the whole list. No per-invoice retry."""
 	if not identifiers:
 		return {}
 	return invoice_status_map(client.check_invoices_status(seria_and_numbers=identifiers))
+
+
+def check_invoices_status_resilient(
+	client, identifiers: list[dict], *, chunk_size: int = STATUS_TIMEOUT_CHUNK
+) -> tuple[dict[tuple[str, str], int], list[dict]]:
+	"""Full list first. On read timeout, retry in chunks.
+
+	Returns the status map and the identifiers whose chunk still failed.
+	"""
+	if not identifiers:
+		return {}, []
+	try:
+		return check_invoices_status_map(client, identifiers), []
+	except Exception as exc:
+		if not is_sfs_read_timeout(exc) or len(identifiers) <= chunk_size:
+			raise
+	merged: dict[tuple[str, str], int] = {}
+	failed: list[dict] = []
+	for start in range(0, len(identifiers), chunk_size):
+		part = identifiers[start : start + chunk_size]
+		try:
+			merged.update(check_invoices_status_map(client, part))
+		except Exception:
+			failed.extend(part)
+	return merged, failed
 
 
 def sfs_action_error(resp) -> str | None:

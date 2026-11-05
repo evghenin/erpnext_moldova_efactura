@@ -1102,7 +1102,7 @@ class TestSaleseFactura(FrappeTestCase):
 			xml = client.post_invoices.call_args.kwargs["invoices_xml"]
 			self.assertLess(xml.index("<SupplierInfo/>"), xml.index("<AdditionalInformation>"))
 			self.assertLess(xml.index("<id>ACC-SEF-1</id>"), xml.index("<Signatures>"))
-			api.from_settings.assert_called_once_with(company="Hotel Life")
+			api.from_settings.assert_called_once_with(company="Hotel Life", timeout=120)
 			doc.db_set.assert_any_call("ef_status", "Signed by Supplier", update_modified=False)
 
 	def test_process_signed_xml_recovers_when_post_faults_but_sfs_registered(self):

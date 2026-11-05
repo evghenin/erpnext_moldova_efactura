@@ -9,7 +9,7 @@ from frappe.utils import add_days, cint, now_datetime
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient
 from erpnext_moldova_efactura.tasks.schedule import SEARCH_READ_TIMEOUT
 from erpnext_moldova_efactura.utils.api_response import (
-	check_invoices_status_map,
+	check_invoices_status_resilient,
 	extract_invoices,
 	invoice_xml,
 )
@@ -293,24 +293,35 @@ def sync_buyer_statuses(batch_size: int = 50) -> dict:
 		rows = get_buyer_status_sync_rows(target["company"], batch_size)
 		if not rows:
 			continue
-		client = EFacturaAPIClient.from_settings(company=target["company"])
+		client = EFacturaAPIClient.from_settings(
+			company=target["company"], timeout=SEARCH_READ_TIMEOUT
+		)
 		payload = [{"Seria": r.ef_series, "Number": r.ef_number} for r in rows]
 		try:
-			statuses = check_invoices_status_map(client, payload)
+			statuses, failed_parts = check_invoices_status_resilient(client, payload)
 		except Exception:
 			frappe.log_error(
 				title=f"Purchase eFactura status sync failed company={target['company']}",
 				message=frappe.get_traceback(),
 			)
 			continue
+		failed_keys = {(str(part["Seria"]), str(part["Number"])) for part in failed_parts}
+		if failed_keys:
+			frappe.log_error(
+				title=f"Purchase eFactura status sync failed company={target['company']}",
+				message="CheckInvoicesStatus timed out for "
+				+ ", ".join(f"{seria}{number}" for seria, number in sorted(failed_keys)),
+			)
 		for row in rows:
 			key = (str(row.ef_series), str(row.ef_number))
+			if key in failed_keys:
+				continue
 			new_status = statuses.get(key)
 			doc = frappe.get_doc("Purchase eFactura", row.name)
 			if new_status is not None and doc.ef_status != status_label(new_status):
 				updated += 1
 			doc.persist_sfs_status(new_status)
-		checked += len(rows)
+		checked += len(rows) - len(failed_keys)
 
 	frappe.db.commit()
 	return {"checked": checked, "updated": updated}

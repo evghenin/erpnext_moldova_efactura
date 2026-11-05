@@ -372,6 +372,9 @@ class TestEFacturaBuyerUtils(FrappeTestCase):
 
 	def test_taxpayer_type_mapping(self):
 		self.assertEqual(taxpayer_type_from_sfs("1"), "Company")
+		self.assertEqual(taxpayer_type_from_sfs("0"), "Company")
+		self.assertEqual(taxpayer_type_from_sfs(0), "Company")
+		self.assertEqual(taxpayer_type_to_sfs("Company"), "1")
 		self.assertEqual(taxpayer_type_from_sfs(2), "Individual")
 		self.assertEqual(taxpayer_type_from_sfs("3"), "Non-Resident")
 		self.assertEqual(taxpayer_type_from_sfs("Company"), "Company")
