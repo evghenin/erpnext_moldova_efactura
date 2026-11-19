@@ -7,16 +7,20 @@ from frappe import _
 from frappe.utils import add_days, cint, flt, now_datetime
 
 from erpnext_moldova_efactura.api_client import EFacturaAPIClient
-from erpnext_moldova_efactura.utils.api_response import extract_invoices, invoice_xml
-from erpnext_moldova_efactura.utils.fiscal_status import sef_status_label
+from erpnext_moldova_efactura.utils.api_response import (
+	check_invoices_status_resilient,
+	extract_invoices,
+	invoice_xml,
+)
 from erpnext_moldova_efactura.utils.buyer_status import (
 	SFS_ARCHIVED,
 	do_not_create_cancelled_invoices,
 	is_canceled_by_supplier,
 	load_archived_sales_efactura,
 )
-from erpnext_moldova_efactura.utils.invoice_xml import parse_invoice_xml
 from erpnext_moldova_efactura.utils.company_api import get_sync_targets
+from erpnext_moldova_efactura.utils.fiscal_status import SEF_PENDING_REGISTRATION, sef_status_label
+from erpnext_moldova_efactura.utils.invoice_xml import parse_invoice_xml
 from erpnext_moldova_efactura.utils.party import find_customer_by_idno, find_supplier_by_idno
 from erpnext_moldova_efactura.utils.search_windows import iter_search_invoices
 
@@ -34,7 +38,11 @@ def supplier_search_statuses() -> tuple[int, ...]:
 
 
 def sync_supplier_invoices(lookback_days: int | None = None, company: str | None = None) -> dict:
-	"""Search supplier invoices and upsert Sales eFactura docs that are missing locally."""
+	"""Search supplier invoices and upsert Sales eFactura docs that are missing locally.
+
+	Submitted invoices left in Pending Registration with series and number are refreshed
+	from the search result, or via CheckInvoicesStatus when SearchInvoices omits them.
+	"""
 	lookback_days = int(lookback_days or DEFAULT_LOOKBACK_DAYS)
 	totals = {
 		"found": 0,
@@ -60,6 +68,7 @@ def _sync_supplier_invoices_for_company(client, company: str, lookback_days: int
 	date_to = now_datetime()
 
 	seen: dict[tuple[str, str], int] = {}
+	pending_index = _pending_registration_index(company)
 	for st in supplier_search_statuses():
 		for inv in iter_search_invoices(
 			client,
@@ -89,14 +98,12 @@ def _sync_supplier_invoices_for_company(client, company: str, lookback_days: int
 				"Sales eFactura",
 				{"company": company, "ef_series": seria, "ef_number": number},
 			)
+			if not name and pending_index:
+				name = _match_indexed(pending_index, seria, number)
 			if name:
 				doc = frappe.get_doc("Sales eFactura", name)
-				label = sef_status_label(ef_status)
-				if doc.ef_status != label:
-					doc.db_set("ef_status", label, update_modified=False)
-					doc.set_status()
+				if _apply_remote_status(doc, ef_status, seria, number):
 					updated += 1
-				doc.db_set("last_status_check", now_datetime(), update_modified=False)
 				if _fill_details(client, doc.name):
 					details += 1
 				continue
@@ -148,6 +155,9 @@ def _sync_supplier_invoices_for_company(client, company: str, lookback_days: int
 				message=frappe.get_traceback(),
 			)
 
+	reconciled, reconcile_errors = _reconcile_pending_registration(client, company, seen)
+	updated += reconciled
+	errors += reconcile_errors
 	frappe.db.commit()
 	return {
 		"found": len(seen),
@@ -157,6 +167,191 @@ def _sync_supplier_invoices_for_company(client, company: str, lookback_days: int
 		"details_loaded": details,
 		"errors": errors,
 	}
+
+
+def _normalized_number(number: str) -> str | None:
+	text = str(number or "").strip()
+	if not text.isdigit():
+		return None
+	return text.lstrip("0") or "0"
+
+
+def _pending_registration_index(company: str) -> dict[tuple[str, str], str]:
+	"""Submitted Pending Registration docs that already have series and number."""
+	rows = frappe.get_all(
+		"Sales eFactura",
+		filters={
+			"company": company,
+			"docstatus": 1,
+			"ef_status": SEF_PENDING_REGISTRATION,
+		},
+		fields=["name", "ef_series", "ef_number"],
+	)
+	index: dict[tuple[str, str], str] = {}
+	for row in rows:
+		seria = str(row.ef_series or "").strip()
+		number = str(row.ef_number or "").strip()
+		if not seria or not number:
+			continue
+		index[(seria, number)] = row.name
+		norm = _normalized_number(number)
+		if norm and norm != number:
+			index.setdefault((seria, norm), row.name)
+	return index
+
+
+def _match_indexed(index: dict[tuple[str, str], str], seria: str, number: str) -> str | None:
+	seria = str(seria or "").strip()
+	number = str(number or "").strip()
+	found = index.get((seria, number))
+	if found:
+		return found
+	norm = _normalized_number(number)
+	if not norm:
+		return None
+	for (key_seria, key_number), name in index.items():
+		if key_seria != seria:
+			continue
+		if _normalized_number(key_number) == norm:
+			return name
+	return None
+
+
+def _lookup_remote_status(statuses: dict[tuple[str, str], int], seria: str, number: str):
+	"""Return (code, remote_seria, remote_number) for an exact or zero-padded match."""
+	seria = str(seria or "").strip()
+	number = str(number or "").strip()
+	if (seria, number) in statuses:
+		return statuses[(seria, number)], seria, number
+	norm = _normalized_number(number)
+	if not norm:
+		return None
+	for (remote_seria, remote_number), code in statuses.items():
+		if str(remote_seria).strip() != seria:
+			continue
+		if _normalized_number(remote_number) == norm:
+			return code, str(remote_seria).strip(), str(remote_number).strip()
+	return None
+
+
+def _align_series_number(doc, seria: str, number: str) -> None:
+	seria = str(seria or "").strip()
+	number = str(number or "").strip()
+	if not seria or not number:
+		return
+	if str(doc.ef_series or "").strip() == seria and str(doc.ef_number or "").strip() == number:
+		return
+	other = frappe.db.exists(
+		"Sales eFactura",
+		{
+			"company": doc.company,
+			"ef_series": seria,
+			"ef_number": number,
+			"name": ["!=", doc.name],
+			"docstatus": ["<", 2],
+		},
+	)
+	if other:
+		return
+	if str(doc.ef_series or "").strip() != seria:
+		doc.db_set("ef_series", seria, update_modified=False)
+		doc.ef_series = seria
+	if str(doc.ef_number or "").strip() != number:
+		doc.db_set("ef_number", number, update_modified=False)
+		doc.ef_number = number
+
+
+def _apply_remote_status(doc, code: int, seria: str | None = None, number: str | None = None) -> bool:
+	label = sef_status_label(code)
+	if not label:
+		doc.db_set("last_status_check", now_datetime(), update_modified=False)
+		return False
+	if seria and number:
+		_align_series_number(doc, seria, number)
+	changed = doc.ef_status != label
+	if changed:
+		doc.db_set("ef_status", label, update_modified=False)
+		doc.ef_status = label
+		doc.set_status()
+	doc.db_set("last_status_check", now_datetime(), update_modified=False)
+	return changed
+
+
+def _reconcile_pending_registration(
+	client, company: str, seen: dict[tuple[str, str], int]
+) -> tuple[int, int]:
+	"""Refresh submitted Pending Registration invoices that already have series and number.
+
+	SearchInvoices can miss an invoice that PostInvoices already accepted. CheckInvoicesStatus
+	uses the local series and number, the same lookup as Update Status.
+	"""
+	rows = frappe.get_all(
+		"Sales eFactura",
+		filters={
+			"company": company,
+			"docstatus": 1,
+			"ef_status": SEF_PENDING_REGISTRATION,
+		},
+		fields=["name", "ef_series", "ef_number"],
+	)
+	updated = errors = 0
+	to_check = []
+	for row in rows:
+		seria = str(row.ef_series or "").strip()
+		number = str(row.ef_number or "").strip()
+		if not seria or not number:
+			continue
+		found = _lookup_remote_status(seen, seria, number)
+		if found is None:
+			to_check.append(row)
+			continue
+		try:
+			doc = frappe.get_doc("Sales eFactura", row.name)
+			if _apply_remote_status(doc, found[0], found[1], found[2]):
+				updated += 1
+		except Exception:
+			errors += 1
+			frappe.log_error(
+				title=f"Sales eFactura pending status update failed {seria}{number} company={company}",
+				message=frappe.get_traceback(),
+			)
+
+	if not to_check:
+		return updated, errors
+
+	identifiers = [
+		{"Seria": str(row.ef_series).strip(), "Number": str(row.ef_number).strip()} for row in to_check
+	]
+	try:
+		statuses, failed_parts = check_invoices_status_resilient(client, identifiers)
+	except Exception:
+		frappe.log_error(
+			title=f"Sales eFactura pending CheckInvoicesStatus failed company={company}",
+			message=frappe.get_traceback(),
+		)
+		return updated, errors + len(to_check)
+
+	failed_keys = {(str(part.get("Seria")), str(part.get("Number"))) for part in failed_parts}
+	for row in to_check:
+		seria = str(row.ef_series).strip()
+		number = str(row.ef_number).strip()
+		if (seria, number) in failed_keys:
+			errors += 1
+			continue
+		found = _lookup_remote_status(statuses, seria, number)
+		if found is None:
+			continue
+		try:
+			doc = frappe.get_doc("Sales eFactura", row.name)
+			if _apply_remote_status(doc, found[0], found[1], found[2]):
+				updated += 1
+		except Exception:
+			errors += 1
+			frappe.log_error(
+				title=f"Sales eFactura pending status update failed {seria}{number} company={company}",
+				message=frappe.get_traceback(),
+			)
+	return updated, errors
 
 
 def _fetch_xml(client: EFacturaAPIClient, seria: str, number: str) -> str | None:

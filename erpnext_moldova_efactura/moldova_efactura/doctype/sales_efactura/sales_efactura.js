@@ -225,8 +225,19 @@ frappe.ui.form.on('Sales eFactura', {
                 },
                 __("eFactura Actions")
             );
+        }
 
-            if (frm.has_perm("write")) {
+        // Pending Registration with series/number: PostInvoices may have succeeded
+        // while the response was lost, so status can still be refreshed from SFS.
+        if (
+            !frm.is_new() &&
+            frm.doc.docstatus === 1 &&
+            frm.has_perm("write") &&
+            (
+                frm.doc.ef_status !== "Pending Registration" ||
+                (frm.doc.ef_series && frm.doc.ef_number)
+            )
+        ) {
             frm.add_custom_button(
                 __("Update Status"),
                 function () {
@@ -246,7 +257,6 @@ frappe.ui.form.on('Sales eFactura', {
                 },
                 __("eFactura Actions")
             );
-            }
         }
 
         if (

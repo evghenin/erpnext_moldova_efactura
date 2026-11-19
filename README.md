@@ -2,7 +2,7 @@
 
 ERPNext integration for Moldovan electronic tax invoices (e-Factura / SFS).
 
-Version **3.0.0**. Requires ERPNext / Frappe v15.
+Version **3.5.0**. Requires ERPNext / Frappe v15.
 
 Outgoing invoices are **Sales eFactura**. Incoming invoices are **Purchase eFactura**. Desk workspaces: **eFactura**, **eFactura Sales**, **eFactura Purchase**, **Factura Purchase**.
 
@@ -19,7 +19,7 @@ Version 3 adds **Purchase Factura (PF)** for fiscal invoices received outside th
 - A submitted Sales eFactura can be cancelled in ERPNext regardless of SFS status (Fetch can restore it from SFS). **Cancel** in SFS (comment required) is still limited to statuses the API accepts. Drafts in SFS can only be deleted in the SFS portal.
 - Optional **Include Archived Invoices** in eFactura Settings (Sales → Fetch / Sync; off by default) includes SFS status Archived (6) in Fetch / daily sync.
 - Bulk **Register Signed** and **Register Unsigned** from the Sales eFactura list. A confirmation lists ineligible documents (skipped) and eligible documents that will be processed.
-- Download XML / PDF, **Update Status**, and **Update Dates** (issue / delivery) while the invoice is still pending registration.
+- Download XML. **Update Dates** (issue / delivery) while pending registration. **Download PDF** after registration. **Update Status** after registration, and also in Pending Registration when series and number are already assigned, so a lost API response can be reconciled from SFS. **Fetch Supplier Invoices** applies that same refresh.
 - Multi-currency: document currency vs eFactura currency (`MDL`) with `ef_conversion_rate`.
 - Quantity guards against the linked Sales Invoice (block submit, exclude failed documents, warn on draft save).
 - 0% VAT lines are included in document totals (`net_total` / `total`); XML line amounts stay in sync.
@@ -247,7 +247,7 @@ cd $PATH_TO_YOUR_BENCH
 bench update --apps erpnext_moldova_efactura
 ```
 
-Confirm `bench version` shows `erpnext_moldova_efactura 3.0.0`. Version 3 adds `pypdf`, the Purchase Factura DocTypes, a Purchase Invoice link, and purchase workspace entries.
+Confirm `bench version` shows `erpnext_moldova_efactura 3.5.0`. Version 3 adds `pypdf`, the Purchase Factura DocTypes, a Purchase Invoice link, and purchase workspace entries. Version 3.5 refreshes a submitted Sales eFactura left in Pending Registration when series and number are already assigned, from Update Status and Fetch Supplier Invoices.
 
 Confirm that **Company IDNO Field** and **Supplier IDNO Field** are configured in eFactura Settings before creating or importing PF records. For paper photos, set **Gemini API Key** (and optionally **Gemini Model**, default `gemini-3.6-flash`). Configure the existing Purchase Tax Settings and supplier Item/UOM mappings used to create Purchase Invoices. Supplier payable-account currency must match its billing currency under the normal ERPNext rules.
 
